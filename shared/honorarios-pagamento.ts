@@ -94,6 +94,8 @@ export function erroDaDataPassada(v: unknown, hoje: string, rotulo: string): str
 export interface PrestacaoDoPagamento {
   rhStatus?: string | null;
   splitParentId?: string | null;
+  /** 28/10 (R7): a divisão só entra no fluxo com colaborador próprio. */
+  collaboratorId?: string | null;
   didNotAttend?: boolean | null;
   ocNumero?: string | null;
   pagoEm?: string | Date | null;
@@ -107,10 +109,14 @@ export interface NotaDoPagamento {
   oc?: string | null;
 }
 
-/** Etapa 4: a OC só depois da Conferência DP aprovar, uma por prestação. */
+/**
+ * Etapa 4: a OC só depois da Conferência DP aprovar, uma por prestação.
+ * 28/10 (R7): a divisão ("Dividir escalação", o substituto) com colaborador
+ * próprio é uma prestação própria — tem OC, NF e pago como as outras.
+ */
 export function podeRegistrarOc(p: PrestacaoDoPagamento | null | undefined): PermissaoDoPagamento {
   if (!p) return nao("nao_encontrada", "Prestação não encontrada.");
-  if (p.splitParentId) return nao("divisao", "Divisão de vaga: a OC é registrada na prestação principal.");
+  if (p.splitParentId && p.collaboratorId === null) return nao("divisao_sem_colaborador", "Divisão de vaga sem colaborador — informe quem trabalhou no Realizado.");
   if (p.didNotAttend) return nao("nao_participou", "Marcada como \"não participou\" — não tem OC.");
   if (p.rhStatus !== "aprovado") return nao("nao_aprovada", "A OC só depois de a Conferência DP aprovar a prestação.");
   if (p.ocNumero) return nao("oc_ja_registrada", `Esta prestação já tem a OC ${p.ocNumero} — desfaça antes de registrar outra.`);
@@ -523,10 +529,22 @@ export function dataLimiteDoExpurgo(hoje: string, retencaoDias: number): string 
   return d.toISOString().slice(0, 10);
 }
 
-/** A prestação foi paga há MAIS que o prazo? (paga exatamente no limite ainda fica.) */
-export const pagamentoPassouDaGuarda = (pagoEm: string | Date | null | undefined, hoje: string, retencaoDias: number): boolean => {
+/** 00:00 do dia em Brasília (UTC−3, sem horário de verão desde 2019) como instante. */
+export const inicioDoDiaEmBrasilia = (dia: string): Date => new Date(`${dia}T03:00:00Z`);
+
+/**
+ * A prestação foi paga há MAIS que o prazo? (paga exatamente no limite ainda fica.)
+ * 28/10 (S6): o prazo conta do MAIS RECENTE entre a data do pagamento e o
+ * registro dele (`pago_registrado_em`) — pagamento lançado hoje com data
+ * retroativa não apaga as fotos na hora. Sem o registro (dado antigo), vale a data.
+ */
+export const pagamentoPassouDaGuarda = (
+  pagoEm: string | Date | null | undefined, hoje: string, retencaoDias: number, registradoEm?: string | Date | null,
+): boolean => {
   const p = isoDe(pagoEm);
-  return !!p && p < dataLimiteDoExpurgo(hoje, retencaoDias);
+  const limite = dataLimiteDoExpurgo(hoje, retencaoDias);
+  if (!p || p >= limite) return false;
+  return !registradoEm || new Date(registradoEm).getTime() < inicioDoDiaEmBrasilia(limite).getTime();
 };
 
 /** Liga/desliga da rotina diária (system_settings). Padrão: ligada. */

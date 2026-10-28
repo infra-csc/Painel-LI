@@ -46,6 +46,7 @@ import {
   type BatchDraft,
 } from "@/components/accommodations/types";
 import { isCheckOutAfterCheckIn, isPostPurchaseStatus, toDateInput, toTitleCase } from "@/components/accommodations/utils";
+import { opcoesDeEvento as montarOpcoesDeEvento } from "@/components/common/opcoes-de-evento";
 
 
 /** `POST/PATCH /api/accommodations` devolvem a hospedagem + o status resultante da vaga (24/09). */
@@ -151,9 +152,8 @@ export default function Accommodations() {
 
   const opcoesDeEvento = useMemo<OpcaoDeFiltro[]>(() => {
     const n = contarPorOpcao(teamInclusionsWithAccommodation, filters, "eventId", ctxFiltro, refinarPeloBloco);
-    return (events ?? [])
-      .filter((e) => e.status !== "excluido" && e.status !== "excluído")
-      .map((e) => ({ id: e.id, nome: e.name, n: n.get(e.id) ?? 0 }));
+    // Com evento escolhido a lista veio só dele (28/10): os outros sem número, nem 0.
+    return montarOpcoesDeEvento(events, n, filters.eventId && filters.eventId !== "all" ? [filters.eventId] : []);
   }, [events, teamInclusionsWithAccommodation, filters, ctxFiltro, refinarPeloBloco]);
 
   const opcoesDeFuncao = useMemo<OpcaoDeFiltro[]>(() => {

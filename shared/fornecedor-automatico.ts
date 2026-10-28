@@ -5,24 +5,33 @@
  * algum dia passou o CNPJ, que seja aprovado o fornecedor automaticamente".
  *
  * Quando um CNPJ "passou" por um pagamento de honorário:
- *  - "oc"            → a prestação teve OC registrada (`budget_actual.oc_numero`);
  *  - "nota_aprovada" → a nota fiscal foi APROVADA pelo DP (`invoices.status =
- *                      'aprovada'`) — vale também a nota do fluxo antigo,
- *                      quando ela tem CNPJ (o da nota, `nf_cnpj`, ou o da
- *                      prestação ligada); nota antiga sem CNPJ não conta;
+ *                      'aprovada'`). Com CNPJ na prestação, só quando o da
+ *                      nota (`nf_cnpj`) é o MESMO (28/10, S1: o digitado na
+ *                      nota não liga ninguém a CNPJ alheio); nota do fluxo
+ *                      antigo (prestação sem CNPJ) vale pelo `nf_cnpj`;
  *  - "pago"          → o pagamento foi marcado (`budget_actual.pago_em`).
+ * 28/10 (R6): a OC registrada NÃO aprova — OC sem contrato ativo é pendência
+ * com justificativa, e aprovar ali apagava a pendência na hora.
  * O CNPJ da prestação é o do check-out final (`cnpj_emissor`) ou, sem ele, o
  * da confirmação do colaborador; o da nota é o `nf_cnpj` ou, sem ele, o da
  * prestação. Só CNPJ VÁLIDO (dígitos verificadores) conta.
  *
- * O efeito (planejarAprovacao): o CNPJ vira contrato ATIVO ligado a quem
- * passou com ele —
+ * O efeito (planejarAprovacao) — 28/10 (S1): o automático só CRIA contrato
+ * novo ou CONFIRMA contrato que já é de quem passou; vínculo novo a contrato
+ * existente nunca é automático (vira pendência do DP: "CNPJ já é de outro
+ * contrato") —
  *  - sem contrato do CNPJ          → CRIA um, origem "automatico", vigência
  *                                    aberta (desde o início do 1º evento em
- *                                    que passou, sem fim);
- *  - contrato vigente hoje         → só VINCULA quem ainda não está ligado;
- *  - contrato sem vigência (sem as → ABRE a vigência (mesmo início, sem fim) e
- *    duas datas) e não encerrado     vincula quem faltar;
+ *                                    que passou, sem fim), ligado a QUEM
+ *                                    PASSOU PRIMEIRO; os outros: pendência;
+ *  - contrato vigente hoje já com  → nada (já aprovado); quem passou e não
+ *    quem passou                     está no contrato: pendência;
+ *  - contrato sem vigência (sem as → ABRE a vigência (mesmo início, sem fim)
+ *    duas datas), não encerrado,     — só quando já é de quem passou;
+ *    de quem passou
+ *  - contrato de outra pessoa (ou  → pendência, nada gravado;
+ *    sem ninguém vinculado)
  *  - contrato ENCERRADO à mão      → nada: a decisão do DP vale (encerrado não
  *                                    volta a ser aprovado sozinho);
  *  - contrato com datas do DP que  → nada: o DP pôs o fim (ou o começo) de
@@ -33,11 +42,10 @@
 import { cnpjValido, digitosDoCnpj, mascararCnpj } from "./cnpj";
 import { contratoVigenteEm } from "./contratos";
 
-export const GATILHOS_DA_APROVACAO = ["oc", "nota_aprovada", "pago"] as const;
+export const GATILHOS_DA_APROVACAO = ["nota_aprovada", "pago"] as const;
 export type GatilhoDaAprovacao = (typeof GATILHOS_DA_APROVACAO)[number];
 
 export const GATILHO_DA_APROVACAO_LABEL: Record<GatilhoDaAprovacao, string> = {
-  oc: "OC registrada",
   nota_aprovada: "nota fiscal aprovada",
   pago: "pagamento marcado",
 };
@@ -85,29 +93,28 @@ export function cnpjDaPrestacao(cnpjEmissor: string | null | undefined, cnpjDaCo
 
 interface EventoDaPassagem { id: string; nome: string; inicio: string | null }
 
-/** Passagens de uma prestação: a OC registrada e o pagamento marcado. */
+/** Passagens de uma prestação: o pagamento marcado (28/10, R6: a OC não conta). */
 export function passagensDaPrestacao(p: {
   collaboratorId: string | null;
   evento: EventoDaPassagem;
   cnpj: string | null;
   razaoSocial: string | null;
-  ocNumero: string | null;
-  ocData: string | Date | null;
-  ocRegistradaEm: string | Date | null;
   pagoEm: string | Date | null;
 }): PassagemDoCnpj[] {
   const cnpj = cnpjOk(p.cnpj);
   if (!cnpj || !p.collaboratorId) return [];
   const base = { cnpj, collaboratorId: p.collaboratorId, eventoId: p.evento.id, eventoNome: p.evento.nome, eventoInicio: diaDe(p.evento.inicio), razaoSocial: p.razaoSocial?.trim() || null };
   const saida: PassagemDoCnpj[] = [];
-  const dataDaOc = diaDe(p.ocData) ?? diaDe(p.ocRegistradaEm);
-  if (p.ocNumero && dataDaOc) saida.push({ ...base, gatilho: "oc", data: dataDaOc });
   const dataDoPago = diaDe(p.pagoEm);
   if (dataDoPago) saida.push({ ...base, gatilho: "pago", data: dataDoPago });
   return saida;
 }
 
-/** Passagem de uma nota fiscal: só APROVADA e com CNPJ (o da nota ou o da prestação). */
+/**
+ * Passagem de uma nota fiscal: só APROVADA e com CNPJ. 28/10 (S1): com CNPJ na
+ * prestação, só quando o da nota é o MESMO (ou a nota não tem CNPJ); prestação
+ * sem CNPJ (fluxo antigo) → o da nota.
+ */
 export function passagemDaNota(n: {
   collaboratorId: string | null;
   evento: EventoDaPassagem;
@@ -119,7 +126,10 @@ export function passagemDaNota(n: {
   atualizadaEm: string | Date | null;
 }): PassagemDoCnpj | null {
   if (n.status !== "aprovada" || !n.collaboratorId) return null;
-  const cnpj = cnpjOk(n.nfCnpj) ?? cnpjOk(n.cnpjDaPrestacao);
+  const daNota = cnpjOk(n.nfCnpj);
+  const daPrestacao = cnpjOk(n.cnpjDaPrestacao);
+  if (daNota && daPrestacao && daNota !== daPrestacao) return null;
+  const cnpj = daPrestacao ?? daNota;
   const data = diaDe(n.aprovadaEm) ?? diaDe(n.atualizadaEm);
   if (!cnpj || !data) return null;
   return {
@@ -128,13 +138,13 @@ export function passagemDaNota(n: {
   };
 }
 
-const ORDEM_DO_GATILHO: Record<GatilhoDaAprovacao, number> = { oc: 0, nota_aprovada: 1, pago: 2 };
+const ORDEM_DO_GATILHO: Record<GatilhoDaAprovacao, number> = { nota_aprovada: 1, pago: 2 };
 const antes = (a: PassagemDoCnpj, b: PassagemDoCnpj) =>
   a.data.localeCompare(b.data) || ORDEM_DO_GATILHO[a.gatilho] - ORDEM_DO_GATILHO[b.gatilho] || a.eventoNome.localeCompare(b.eventoNome, "pt-BR");
 
 const dataBr = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 
-/** "Aprovado automaticamente: CNPJ já pago em NR São Luís em 12/10/2026 (OC registrada)." */
+/** "Aprovado automaticamente: CNPJ já pago em NR São Luís em 12/10/2026 (nota fiscal aprovada)." */
 export function fraseDaAprovacao(p: Pick<PassagemDoCnpj, "eventoNome" | "data" | "gatilho">): string {
   return `Aprovado automaticamente: CNPJ já pago em ${p.eventoNome} em ${dataBr(p.data)} (${GATILHO_DA_APROVACAO_LABEL[p.gatilho]}).`;
 }
@@ -150,16 +160,23 @@ export interface ContratoParaAprovacao {
 }
 
 export type MotivoIgnorado = "encerrado" | "vigencia_do_dp";
+
+/** 28/10 (S1): o CNPJ já tem contrato e quem passou não está nele — o DP decide. */
+export type MotivoPendente = "cnpj_de_outro_contrato";
+export const MOTIVO_PENDENTE_LABEL: Record<MotivoPendente, string> = {
+  cnpj_de_outro_contrato: "CNPJ já é de outro contrato — confira e vincule à mão em Contratos se for a mesma empresa.",
+};
 export const MOTIVO_IGNORADO_LABEL: Record<MotivoIgnorado, string> = {
   encerrado: "Contrato encerrado pelo DP — não é reaprovado automaticamente.",
   vigencia_do_dp: "Contrato com vigência definida pelo DP que não vale hoje (vencido ou ainda não começou) — renove à mão.",
 };
 
 export type DecisaoDoCnpj =
-  | { tipo: "criar" }
+  | { tipo: "criar"; vincular: string[] }
   | { tipo: "atualizar"; contratoId: string; vincular: string[]; abrirVigencia: boolean }
   | { tipo: "ja_aprovado"; contratoId: string }
-  | { tipo: "ignorado"; contratoId: string; motivo: MotivoIgnorado };
+  | { tipo: "ignorado"; contratoId: string; motivo: MotivoIgnorado }
+  | { tipo: "pendente"; contratoId: string; motivo: MotivoPendente };
 
 export interface PlanoDoCnpj {
   cnpj: string;
@@ -167,6 +184,11 @@ export interface PlanoDoCnpj {
   primeira: PassagemDoCnpj;
   /** Quem passou com este CNPJ (ordem de chegada). */
   colaboradorIds: string[];
+  /**
+   * 28/10 (S1): quem passou com o CNPJ mas NÃO entra sozinho no contrato
+   * (contrato de outra pessoa, ou criado para quem passou primeiro) — pendência do DP.
+   */
+  pendentes: string[];
   /** A razão social informada mais recente (ou null). */
   razaoSocial: string | null;
   /** Início da vigência aberta: o menor entre o início do evento e a data de cada passagem. */
@@ -196,8 +218,11 @@ export function planejarAprovacao(passagens: readonly PassagemDoCnpj[], contrato
     const vigenciaInicio = ordenadas.map((p) => (p.eventoInicio && p.eventoInicio < p.data ? p.eventoInicio : p.data)).sort()[0];
     const c = contratoDo.get(cnpj);
     let decisao: DecisaoDoCnpj;
+    let pendentes: string[] = [];
     if (!c) {
-      decisao = { tipo: "criar" };
+      // 28/10 (S1): o contrato novo é de quem passou primeiro; os outros, o DP decide.
+      decisao = { tipo: "criar", vincular: [primeira.collaboratorId] };
+      pendentes = colaboradorIds.filter((id) => id !== primeira.collaboratorId);
     } else if (c.encerradoEm) {
       decisao = { tipo: "ignorado", contratoId: c.id, motivo: "encerrado" };
     } else {
@@ -206,13 +231,17 @@ export function planejarAprovacao(passagens: readonly PassagemDoCnpj[], contrato
       if (!semDatas && !vale) {
         decisao = { tipo: "ignorado", contratoId: c.id, motivo: "vigencia_do_dp" };
       } else {
-        const vincular = colaboradorIds.filter((id) => !c.colaboradorIds.includes(id));
-        decisao = vincular.length === 0 && !semDatas
-          ? { tipo: "ja_aprovado", contratoId: c.id }
-          : { tipo: "atualizar", contratoId: c.id, vincular, abrirVigencia: semDatas };
+        // 28/10 (S1): só CONFIRMA quem já está no contrato; nunca vincula ninguém.
+        const donos = colaboradorIds.filter((id) => c.colaboradorIds.includes(id));
+        pendentes = colaboradorIds.filter((id) => !c.colaboradorIds.includes(id));
+        decisao = donos.length === 0
+          ? { tipo: "pendente", contratoId: c.id, motivo: "cnpj_de_outro_contrato" }
+          : semDatas
+            ? { tipo: "atualizar", contratoId: c.id, vincular: [], abrirVigencia: true }
+            : { tipo: "ja_aprovado", contratoId: c.id };
       }
     }
-    planos.push({ cnpj, primeira, colaboradorIds, razaoSocial, vigenciaInicio, decisao, frase: fraseDaAprovacao(primeira) });
+    planos.push({ cnpj, primeira, colaboradorIds, pendentes, razaoSocial, vigenciaInicio, decisao, frase: fraseDaAprovacao(primeira) });
   }
   return planos.sort((a, b) => antes(a.primeira, b.primeira) || a.cnpj.localeCompare(b.cnpj));
 }
@@ -222,12 +251,14 @@ export const planoGrava = (p: PlanoDoCnpj): boolean => p.decisao.tipo === "criar
 
 /** Contagens da prévia ("Aprovar fornecedores pelo histórico"). */
 export function resumoDosPlanos(planos: readonly PlanoDoCnpj[]) {
-  const r = { criar: 0, atualizar: 0, jaAprovados: 0, ignorados: 0, total: planos.length };
+  // 28/10 (S1): `pendentes` = CNPJs com alguém que o DP precisa vincular à mão (ou não).
+  const r = { criar: 0, atualizar: 0, jaAprovados: 0, ignorados: 0, pendentes: 0, total: planos.length };
   for (const p of planos) {
     if (p.decisao.tipo === "criar") r.criar++;
     else if (p.decisao.tipo === "atualizar") r.atualizar++;
     else if (p.decisao.tipo === "ja_aprovado") r.jaAprovados++;
-    else r.ignorados++;
+    else if (p.decisao.tipo === "ignorado") r.ignorados++;
+    if (p.pendentes.length > 0) r.pendentes++;
   }
   return r;
 }

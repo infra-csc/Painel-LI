@@ -226,7 +226,7 @@ export function registrarEscalacao(app: Express): void {
         passagens: passagens.map((t) => ({
           id: t.id, createdAt: t.createdAt, purchaseDate: t.purchaseDate, emittedAt: t.emittedAt,
           emittedByName: t.emittedBy ? nomeDoUsuario.get(t.emittedBy) ?? null : null,
-          ticketStatus: t.ticketStatus, transportType: t.transportType,
+          ticketStatus: t.ticketStatus, transportType: t.transportType, returnTransportType: t.returnTransportType,
           departureCityOrigin: t.departureCityOrigin, departureCityDestination: t.departureCityDestination,
         })),
         hospedagens: hospedagens.map((h) => ({

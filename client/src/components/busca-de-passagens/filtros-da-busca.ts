@@ -35,7 +35,7 @@ export interface FiltrosDaBusca {
   destino: string;
   trecho: FiltroDeTrecho;
   falta: FiltroDeFalta;
-  /** Data da ida (AAAA-MM-DD), inclusive. */
+  /** Período (AAAA-MM-DD, inclusive): vale a IDA ou a VOLTA da vaga (28/10). */
   de: string;
   ate: string;
   /**

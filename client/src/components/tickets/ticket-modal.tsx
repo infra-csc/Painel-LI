@@ -24,6 +24,7 @@ import {
   suggestionToFormPatch,
   periodDays,
   getRequiredFields,
+  tiposDoFormulario,
   type TicketFormValues,
   type PlannedImpactContext,
 } from "@/lib/ticket-form";
@@ -46,6 +47,7 @@ import { TrechoDiretoDaVaga } from "./sinais-da-vaga";
 import { JustificativaDoPrecoHost } from "./justificativa-do-preco";
 import { AvisoSoCarimbo } from "./aviso-so-carimbo";
 import { passagemSoComCarimbo } from "@shared/passagem-so-com-carimbo";
+import { PerguntaDoTrecho } from "./pergunta-do-trecho";
 
 /**
  * Moldura do modal (07/10): 1100px no computador; no celular ocupa a tela
@@ -211,6 +213,10 @@ export default function TicketModal({
   const tabTrigger = "relative shrink-0 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary text-muted-foreground bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3 sm:px-4 pb-2.5 pt-2.5 text-sm font-medium shadow-none hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring";
   const ModoIcone = soCarimbo ? Stamp : ticket?.transportType === "van" ? Truck : ticket?.transportType === "rodoviario" ? Bus : Plane;
   const contexto = [data.getFunctionName(inclusion.functionId), data.getEventName(inclusion.eventId)].filter(Boolean);
+  // Tipo por trecho (28/10): só com ida E volta neste bilhete a volta pode ter outro tipo.
+  const temDoisTrechos = form.transportType !== "van" && form.transportType !== "" && !form.isOneWay && !form.isReturnOnly;
+  const tiposDoForm = tiposDoFormulario(form);
+  const voltaDiferente = temDoisTrechos && tiposDoForm.volta !== tiposDoForm.ida;
 
   const onTransportChange = (value: string) => {
     const eventLocation = data.getEventLocation(inclusion.eventId);
@@ -236,7 +242,7 @@ export default function TicketModal({
       return;
     }
     handlers.onPatch(sid, patch);
-    const labels = getRequiredFields(form.transportType, !!form.isOneWay).filter(f => keys.includes(f.field)).map(f => f.label);
+    const labels = getRequiredFields(form.transportType, !!form.isOneWay, false, form.returnTransportType).filter(f => keys.includes(f.field)).map(f => f.label);
     toast({ title: "Sugestão aplicada", description: labels.length ? `Preenchido: ${labels.join(", ")}. Confira antes de registrar.` : "Confira os campos antes de registrar." });
   };
 
@@ -428,9 +434,9 @@ export default function TicketModal({
                     {/* Configuração */}
                     <div className="bg-card border border-border rounded-xl p-4">
                       <h3 className={`${SECAO} flex items-center gap-1.5`}><Settings2 className="w-3.5 h-3.5" aria-hidden="true" />Configuração</h3>
-                      <div className="flex items-end gap-6 flex-wrap">
+                      <div className="flex items-end gap-x-6 gap-y-4 flex-wrap">
                         <div className="flex-1 min-w-[180px]">
-                          <Label className="text-xs font-medium text-slate-600 mb-1.5 block">Modalidade<RequiredMark /></Label>
+                          <Label className="text-xs font-medium text-slate-600 mb-1.5 block">{temDoisTrechos ? "Modalidade da ida" : "Modalidade"}<RequiredMark /></Label>
                           {/* "" = ninguém escolheu (a passagem que era só o carimbo, 22/10):
                               mostra "Escolha" em vez de fingir "Aérea" — nada é gravado sozinho. */}
                           <Select value={form.transportType === "" ? "" : form.transportType || "aereo"} onValueChange={onTransportChange}>
@@ -446,6 +452,31 @@ export default function TicketModal({
                             </SelectContent>
                           </Select>
                         </div>
+                        {/* Tipo da VOLTA (28/10, vaga #4618: ida aérea + volta de ônibus).
+                            Padrão "igual à ida"; diferente, a volta ganha rótulos e ícone próprios. */}
+                        {temDoisTrechos && (
+                          <div className="flex-1 min-w-[180px]">
+                            <Label className="text-xs font-medium text-slate-600 mb-1.5 block">Modalidade da volta</Label>
+                            <Select
+                              value={voltaDiferente ? String(form.returnTransportType) : "igual"}
+                              onValueChange={(v) => handlers.onPatch(sid, { returnTransportType: v === "igual" || v === form.transportType ? "" : v })}
+                              disabled={dis}
+                            >
+                              <SelectTrigger data-testid={`select-return-transport-type-${sid}`}><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="igual">Igual à ida ({tiposDoForm.ida === "rodoviario" ? "Rodoviária" : "Aérea"})</SelectItem>
+                                {(["aereo", "rodoviario"] as const).filter((t) => t !== (form.transportType || "aereo")).map((t) => (
+                                  <SelectItem key={t} value={t}>
+                                    <span className="inline-flex items-center gap-2">
+                                      {t === "aereo" ? <Plane className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" /> : <Bus className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />}
+                                      {t === "aereo" ? "Aérea" : "Rodoviária"}
+                                    </span>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                         {form.transportType !== "van" && (
                           <div className="pb-1">
                             <Label className="text-xs font-medium text-slate-600 mb-1.5 block">Trechos deste bilhete</Label>
@@ -596,6 +627,8 @@ export default function TicketModal({
       <CommentsModal open={showCommentsModal} onClose={() => onShowCommentsModal(false)} teamInclusionId={sid} />
       {/* Teto por trecho (09/10): a justificativa do valor acima do típico da rota. */}
       <JustificativaDoPrecoHost />
+      {/* Bilhete de um trecho só numa passagem com ida e volta (28/10): qual trecho trocar. */}
+      <PerguntaDoTrecho pergunta={voucher.pergunta} />
     </>
   );
 }

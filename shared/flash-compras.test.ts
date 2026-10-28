@@ -136,3 +136,25 @@ describe("lote: cancelar, pago, arquivo", () => {
     expect(rotuloDoLote({ numero: 5, periodoInicio: "2026-10-10", periodoFim: "2026-10-10" })).toBe("Lote 5 · 10/10/2026");
   });
 });
+
+describe("revisão 28/10 (R1) — complemento e estorno do comparativo entram no próximo lote", () => {
+  it("complemento (crédito) e estorno (débito) de ajuste do comparativo entram; débito manual continua fora", () => {
+    expect(creditoEntraNaCompra(credito({ sourceType: "comparativo_ajuste" }), F)).toBe(true);
+    expect(creditoEntraNaCompra(credito({ sourceType: "comparativo_ajuste", type: "debito" }), F)).toBe(true);
+    expect(creditoEntraNaCompra(credito({ sourceType: "manual", type: "debito" }), { ...F, incluirManuais: true })).toBe(false);
+  });
+
+  it("o estorno DESCONTA na linha do colaborador; estorno maior que os créditos fica fora do lote (com aviso)", () => {
+    const p = montarPreviaDaCompra([
+      credito({ id: "a", amountCents: 1000 }),
+      credito({ id: "b", sourceType: "comparativo_ajuste", type: "debito", amountCents: 400 }),
+      credito({ id: "c", collaboratorId: "c3", sourceType: "comparativo_ajuste", type: "debito", amountCents: 300 }),
+    ], colabs, F);
+    const bruno = p.linhas.find((l) => l.collaboratorId === "c1")!;
+    expect(bruno).toMatchObject({ alimentacaoCents: 600, totalCents: 600, entra: true });
+    const carla = p.linhas.find((l) => l.collaboratorId === "c3")!;
+    expect(carla.entra).toBe(false);
+    expect(carla.avisos.map((a) => a.codigo)).toContain("estorno_maior");
+    expect(p.totais.totalCents).toBe(600);
+  });
+});

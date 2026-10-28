@@ -16,7 +16,11 @@
  *    achado pelo plannedId ou pela mesma chave (evento, colaborador, função);
  *  - Planejado sem vaga ("órfão") também entra;
  *  - NF: elegibilidade por `isNfEligible` e isenção por `nfIsentaPorEscalacao`
- *    (ambas em shared/prestacao-rules — a MESMA regra da tela de Notas Fiscais).
+ *    (ambas em shared/prestacao-rules — a MESMA regra da tela de Notas Fiscais);
+ *  - 28/10 (revisão, R7): no fluxo novo, cada DIVISÃO com colaborador próprio
+ *    (o substituto da "Dividir escalação") é uma linha própria (`dv-<id>`):
+ *    OC, NF e pago dela na trilha, nos prazos e nos contadores de NF. A
+ *    presença e a confirmação seguem no titular (sem prazo de presença aqui).
  *
  * Funções puras — sem I/O.
  */
@@ -266,6 +270,11 @@ export interface LinhaDoControleRh {
   prazo: PrazoDaPrestacao | null;
   /** Contestação do colaborador (fluxo novo), aberta ou respondida. */
   contestacao: ContestacaoDaLinha | null;
+  /**
+   * 28/10 (R7): linha de DIVISÃO da vaga (o substituto) — a prestação do
+   * titular e o nome dele; null nas linhas comuns. Opcional para o contrato antigo.
+   */
+  divisaoDe?: { actualId: string; titularNome: string | null } | null;
 }
 
 export interface ContadoresDoControleRh {
@@ -440,6 +449,14 @@ export function montarControleRh(entrada: EntradaDoControleRh, filtro?: FiltroDe
   const realizadoDe = (p: PlanejadoParaControle): RealizadoParaControle | null =>
     realizadoPorPlanejado.get(p.id) || realizadoPorChave.get(chave(p)) || null;
 
+  // 28/10 (R7): a divisão com colaborador próprio, no fluxo novo, é prestação própria.
+  const divisaoDoFluxoNovo = (a: RealizadoParaControle): boolean => {
+    if (!a.splitParentId || !a.collaboratorId || a.didNotAttend) return false;
+    const ev = eventoPorId.get(a.eventId);
+    return !!ev && !ehEventoLegado(ev.endDate, entrada.dataDeCorte ?? DATA_DE_CORTE_PADRAO);
+  };
+  const realizadoPorId = new Map(entrada.realizados.map((a) => [a.id, a]));
+
   const notaPorRealizado = new Map<string, NotaParaControle>();
   for (const n of entrada.notas) if (n.budgetActualId) notaPorRealizado.set(n.budgetActualId, n);
 
@@ -480,7 +497,7 @@ export function montarControleRh(entrada: EntradaDoControleRh, filtro?: FiltroDe
     };
   };
 
-  const montar = (base: Omit<LinhaDoControleRh, "collaboratorName" | "functionName" | "invoice" | "emiteNf" | "nfElegivel" | "rhActionByName" | "rhPrecisaAgir" | "trilha" | "legado" | "conclusaoForaDoFluxo" | "prazo" | "contestacao">): LinhaDoControleRh => {
+  const montar = (base: Omit<LinhaDoControleRh, "collaboratorName" | "functionName" | "invoice" | "emiteNf" | "nfElegivel" | "rhActionByName" | "rhPrecisaAgir" | "trilha" | "legado" | "conclusaoForaDoFluxo" | "prazo" | "contestacao" | "divisaoDe"> & { divisaoDe?: LinhaDoControleRh["divisaoDe"] }): LinhaDoControleRh => {
     const invoice = base.actual ? notaPorRealizado.get(base.actual.id) ?? null : null;
     const legado = ehEventoLegado(base.event.endDate, dataDeCorte);
     // Só o legado é concluído fora do fluxo: uma conclusão gravada para um
@@ -489,15 +506,18 @@ export function montarControleRh(entrada: EntradaDoControleRh, filtro?: FiltroDe
     const emite = emiteNf(base.event.id, base.collaboratorId, base.functionId);
     // 28/10 (Fase 3): prazo e contestação só no fluxo novo, com a prestação.
     const novoComPrestacao = !legado && !!base.actual;
+    // 28/10 (R7): a divisão não tem presença própria (fica no titular) — sem prazo de confirmação/check-out.
+    const ehDivisao = !!base.divisaoDe;
     const prazo = novoComPrestacao && entrada.prazos && hoje ? prazoDaPrestacao({
       hoje, prazos: entrada.prazos, legado, emiteNf: emite,
-      ultimoDia: ultimoDia(base.actual!, base.event),
-      confirmado: entrada.confirmacoes?.has(base.actual!.id) ?? false,
+      ultimoDia: ehDivisao ? null : ultimoDia(base.actual!, base.event),
+      confirmado: ehDivisao || (entrada.confirmacoes?.has(base.actual!.id) ?? false),
       realizado: base.actual, nota: invoice,
     }) : null;
     const contestacao = novoComPrestacao && !base.actual!.didNotAttend ? contestacaoDe(base.actual!.id) : null;
     const parcial = {
       ...base,
+      divisaoDe: base.divisaoDe ?? null,
       collaboratorName: base.collaboratorId ? entrada.nomesDeColaboradores.get(base.collaboratorId) ?? null : null,
       functionName: base.functionId ? entrada.nomesDeFuncoes.get(base.functionId) ?? null : null,
       invoice,
@@ -553,6 +573,23 @@ export function montarControleRh(entrada: EntradaDoControleRh, filtro?: FiltroDe
     }));
   }
 
+  // 28/10 (R7): as divisões do fluxo novo — uma linha por substituto, com a decisão do DP dela.
+  for (const a of entrada.realizados) {
+    if (!divisaoDoFluxoNovo(a)) continue;
+    const event = eventoPorId.get(a.eventId)!;
+    const titular = realizadoPorId.get(a.splitParentId!);
+    const rh = a.rhStatus || "pendente";
+    const d: Decisao = rh === "aprovado" ? { status: "aprovada_faturamento", responsavelAtual: "Concluído", lastActivityDate: iso(a.rhActionAt) ?? iso(a.updatedAt) }
+      : rh === "rejeitado" ? { status: "recusada", responsavelAtual: "Concluído", lastActivityDate: iso(a.rhActionAt) ?? iso(a.updatedAt) }
+      : rh === "devolvido" ? { status: "devolvida_para_ajuste", responsavelAtual: resolveResponsavel(a.updatedBy), lastActivityDate: iso(a.rhActionAt) ?? iso(a.updatedAt) }
+      : a.sentForReview ? { status: "prestacao_recebida", responsavelAtual: "DP", lastActivityDate: iso(a.updatedAt) }
+      : { status: "aguardando_prestacao", responsavelAtual: resolveResponsavel(a.updatedBy), lastActivityDate: iso(a.updatedAt) };
+    todas.push(montar({
+      id: `dv-${a.id}`, ...d, event, collaboratorId: a.collaboratorId, functionId: a.functionId, teamInclusion: null, planned: null, actual: a,
+      divisaoDe: { actualId: a.splitParentId!, titularNome: titular?.collaboratorId ? entrada.nomesDeColaboradores.get(titular.collaboratorId) ?? null : null },
+    }));
+  }
+
   const prioridade = new Map(STATUS_DA_PRESTACAO.map((s, i) => [s, i]));
   todas.sort((a, b) => {
     const pa = prioridade.get(a.status) ?? 99;
@@ -576,7 +613,8 @@ export function montarControleRh(entrada: EntradaDoControleRh, filtro?: FiltroDe
   const status = Object.fromEntries(STATUS_DA_PRESTACAO.map((s) => [s, 0])) as Record<StatusDaPrestacao, number>;
   for (const l of linhas) status[l.status] += 1;
 
-  const realizadosElegiveis = entrada.realizados.filter((a) => isNfEligible(a) && !a.splitParentId && eventosNoRecorte.has(a.eventId));
+  // 28/10 (R7): as divisões do fluxo novo têm nota própria — contam também.
+  const realizadosElegiveis = entrada.realizados.filter((a) => isNfEligible(a) && (!a.splitParentId || divisaoDoFluxoNovo(a)) && eventosNoRecorte.has(a.eventId));
   const idsElegiveis = new Set(realizadosElegiveis.map((a) => a.id));
   const notasRelevantes = entrada.notas.filter((n) => !!n.budgetActualId && idsElegiveis.has(n.budgetActualId));
   const enviadas = new Set(notasRelevantes.filter((n) => n.status !== "pendente").map((n) => n.budgetActualId));

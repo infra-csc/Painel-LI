@@ -10,6 +10,7 @@ import { ALL_EXPORT_COLUMNS } from "./export-columns";
 import { fixEncoding } from "@/lib/utils";
 import type { TeamInclusion, Event, Function, Collaborator, Comment, Ticket } from "@shared/schema";
 import { formatDate, isEscalated } from "./scaling-utils";
+import { nomeDosTiposDaPassagem } from "@shared/tipo-por-trecho";
 
 const TRANSPORT_LABEL: Record<string, string> = { aereo: "Aéreo", rodoviario: "Rodoviário", van: "Van" };
 
@@ -146,8 +147,10 @@ export function buildScalingExportRows(input: ExportScalingInput): Record<string
       "Período Real - Início": inclusion.actualStartDate ? formatDate(inclusion.actualStartDate) : "N/A",
       "Período Real - Fim": inclusion.actualEndDate ? formatDate(inclusion.actualEndDate) : "N/A",
       "Precisa Passagem": inclusion.needsTicket ? "Sim" : "Não",
-      "Tipo de Transporte": ticket?.transportType ? (TRANSPORT_LABEL[ticket.transportType] || ticket.transportType) : "N/A",
-      "Passagem LOC": ticket?.purchaseOrderNumber || "N/A",
+      // Por trecho (28/10): "Ida aérea · volta rodoviária" quando a volta é de outro tipo.
+      "Tipo de Transporte": ticket?.transportType ? (ticket.returnTransportType ? nomeDosTiposDaPassagem(ticket) : TRANSPORT_LABEL[ticket.transportType] || ticket.transportType) : "N/A",
+      // Volta comprada à parte (28/10): o bilhete dela junto ("JPLN7F8J / 4471").
+      "Passagem LOC": [ticket?.purchaseOrderNumber, ticket?.returnPurchaseOrderNumber].filter(Boolean).join(" / ") || "N/A",
       "Passagem Data Compra": ticket?.purchaseDate ? formatDate(ticket.purchaseDate) : "N/A",
       "Passagem Valor (R$)": ticket?.value ? (ticket.value / 100).toFixed(2) : "N/A",
       "Ida - Cidade Origem": ticket?.departureCityOrigin || "N/A",

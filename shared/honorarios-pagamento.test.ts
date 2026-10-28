@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   celulaCsv, conferirNotaComOc, dataLimiteDoExpurgo, descricaoSugeridaDaNota, dividirLinha, erroDaDataPassada, erroDoNumeroDaOc,
-  estadoDoPagamento, fraseDoPagamentoAoColaborador, lerLoteDeOc, lerValorEmReais, montarCsv, ocDaNota, ocExigeJustificativa,
+  estadoDoPagamento, fraseDoPagamentoAoColaborador, inicioDoDiaEmBrasilia, lerLoteDeOc, lerValorEmReais, montarCsv, ocDaNota, ocExigeJustificativa,
   pagamentoPassouDaGuarda, podeDesfazerOc, podeEnviarNotaDaOc, podeMarcarPago, podeRegistrarOc, reaisParaCsv, valoresVisiveisAoColaborador,
   COLUNAS_DA_EXPORTACAO, type PrestacaoDoLote,
 } from "./honorarios-pagamento";
@@ -20,11 +20,12 @@ describe("OC (etapa 4)", () => {
     expect(erroDoNumeroDaOc("<script>")).toMatch(/letras/);
   });
 
-  it("só depois da Conferência DP aprovar, uma vez, nunca em divisão ou não participou", () => {
+  it("só depois da Conferência DP aprovar, uma vez, nunca em não participou; a divisão com colaborador próprio tem OC (28/10, R7)", () => {
     expect(podeRegistrarOc(aprovada).ok).toBe(true);
     expect(podeRegistrarOc({ ...aprovada, rhStatus: "pendente" })).toMatchObject({ ok: false, codigo: "nao_aprovada" });
     expect(podeRegistrarOc({ ...aprovada, ocNumero: "1" })).toMatchObject({ ok: false, codigo: "oc_ja_registrada" });
-    expect(podeRegistrarOc({ ...aprovada, splitParentId: "x" })).toMatchObject({ ok: false, codigo: "divisao" });
+    expect(podeRegistrarOc({ ...aprovada, splitParentId: "x", collaboratorId: "sub" }).ok).toBe(true);
+    expect(podeRegistrarOc({ ...aprovada, splitParentId: "x", collaboratorId: null })).toMatchObject({ ok: false, codigo: "divisao_sem_colaborador" });
     expect(podeRegistrarOc({ ...aprovada, didNotAttend: true })).toMatchObject({ ok: false, codigo: "nao_participou" });
   });
 
@@ -197,5 +198,16 @@ describe("valores, CSV e expurgo", () => {
     expect(pagamentoPassouDaGuarda("2025-10-27", "2026-10-28", 365)).toBe(true);
     expect(pagamentoPassouDaGuarda("2025-10-28", "2026-10-28", 365)).toBe(false);
     expect(pagamentoPassouDaGuarda(null, "2026-10-28", 365)).toBe(false);
+  });
+
+  it("expurgo (28/10, S6): o prazo conta do MAIS RECENTE entre a data do pagamento e o registro dele", () => {
+    // Lançado hoje com data retroativa: as fotos ficam.
+    expect(pagamentoPassouDaGuarda("2025-01-10", "2026-10-28", 365, new Date("2026-10-28T13:00:00Z"))).toBe(false);
+    // Registrado no último instante do dia anterior ao limite (Brasília) sai; no dia do limite fica.
+    expect(pagamentoPassouDaGuarda("2025-01-10", "2026-10-28", 365, new Date("2025-10-28T02:59:00Z"))).toBe(true);
+    expect(pagamentoPassouDaGuarda("2025-01-10", "2026-10-28", 365, new Date("2025-10-28T03:00:00Z"))).toBe(false);
+    // Sem o registro (dado antigo): vale a data do pagamento.
+    expect(pagamentoPassouDaGuarda("2025-01-10", "2026-10-28", 365, null)).toBe(true);
+    expect(inicioDoDiaEmBrasilia("2025-10-28").toISOString()).toBe("2025-10-28T03:00:00.000Z");
   });
 });

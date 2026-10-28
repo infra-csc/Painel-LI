@@ -12,6 +12,9 @@
  *  - NF DEVOLVIDA com o comentário do DP — acesso ao portal (reenvio);
  *  - PROGRAMADO (NF aprovada e lançada no M4, pagamento em 5 dias);
  *  - PAGO (há 2 dias).
+ * 28/10 (revisão): + a DIVISÃO da 1ª vaga (substituto com OC própria e acesso
+ * ao portal) e um pago com o CNPJ do contrato de outra pessoa (pendência em
+ * "Aprovar pelo histórico").
  * Senha do portal: DEMO_SENHA_DO_COLABORADOR (o CPF de quem entra sai no log).
  */
 import bcrypt from "bcryptjs";
@@ -119,6 +122,7 @@ export async function semearPagamentoDemo(db: Db): Promise<ResumoDoPagamentoDemo
 
   const aprovadoEm = instanteEmBrasilia(hoje, "09:00");
   let oc = 4_500_120_000;
+  const criadas: { actual: schema.BudgetActual; planejadoId: string; funcaoId: string }[] = [];
   for (let i = 0; i < pessoas.length; i++) {
     const p = pessoas[i];
     const f = funcao(p.funcao)!;
@@ -159,6 +163,7 @@ export async function semearPagamentoDemo(db: Db): Promise<ResumoDoPagamentoDemo
       } : {}),
       ...(p.estado === "pago" ? { pagoEm: addDias(hoje, -2), pagoRegistradoPor: dp.id, pagoRegistradoEm: instanteEmBrasilia(addDias(hoje, -2), "16:00"), pagamentoObs: "TED compensada (demonstração)." } : {}),
     }).returning();
+    criadas.push({ actual, planejadoId: planejado.id, funcaoId: f.id });
 
     if (p.estado === "nf_enviada" || p.estado === "nf_devolvida" || p.estado === "programado" || p.estado === "pago") {
       const enviadaEm = instanteEmBrasilia(addDias(hoje, -(5 - i)), "14:00");
@@ -185,10 +190,57 @@ export async function semearPagamentoDemo(db: Db): Promise<ResumoDoPagamentoDemo
     }
   }
 
+  // 28/10 (revisão, R7): a DIVISÃO da vaga — o substituto do 1º dia da primeira
+  // prestação, com OC própria (sem CNPJ: com justificativa); no portal ele envia a nota.
+  const substituto = freelas[5];
+  const titular = criadas[0];
+  const comPortal = pessoas.filter((x) => x.portal).map((x) => x.colab);
+  if (substituto && titular) {
+    const numero = String(++oc);
+    await db.insert(schema.budgetActual).values({
+      splitParentId: titular.actual.id, plannedId: titular.planejadoId, eventId: evento.id, collaboratorId: substituto.id, functionId: titular.funcaoId,
+      collaboratorType: "freela", dailyQuantity: 1, dailyValue: 15_000, weekdayLunch: 4_000, weekdayDinner: 4_500, totalValue: 23_500, workedDays: [dias[0]],
+      observations: "Divisão de escalação — colaborador adicional", createdBy: producao.id,
+      sentForReview: true, rhStatus: "aprovado", rhActionBy: dp.id, rhActionAt: aprovadoEm,
+      ocNumero: numero, ocValor: 23_500, ocData: hoje, ocRegistradaEm: instanteEmBrasilia(hoje, "11:30"), ocRegistradaPor: dp.id, ocOrigem: "manual",
+      ocJustificativa: "Substituto sem CNPJ informado no Realizado (demonstração).",
+    });
+    comPortal.push(substituto);
+  }
+  // 28/10 (revisão, S1): alguém pago com o CNPJ do contrato de OUTRA pessoa —
+  // "Aprovar pelo histórico" (Contratos) mostra a pendência em vez de vincular.
+  const alheio = freelas[6];
+  const contratoAlheio = await contratoDe(aprovados[2].id);
+  if (alheio && contratoAlheio) {
+    const f = funcao("Montagem")!;
+    const [planejado] = await db.insert(schema.budgetPlanned).values({
+      eventId: evento.id, collaboratorId: alheio.id, functionId: f.id, collaboratorType: "freela", dailyQuantity: 1, dailyValue: 15_000, totalValue: 15_000,
+      status: "pre_aprovado", approvedBy: dp.id, approvedAt: instanteEmBrasilia(addDias(hoje, -10), "10:00"), createdBy: dp.id,
+    }).returning();
+    const numero = String(++oc);
+    const ocData = addDias(hoje, -4);
+    const [pago] = await db.insert(schema.budgetActual).values({
+      plannedId: planejado.id, eventId: evento.id, collaboratorId: alheio.id, functionId: f.id, collaboratorType: "freela",
+      dailyQuantity: 1, dailyValue: 15_000, totalValue: 15_000, workedDays: [dias[1]], createdBy: dp.id,
+      sentForReview: true, rhStatus: "aprovado", rhActionBy: dp.id, rhActionAt: aprovadoEm,
+      cnpjEmissor: contratoAlheio.cnpj, razaoSocialEmissor: contratoAlheio.razaoSocial,
+      ocNumero: numero, ocValor: 15_000, ocData, ocRegistradaEm: instanteEmBrasilia(ocData, "11:00"), ocRegistradaPor: dp.id, ocOrigem: "manual",
+      ocJustificativa: "CNPJ de contrato de outra pessoa — conferir com o jurídico (demonstração).",
+      pagoEm: addDias(hoje, -1), pagoRegistradoPor: dp.id, pagoRegistradoEm: instanteEmBrasilia(addDias(hoje, -1), "15:00"),
+    }).returning();
+    const enviadaEm = instanteEmBrasilia(addDias(hoje, -3), "14:00");
+    await db.insert(schema.invoices).values({
+      eventId: evento.id, collaboratorId: alheio.id, functionId: f.id, budgetActualId: pago.id, oc: numero, attachmentName: `nf-${numero}.pdf`,
+      status: "aprovada", nfNumero: "20269999", nfValor: 15_000, nfCnpj: contratoAlheio.cnpj,
+      approvedAt: new Date(enviadaEm.getTime() + 3_600_000), checkinAt: new Date(enviadaEm.getTime() + 7_200_000), checkinBy: dp.id, paymentDate: addDias(hoje, -1),
+      history: [{ type: "enviado", oc: numero, attachmentName: `nf-${numero}.pdf`, por: "colaborador", at: enviadaEm.toISOString() }], createdAt: enviadaEm,
+    });
+  }
+
   // Acesso ao portal: senha conhecida e termo aceito.
   const hash = await bcrypt.hash(DEMO_SENHA_DO_COLABORADOR, 4);
   const portal: ResumoDoPagamentoDemo["portal"] = [];
-  for (const p of pessoas.filter((x) => x.portal)) {
+  for (const p of comPortal.map((colab) => ({ colab }))) {
     const acesso = {
       senhaHash: hash, termoVersaoAceita: CONFIGURACAO_PADRAO.termoVersao,
       termoAceitoEm: instanteEmBrasilia(addDias(hoje, -10), "07:30"), termoAceitoIp: "127.0.0.1",

@@ -22,6 +22,7 @@ import { modoSugerido, rotuloDaCobertura, reaisDoTerrestre, sugestaoTerrestreDaV
 import { AtalhoDoTerrestre, LinhasDoTerrestre } from "./terrestre-na-linha";
 import { aeroportoComumDoTrechoDireto } from "./regiao-do-trecho-direto";
 import { passagemSoComCarimbo } from "@shared/passagem-so-com-carimbo";
+import { detalheDosValores, nomeDosTiposDaPassagem, numerosDaCompra, tipoDaIda, tipoDaVolta, voltaComOutroTipo } from "@shared/tipo-por-trecho";
 
 export interface TicketRowProps {
   inclusion: TeamInclusion;
@@ -114,7 +115,8 @@ function SeloDoHotel({ hospedagem, precisa, inclusionId }: { hospedagem: Accommo
   );
 }
 
-const transportLabel = (t: Ticket) => (t.transportType === "van" ? "Van" : t.transportType === "rodoviario" ? "Rodoviário" : "Aéreo");
+// Por trecho (28/10): "Ida aérea · volta rodoviária" quando a volta é de outro tipo.
+const transportLabel = (t: Ticket) => nomeDosTiposDaPassagem(t);
 
 /** Forma única das pílulas da linha (h22 · px7 · r6 · 11px/500). */
 const PILULA = "inline-flex items-center gap-1.5 h-[22px] px-[7px] rounded-md text-2xs font-medium whitespace-nowrap";
@@ -122,8 +124,9 @@ const PILULA = "inline-flex items-center gap-1.5 h-[22px] px-[7px] rounded-md te
 /** "LOC AX782Q · R$ 1.500,00 · Aéreo" — resumo curto da compra para tooltip/linha. */
 export function ticketSummaryLine(t: Ticket): string {
   const parts: string[] = [];
-  if (t.purchaseOrderNumber) parts.push(`${t.transportType === "van" ? "Empresa" : t.transportType === "rodoviario" ? "Bilhete" : "LOC"} ${t.purchaseOrderNumber}`);
-  if (t.value != null && t.value > 0) parts.push(formatBrl(t.value));
+  // Por trecho (28/10): "LOC JPLN7F8J · Bilhete 4471" e "R$ 538,93 (ida R$ 388,93 + volta R$ 150,00)".
+  parts.push(...numerosDaCompra(t));
+  if (t.value != null && t.value > 0) { const det = detalheDosValores(t); parts.push(det ? `${formatBrl(t.value)} (${det})` : formatBrl(t.value)); }
   parts.push(transportLabel(t));
   return parts.join(" · ");
 }
@@ -181,7 +184,9 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
   const idaVazia = !hasSuggestionValue(suggestion.ida);
   const voltaVazia = !hasSuggestionValue(suggestion.retorno);
   const summary = ticket ? ticketSummaryLine(ticket) : "";
-  const rodo = ticket?.transportType === "rodoviario";
+  // Cada perna com o SEU tipo (28/10, vaga #4618): ida aérea + volta de ônibus.
+  const rodo = tipoDaIda(ticket) === "rodoviario";
+  const rodoVolta = tipoDaVolta(ticket) === "rodoviario";
   // Linha criada só pelo "Marcar como emitida", sem dado nenhum (22/10, #4724):
   // não é passagem aérea comprada — a linha diz o que ela é.
   const soCarimbo = !!ticket && passagemSoComCarimbo(ticket);
@@ -347,9 +352,9 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
               {!isOneWayTicket(ticket) && (
                 <Perna
                   ida={false} data={ticket.actualReturnDate} partida={ticket.actualReturnTime} chegada={ticket.returnArrivalTime}
-                  origem={rodo ? ticket.returnCityOrigin : ticket.destinationAirport}
-                  destino={rodo ? ticket.returnCityDestination : ticket.departureAirport}
-                  rodo={rodo}
+                  origem={rodoVolta ? ticket.returnCityOrigin : ticket.returnOriginAirport || ticket.destinationAirport}
+                  destino={rodoVolta ? ticket.returnCityDestination : ticket.returnDestinationAirport || ticket.departureAirport}
+                  rodo={rodoVolta}
                 />
               )}
               {/* A outra perna de carro/van (a passagem é só de ida ou só de volta). */}
@@ -450,14 +455,24 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
                 sem quebrar o código no meio. O texto completo fica no title. */}
             <span className="pas-resumo flex flex-col text-2xs leading-snug text-muted-foreground max-w-full" title={summary} data-testid={`ticket-summary-${inclusion.id}`}>
               {(() => {
-                const partes = summary.split(" · ");
-                const temLocalizador = !!ticket.purchaseOrderNumber;
-                const primeira = temLocalizador ? partes[0] : null;
-                const resto = (temLocalizador ? partes.slice(1) : partes).join(" · ");
+                // Por trecho (28/10): um número de compra por linha (LOC da ida,
+                // bilhete da volta), o total e, embaixo, "ida R$ … + volta R$ …".
+                const numeros = numerosDaCompra(ticket);
+                const det = detalheDosValores(ticket);
+                const valor = ticket.value != null && ticket.value > 0 ? formatBrl(ticket.value) : null;
+                // Tipos diferentes ou valores separados: cada informação na sua linha (não cabe numa só).
+                const separado = !!det || voltaComOutroTipo(ticket);
+                const resto = [valor, transportLabel(ticket)].filter(Boolean).join(" · ");
                 return (
                   <>
-                    {primeira && <span className="block truncate">{primeira}</span>}
-                    {resto && <span className="block whitespace-nowrap tabular-nums">{resto}</span>}
+                    {numeros.map((n) => <span key={n} className="block truncate">{n}</span>)}
+                    {!separado && resto && <span className="block whitespace-nowrap tabular-nums">{resto}</span>}
+                    {separado && valor && <span className="block whitespace-nowrap tabular-nums font-medium text-slate-600">{valor}{det ? " no total" : ""}</span>}
+                    {/* A coluna é estreita: cada trecho na sua linha (o ícone de cada perna já diz o tipo). */}
+                    {det && det.split(" + ").map((p) => (
+                      <span key={p} className="block whitespace-nowrap tabular-nums" data-testid={`ticket-valor-${p.split(" ")[0]}-${inclusion.id}`}>{p}</span>
+                    ))}
+                    {separado && !det && nomeDosTiposDaPassagem(ticket).split(" · ").map((p) => <span key={p} className="block whitespace-nowrap">{p}</span>)}
                   </>
                 );
               })()}

@@ -73,6 +73,11 @@ export interface ValoresDoPortal {
 
 export interface PrestacaoDoPortal {
   id: string;
+  /**
+   * 28/10 (R7): ele trabalhou como SUBSTITUTO (divisão da vaga) — a presença e
+   * a confirmação ficam com o titular; a nota e o pagamento são dele.
+   */
+  divisao?: boolean;
   evento: { id: string; nome: string; cidade: string | null; inicio: string; fim: string };
   funcao: string | null;
   dias: DiaDoPortal[];

@@ -32,6 +32,7 @@ import { carregarVagasDeViagem, conflitosDaVagaComPassagem, juntarPassagens, sin
 import { SQL_TERRESTRE_COBRE_A_VAGA, comoTrecho, terrestreCobreAVaga, terrestresDaVaga, terrestresDasVagas } from "../transporte-terrestre";
 import { NOME_DO_MODO, type ModoTerrestre, type PernaDaViagem } from "@shared/transporte-terrestre";
 import { decidirCarimboSemPassagem, type TipoDoPulo } from "@shared/carimbo-sem-passagem";
+import { tipoDaVoltaParaGravar, voltaComOutroTipo } from "@shared/tipo-por-trecho";
 import {
   montarLogDeAuditoria,
   createAuditLog,
@@ -106,10 +107,12 @@ const CAMPOS_DA_ROTA = ["departureAirport", "destinationAirport", "returnOriginA
  * justificativa precisa vir agora (a antiga era de outro valor).
  */
 async function conferirTetoDoTrecho(
-  proposta: PassagemDaJanela & { value?: number | null; transportType?: string | null; justificativaPreco?: string | null },
+  proposta: PassagemDaJanela & { value?: number | null; transportType?: string | null; returnTransportType?: string | null; justificativaPreco?: string | null },
   exigirNova: { justificativa: unknown } | null,
 ): Promise<{ status: number; body: Record<string, unknown> } | null> {
   if (proposta.transportType && proposta.transportType !== "aereo") return null;
+  // Volta de outro tipo (28/10): o valor junta voo e ônibus — não há típico de rota que compare.
+  if (voltaComOutroTipo(proposta)) return null;
   const rota = rotaDaPassagem(proposta);
   if (!rota || typeof proposta.value !== "number" || proposta.value <= 0) return null;
   const [tipico, ajustes] = await Promise.all([precoTipicoDaRota(rota.perna, rota.origem, rota.destino), lerAjustes()]);
@@ -145,6 +148,27 @@ async function conflitoComTerrestre(vagaId: string, proposta: PassagemDaJanela):
       message: `A ${perna.trecho} desta vaga está registrada como ${modo} (transporte terrestre). Desfaça o terrestre dessa perna antes de registrar a passagem — ou registre só a outra perna.`,
     },
   };
+}
+
+/**
+ * VOLTA COMPRADA À PARTE (28/10, vaga #4618 — dono: "deveria SOMAR os valores
+ * de ida e volta"). `value` é o TOTAL; `returnValue` é a parte da volta dentro
+ * dele e `returnPurchaseOrderNumber` o bilhete/LOC dela. Sem as duas pernas
+ * (ou van), não há volta à parte: os dois ficam null. A parte da volta não
+ * passa do total — conferido só quando ela vem no corpo (o Espelho edita o
+ * total sozinho e a ida absorve a diferença).
+ */
+function voltaAParte(
+  t: PassagemDaJanela & { transportType?: string | null; value?: number | null; returnValue?: number | null; returnPurchaseOrderNumber?: string | null },
+  conferirTotal = true,
+): { returnValue: number | null; returnPurchaseOrderNumber: string | null } | { erro: string } {
+  if (t.transportType === "van" || !passagemTemIda(t) || !passagemTemVolta(t)) return { returnValue: null, returnPurchaseOrderNumber: null };
+  const bilhete = String(t.returnPurchaseOrderNumber ?? "").trim() || null;
+  const parte = typeof t.returnValue === "number" ? t.returnValue : null;
+  if (parte !== null && (parte < 0 || (conferirTotal && parte > (t.value ?? 0)))) {
+    return { erro: "O valor da volta não pode ser negativo nem passar do valor total da passagem (ida + volta)." };
+  }
+  return { returnValue: parte, returnPurchaseOrderNumber: bilhete };
 }
 
 const formatarCentavos = (c: number) => `R$ ${(c / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -441,6 +465,12 @@ export function registrarPassagens(app: Express): void {
     try {
       // Não logar o corpo: passagens contêm dados pessoais do passageiro
       const ticketData = insertTicketSchema.parse(req.body);
+      // Tipo da volta (28/10): só fica gravado quando DIFERENTE da ida e com as duas pernas.
+      ticketData.returnTransportType = tipoDaVoltaParaGravar(ticketData.transportType, ticketData.returnTransportType,
+        { temIda: passagemTemIda(ticketData), temVolta: passagemTemVolta(ticketData) });
+      const volta = voltaAParte(ticketData);
+      if ("erro" in volta) return res.status(400).json({ message: volta.erro });
+      Object.assign(ticketData, volta);
       const vaga = await storage.getTeamInclusion(ticketData.teamInclusionId);
       if (!vaga || vaga.deletedAt) return res.status(404).json({ message: "Vaga não encontrada ou excluída" });
       // Evento encerrado: só o administrador
@@ -611,13 +641,26 @@ export function registrarPassagens(app: Express): void {
         return res.status(400).json({ message: "Dados inválidos", error: parsed.error.message });
       }
       const { teamInclusionId: _ignoredInclusion, updatedBy: _ignoredActor, ...allowed } = parsed.data;
+      const prev = await storage.getTicket(id);
+      if (!prev) return res.status(404).json({ message: "Passagem não encontrada" });
+      // Tipo da volta (28/10): recalculado quando o tipo ou as pernas mudam —
+      // igual à ida, "só ida", "só volta" ou van gravam null.
+      if ("transportType" in allowed || "returnTransportType" in allowed || CAMPOS_DAS_PERNAS.some((c) => c in allowed)) {
+        const junto = { ...prev, ...allowed };
+        allowed.returnTransportType = tipoDaVoltaParaGravar(junto.transportType, junto.returnTransportType,
+          { temIda: passagemTemIda(junto), temVolta: passagemTemVolta(junto) });
+      }
+      // Volta comprada à parte (28/10): valor dentro do total e bilhete próprio.
+      if (["value", "returnValue", "returnPurchaseOrderNumber", "transportType", ...CAMPOS_DAS_PERNAS].some((c) => c in allowed)) {
+        const volta = voltaAParte({ ...prev, ...allowed }, "returnValue" in allowed);
+        if ("erro" in volta) return res.status(400).json({ message: volta.erro });
+        Object.assign(allowed, volta);
+      }
       const updates = {
         ...allowed,
         updatedAt: new Date(),
         updatedBy: ticketEditor.id,
       };
-      const prev = await storage.getTicket(id);
-      if (!prev) return res.status(404).json({ message: "Passagem não encontrada" });
       // Histórico de troca não se edita: é o registro do que foi comprado (01/10).
       if (prev.archivedAt) return res.status(409).json({ message: "Esta passagem é histórico de uma troca aprovada e não pode ser alterada. Registre a passagem do novo colaborador." });
       // Evento encerrado: só o administrador

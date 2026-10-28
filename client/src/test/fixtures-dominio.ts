@@ -92,6 +92,10 @@ export function passagemFake(parcial: Partial<Ticket> = {}): Ticket {
     idaVemDeInclusionId: null,
     justificativaPreco: null,
     transportType: "aereo",
+    // Por trecho (28/10): volta igual à ida, de uma compra só.
+    returnTransportType: null,
+    returnValue: null,
+    returnPurchaseOrderNumber: null,
     purchaseDate: "2026-03-20",
     actualDepartureDate: "2026-04-09",
     actualDepartureTime: "08:00",
@@ -332,6 +336,7 @@ export function realizadoFake(parcial: Partial<BudgetActual> = {}): BudgetActual
     valorHorasExtras: 0,
     checkoutFinalEm: null,
     checkoutFinalPor: null,
+    baseCheckoutFinal: null, // 28/10 (revisão R2)
     // OC e pagamento (28/10)
     ocNumero: null,
     ocValor: null,

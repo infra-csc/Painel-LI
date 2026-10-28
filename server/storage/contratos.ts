@@ -308,7 +308,8 @@ export async function aplicarAprovacaoAutomatica(passagens: readonly PassagemDoC
           criadoPor: autor.id, criadoPorNome: AUTOR_DA_APROVACAO_AUTOMATICA, atualizadoPorNome: AUTOR_DA_APROVACAO_AUTOMATICA,
         }).onConflictDoNothing().returning({ id: contratos.id });
         if (!c) return "conflito";
-        const vinculados = await vincularNaTx(tx, c.id, plano.colaboradorIds, quem);
+        // 28/10 (S1): só quem passou primeiro; os outros ficam pendentes para o DP.
+        const vinculados = await vincularNaTx(tx, c.id, plano.decisao.vincular, quem);
         const nomes = await nomesDosColaboradores(vinculados, tx);
         await registrar(tx, c.id, "aprovado_automaticamente", detalhesDoHistorico(plano, nomes, vinculados, false), quem);
         return { plano, feito: "criado", contratoId: c.id, vinculados, abriuVigencia: false, nomes };

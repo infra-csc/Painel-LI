@@ -15,7 +15,11 @@
  *    manuais (crédito inicial da admissão, ajustes) só com "incluir manuais"
  *    — muitos já foram comprados fora do app antes deste módulo; o legado
  *    'oc' nunca (congelado desde 19/08);
- *  - data do lançamento dentro do período; evento, quando escolhido.
+ *  - data do lançamento dentro do período; evento, quando escolhido;
+ *  - 28/10 (revisão R1): o AJUSTE do comparativo (`comparativo_ajuste` —
+ *    complemento ou estorno de crédito já comprado) entra sempre, e o estorno
+ *    (débito) DESCONTA na linha do colaborador. Linha com estorno maior que os
+ *    créditos (categoria negativa) fica fora do lote até ter crédito.
  *
  * Avisos por colaborador: sem CPF e valor zero BLOQUEIAM a linha (fica fora
  * do lote e continua "a comprar" — a Flash não credita sem CPF); colaborador
@@ -23,7 +27,7 @@
  *
  * Funções puras — servidor, tela e testes.
  */
-import { FLASH_SOURCE_COMPARATIVO, FLASH_SOURCE_MANUAL } from "./flash-rules";
+import { FLASH_SOURCE_COMPARATIVO, FLASH_SOURCE_COMPARATIVO_AJUSTE, FLASH_SOURCE_MANUAL } from "./flash-rules";
 import { lerDataDaPlanilha } from "./importacao-contratos";
 
 export const STATUS_DO_LOTE_FLASH = ["gerado", "pago", "cancelado"] as const;
@@ -68,12 +72,14 @@ export interface ColaboradorDaCompra {
   ativo: boolean;
 }
 
-export type CodigoDoAviso = "sem_cpf" | "valor_zero" | "inativo";
+export type CodigoDoAviso = "sem_cpf" | "valor_zero" | "estorno_maior" | "inativo";
 export interface AvisoDaCompra { codigo: CodigoDoAviso; texto: string; bloqueia: boolean }
 
 export const AVISOS_DA_COMPRA: Record<CodigoDoAviso, AvisoDaCompra> = {
   sem_cpf: { codigo: "sem_cpf", texto: "Sem CPF no cadastro — fica fora do lote", bloqueia: true },
   valor_zero: { codigo: "valor_zero", texto: "Valor zero — fica fora do lote", bloqueia: true },
+  // 28/10 (R1): o estorno de crédito já comprado passa do que há a comprar.
+  estorno_maior: { codigo: "estorno_maior", texto: "Estorno maior que os créditos a comprar — fica fora do lote até ter crédito", bloqueia: true },
   inativo: { codigo: "inativo", texto: "Colaborador inativo", bloqueia: false },
 };
 
@@ -128,10 +134,12 @@ export function erroDoPeriodo(inicio: unknown, fim: unknown): string | null {
 /** O lançamento entra na compra deste filtro? */
 export function creditoEntraNaCompra(m: CreditoDoFlash, f: FiltroDaCompra): boolean {
   if (m.compraId) return false;
-  if (m.type !== "credito") return false;
-  if (m.category !== "alimentacao" && m.category !== "mobilidade") return false;
   const origem = m.sourceType ?? FLASH_SOURCE_MANUAL;
-  if (origem !== FLASH_SOURCE_COMPARATIVO && !(f.incluirManuais && origem === FLASH_SOURCE_MANUAL)) return false;
+  const ajuste = origem === FLASH_SOURCE_COMPARATIVO_AJUSTE;
+  // Débito é gasto, não compra — menos o estorno do comparativo (28/10, R1).
+  if (m.type !== "credito" && !(ajuste && m.type === "debito")) return false;
+  if (m.category !== "alimentacao" && m.category !== "mobilidade") return false;
+  if (origem !== FLASH_SOURCE_COMPARATIVO && !ajuste && !(f.incluirManuais && origem === FLASH_SOURCE_MANUAL)) return false;
   const dia = String(m.movementDate).slice(0, 10);
   if (dia < f.inicio || dia > f.fim) return false;
   if (f.eventId && m.eventId !== f.eventId) return false;
@@ -146,6 +154,12 @@ function fnv1a(texto: string): string {
     h = Math.imul(h, 0x01000193) >>> 0;
   }
   return h.toString(16).padStart(8, "0");
+}
+
+/** Valor do lançamento na compra: o estorno (débito) desconta (28/10, R1). */
+export function valorNaCompra(m: Pick<CreditoDoFlash, "type" | "amountCents">): number {
+  const v = Math.max(0, Math.round(m.amountCents || 0));
+  return m.type === "debito" ? -v : v;
 }
 
 /** Assinatura do conjunto (id:valor ordenado) — a prévia e a geração têm que bater. */
@@ -177,7 +191,7 @@ export function montarPreviaDaCompra(
       };
       porColab.set(m.collaboratorId, l);
     }
-    const v = Math.max(0, Math.round(m.amountCents || 0));
+    const v = valorNaCompra(m);
     if (m.category === "alimentacao") l.alimentacaoCents += v;
     else l.mobilidadeCents += v;
     l.totalCents += v;
@@ -187,10 +201,11 @@ export function montarPreviaDaCompra(
   const totais = totaisVazios();
   const foraDoLote = totaisVazios();
   const entram: Array<{ id: string; amountCents: number }> = [];
-  const valorPorId = new Map(creditos.map((m) => [m.id, Math.max(0, Math.round(m.amountCents || 0))]));
+  const valorPorId = new Map(creditos.map((m) => [m.id, valorNaCompra(m)]));
   for (const l of linhas) {
     if (!l.cpf) l.avisos.push(AVISOS_DA_COMPRA.sem_cpf);
-    if (l.totalCents <= 0) l.avisos.push(AVISOS_DA_COMPRA.valor_zero);
+    if (l.alimentacaoCents < 0 || l.mobilidadeCents < 0) l.avisos.push(AVISOS_DA_COMPRA.estorno_maior);
+    else if (l.totalCents <= 0) l.avisos.push(AVISOS_DA_COMPRA.valor_zero);
     if (!l.ativo) l.avisos.push(AVISOS_DA_COMPRA.inativo);
     l.entra = !l.avisos.some((a) => a.bloqueia);
     const t = l.entra ? totais : foraDoLote;

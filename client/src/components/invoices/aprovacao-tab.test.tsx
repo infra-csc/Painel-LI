@@ -102,7 +102,9 @@ describe("AprovacaoTab — 'Aguardando' com o critério da aba e do resumo (08/1
     expect(aguardaAnaliseDoRh({ status: "enviada" }, { sentForReview: true, rhStatus: "aprovado" })).toBe(true);
     expect(aguardaAnaliseDoRh({ status: "enviada" }, { sentForReview: false, rhStatus: "devolvido" })).toBe(false);
     expect(aguardaAnaliseDoRh({ status: "enviada" }, { sentForReview: false, rhStatus: "rejeitado" })).toBe(false);
-    expect(aguardaAnaliseDoRh({ status: "enviada" }, { sentForReview: true, rhStatus: "pendente", splitParentId: "x" })).toBe(false);
+    // 28/10 (R7): a nota do substituto (divisão da vaga) espera o DP como as outras.
+    expect(aguardaAnaliseDoRh({ status: "enviada" }, { sentForReview: true, rhStatus: "aprovado", splitParentId: "x" })).toBe(true);
+    expect(aguardaAnaliseDoRh({ status: "enviada" }, { sentForReview: false, rhStatus: "devolvido", splitParentId: "x" })).toBe(false);
     expect(aguardaAnaliseDoRh({ status: "enviada" }, undefined)).toBe(false);
     expect(aguardaAnaliseDoRh({ status: "aprovada" }, { sentForReview: true, rhStatus: "pendente" })).toBe(false);
   });

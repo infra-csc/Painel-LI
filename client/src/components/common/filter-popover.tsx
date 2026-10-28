@@ -25,8 +25,12 @@ const normalizar = (t: string) =>
 export interface OpcaoDeFiltro {
   id: string;
   nome: string;
-  /** Quantas linhas sobram ao escolher esta opção. */
-  n: number;
+  /**
+   * Quantas linhas sobram ao escolher esta opção. `null` = a tela não sabe
+   * sem baixar a lista inteira (outro evento com um já escolhido, 28/10):
+   * a opção aparece sem número — nem 0.
+   */
+  n: number | null;
 }
 
 const GATILHO =
@@ -123,7 +127,7 @@ function Lista({ opcoes, busca, onBusca, estaMarcada, onEscolher, placeholder, t
           >
             <Caixa on={estaMarcada(o.id)} />
             <span className="flex-1 min-w-0 truncate">{o.nome}</span>
-            <span className="shrink-0 text-2xs text-muted-foreground tabular-nums">{o.n}</span>
+            {o.n !== null && <span className="shrink-0 text-2xs text-muted-foreground tabular-nums">{o.n}</span>}
           </button>
         ))}
         {filtradas.length === 0 && (

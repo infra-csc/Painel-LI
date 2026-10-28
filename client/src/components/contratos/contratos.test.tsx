@@ -122,6 +122,21 @@ describe("Fornecedor aprovado automaticamente (28/10)", () => {
     expect(await screen.findByTestId("ctr-aprovacao-feito")).toHaveTextContent("1 fornecedor aprovado");
     expect(chamadas.filter((c) => c.metodo === "POST").map((c) => c.url)).toEqual(["/api/contratos/aprovacao-automatica?simular=1", "/api/contratos/aprovacao-automatica"]);
   });
+
+  it("varredura (28/10, S1): CNPJ que já é de outro contrato vira \"Pendências do DP\" — nada a aprovar", async () => {
+    const pendente = { cnpj: "62.345.678/0001-00", razaoSocial: "Empresa do Dono ME", contratoId: "k9", decisao: "pendente" as const,
+      descricao: "CNPJ já é de outro contrato — confira e vincule à mão em Contratos se for a mesma empresa. Ana passou com este CNPJ e não está no contrato.",
+      frase: "Aprovado automaticamente: CNPJ já pago em NR São Luís em 12/10/2026 (nota fiscal aprovada).", evento: "NR São Luís", data: "2026-10-12", gatilho: "nota fiscal aprovada",
+      colaboradores: [{ id: "c2", nome: "ANA" }], pendentes: [{ id: "c2", nome: "ANA" }] };
+    const previa: RespostaDaAprovacao = { simulado: true, resumo: { criar: 0, atualizar: 0, jaAprovados: 0, ignorados: 0, pendentes: 1, total: 1 }, itens: [pendente], aprovados: 0 };
+    mockarFetch(roteador({ "POST /api/contratos/aprovacao-automatica": () => respostaJson(previa) }, []));
+    renderComTudo(<AprovacaoPeloHistoricoDialog aberto onClose={() => {}} />, { user: rh, queryClient: criarQueryClientComApi() });
+    const secao = await screen.findByTestId("ctr-aprovacao-pendencias");
+    expect(secao).toHaveTextContent("Empresa do Dono ME");
+    expect(secao).toHaveTextContent("CNPJ de outro contrato");
+    expect(screen.getByTestId("ctr-aprovacao-pendentes")).toHaveTextContent("Não vinculado automaticamente: Ana");
+    expect(screen.getByTestId("ctr-aprovacao-confirmar")).toBeDisabled();
+  });
 });
 
 describe("Importação da planilha em 3 passos", () => {

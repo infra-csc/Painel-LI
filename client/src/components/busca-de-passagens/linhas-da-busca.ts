@@ -144,7 +144,17 @@ export const saidaDaLinha = (l: LinhaDaBusca) => chaveDaCidade(l.cidadeDeSaida);
 
 export type CampoContado = "situacao" | "evento" | "saida" | "destino" | "funcoes";
 
-const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+/**
+ * Período (28/10, dono): a vaga entra se a IDA ou a VOLTA cair nele (limites
+ * inclusivos; as datas são o dia de Brasília, "AAAA-MM-DD") — antes só a ida
+ * contava e as "só volta" sumiam.
+ */
+function dataNoPeriodo(dia: string | null, f: Pick<FiltrosDaBusca, "de" | "ate">): boolean {
+  if (!dia) return false;
+  return (!f.de || dia >= f.de) && (!f.ate || dia <= f.ate);
+}
+
+const semAcento =(s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 /** Passa nos filtros? `ignorar` zera um filtro (para contar as opções dele). */
 export function passaNosFiltros(l: LinhaDaBusca, f: FiltrosDaBusca, ignorar?: CampoContado): boolean {
@@ -165,8 +175,7 @@ export function passaNosFiltros(l: LinhaDaBusca, f: FiltrosDaBusca, ignorar?: Ca
     const tipos = TIPOS_DE_FALTA[f.falta];
     if (!l.faltas.some((x) => tipos.includes(x.tipo))) return false;
   }
-  if (f.de && (!l.dataIda || l.dataIda < f.de)) return false;
-  if (f.ate && (!l.dataIda || l.dataIda > f.ate)) return false;
+  if ((f.de || f.ate) && !dataNoPeriodo(l.dataIda, f) && !dataNoPeriodo(l.dataVolta, f)) return false;
   // Sem acento/caixa (28/10): "joao pessoa" acha "João Pessoa".
   const q = semAcento(f.q.replace(/#/g, "")).trim();
   if (q) {

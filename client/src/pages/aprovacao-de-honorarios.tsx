@@ -12,7 +12,7 @@
  * decisões são as de sempre (aprovacao-painel.tsx); nada aqui mexe na escala.
  */
 import { useMemo } from "react";
-import { CheckCircle2, Hourglass, Lock } from "lucide-react";
+import { CalendarX, CheckCircle2, Hourglass, Lock } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Event } from "@shared/schema";
 import { ehAprovado } from "@shared/honorarios-ceno";
@@ -56,6 +56,9 @@ export default function AprovacaoDeHonorariosPage() {
     return Array.from(m.values()).sort((a, b) => String(b.startDate).localeCompare(String(a.startDate)));
   }, [todos]);
   const eventoEscolhido = eventos.find((e) => e.id === url.evento);
+  // 28/10 (dono): `?evento=` de um evento que saiu das duas filas (link antigo,
+  // sininho) escondia tudo sem aviso — agora a tela diz e oferece "Ver todos".
+  const eventoForaDaFila = !!url.evento && !eventoEscolhido && !pend.isLoading && !dec.isLoading;
   const doEvento = (l: Honorario[] | undefined) => (l ?? []).filter((h) => !url.evento || h.eventId === url.evento);
   const pendentes = doEvento(pend.data);
   const decididos = doEvento(dec.data);
@@ -93,6 +96,18 @@ export default function AprovacaoDeHonorariosPage() {
       <EstadoDaValidacao icone={<Lock aria-hidden="true" />} titulo="Tela do aprovador de honorários"
         texto="Só o aprovador da escala das funções de cenotécnica, o aprovador padrão e o administrador decidem os honorários. Se deveria ser você, fale com o administrador."
         testId="hon-apr-sem-acesso" />
+    );
+  } else if (eventoForaDaFila) {
+    conteudo = (
+      <EstadoDaValidacao icone={<CalendarX aria-hidden="true" />} titulo="Este evento não tem pedidos na fila"
+        texto="Os pedidos dele já saíram da aprovação (ou o link é de outro evento). Veja a fila de todos os eventos."
+        acao={(
+          <button type="button" onClick={() => setUrl({ evento: "" })} data-testid="hon-apr-ver-todos"
+            className="inline-flex h-9 items-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            Ver todos
+          </button>
+        )}
+        testId="hon-apr-evento-fora" />
     );
   } else {
     conteudo = (

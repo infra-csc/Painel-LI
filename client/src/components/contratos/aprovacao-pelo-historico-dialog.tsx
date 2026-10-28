@@ -1,12 +1,14 @@
 /**
  * "Aprovar fornecedores pelo histórico" (28/10) — a varredura única do
  * passado. Abre já com a PRÉVIA (POST …?simular=1, não grava): quantos CNPJs
- * viram contrato novo, quantos ganham vínculo/vigência e quais ficam de fora
+ * viram contrato novo, quantos ganham vigência e quais ficam de fora
  * (encerrado pelo DP, vigência do DP vencida). "Aprovar" grava e mostra o
  * resultado. Regra em shared/fornecedor-automatico.ts.
+ * 28/10 (revisão, S1/R6): a OC não aprova; o CNPJ que já é de outro contrato
+ * não vincula ninguém sozinho — vira a seção "Pendências do DP".
  */
 import { useEffect, useState } from "react";
-import { CheckCircle2, CircleSlash, History, Link2, Loader2, PlusCircle, RefreshCw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CircleSlash, History, Link2, Loader2, PlusCircle, RefreshCw } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -15,19 +17,24 @@ import { apiErrorMessage, cn } from "@/lib/utils";
 import { useAprovacaoPeloHistorico, type DecisaoDaAprovacao, type ItemDaAprovacaoApi, type RespostaDaAprovacao } from "./api";
 import { dataBr } from "./pecas";
 
-const ROTULO: Record<DecisaoDaAprovacao, string> = { criar: "Contrato novo", atualizar: "Vincula / abre vigência", ja_aprovado: "Já aprovado", ignorado: "Fica como está" };
+const ROTULO: Record<DecisaoDaAprovacao, string> = {
+  criar: "Contrato novo", atualizar: "Abre vigência", ja_aprovado: "Já aprovado", ignorado: "Fica como está", pendente: "CNPJ de outro contrato",
+};
 const TOM: Record<DecisaoDaAprovacao, string> = {
   criar: "border-success/30 bg-success-soft text-success",
   atualizar: "border-primary/25 bg-brand-soft text-primary",
   ja_aprovado: "border-border bg-surface-muted text-slate-600",
   ignorado: "border-border bg-surface-muted text-slate-600",
+  pendente: "border-warning/30 bg-warning-soft text-warning",
 };
 
-function Item({ i }: { i: ItemDaAprovacaoApi }) {
+function Item({ i, comoPendencia = false }: { i: ItemDaAprovacaoApi; comoPendencia?: boolean }) {
+  // Na seção de pendências o selo é sempre "CNPJ de outro contrato" (o "já aprovado" é de outra pessoa).
+  const selo: DecisaoDaAprovacao = comoPendencia ? "pendente" : i.decisao;
   return (
     <li className="rounded-xl border border-border bg-card px-3.5 py-2.5" data-testid={`ctr-aprovacao-${i.decisao}`}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span className={cn("inline-flex h-5 items-center rounded-full border px-2 text-2xs font-semibold", TOM[i.decisao])}>{ROTULO[i.decisao]}</span>
+        <span className={cn("inline-flex h-5 items-center rounded-full border px-2 text-2xs font-semibold", TOM[selo])}>{ROTULO[selo]}</span>
         <span className="font-mono text-2xs tabular-nums text-muted-foreground">{i.cnpj}</span>
       </div>
       <p className="mt-1 break-words text-sm font-medium leading-5 text-foreground">{i.razaoSocial}</p>
@@ -36,6 +43,12 @@ function Item({ i }: { i: ItemDaAprovacaoApi }) {
         Passou em {i.evento} · {dataBr(i.data)} · {i.gatilho}
         {i.colaboradores.length > 0 && <> · {i.colaboradores.map((c) => toTitleCase(c.nome)).join(", ")}</>}
       </p>
+      {(i.pendentes?.length ?? 0) > 0 && (
+        <p className="mt-1 flex items-start gap-1.5 text-2xs font-medium leading-relaxed text-warning" data-testid="ctr-aprovacao-pendentes">
+          <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span className="min-w-0 break-words">Não vinculado automaticamente: {i.pendentes!.map((c) => toTitleCase(c.nome)).join(", ")}</span>
+        </p>
+      )}
     </li>
   );
 }
@@ -69,6 +82,8 @@ export function AprovacaoPeloHistoricoDialog({ aberto, onClose }: { aberto: bool
   const r = feito ?? resposta;
   const gravaveis = r?.itens.filter((i) => i.decisao === "criar" || i.decisao === "atualizar") ?? [];
   const ignorados = r?.itens.filter((i) => i.decisao === "ignorado") ?? [];
+  // 28/10 (S1): o CNPJ já é de outro contrato — o DP decide o vínculo à mão.
+  const pendencias = r?.itens.filter((i) => i.decisao === "pendente" || (i.decisao === "ja_aprovado" && (i.pendentes?.length ?? 0) > 0)) ?? [];
 
   return (
     <Dialog open={aberto} onOpenChange={(o) => { if (!o && !executar.isPending) onClose(); }}>
@@ -76,8 +91,8 @@ export function AprovacaoPeloHistoricoDialog({ aberto, onClose }: { aberto: bool
         <DialogHeader className="shrink-0 space-y-1.5 border-b border-border px-6 pb-4 pt-5 text-left">
           <DialogTitle className="flex items-center gap-2 text-lg"><History className="h-5 w-5 text-primary" aria-hidden="true" /> Aprovar fornecedores pelo histórico</DialogTitle>
           <DialogDescription className="text-xs leading-relaxed">
-            Todo CNPJ que já teve OC registrada, nota fiscal aprovada ou pagamento marcado vira contrato ativo (vigência aberta), ligado a quem passou com ele.
-            Contrato encerrado pelo DP não volta; vigência que o DP definiu e venceu fica como está.
+            Todo CNPJ sem contrato que já teve nota fiscal aprovada ou pagamento marcado vira contrato ativo (vigência aberta), ligado a quem passou com ele primeiro.
+            CNPJ que já é de outro contrato não liga ninguém sozinho: fica em Pendências do DP. Contrato encerrado pelo DP não volta; vigência que o DP definiu e venceu fica como está.
           </DialogDescription>
         </DialogHeader>
 
@@ -104,20 +119,21 @@ export function AprovacaoPeloHistoricoDialog({ aberto, onClose }: { aberto: bool
               ) : (
                 <p className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">Prévia — nada foi gravado ainda</p>
               )}
-              <div role="group" aria-label="Resumo" className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-4">
+              <div role="group" aria-label="Resumo" className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-5">
                 {[
                   { rotulo: "Contratos novos", valor: r.resumo.criar, icone: PlusCircle, tom: "text-success" },
-                  { rotulo: "Vínculo ou vigência", valor: r.resumo.atualizar, icone: Link2, tom: "text-primary" },
+                  { rotulo: "Vigência aberta", valor: r.resumo.atualizar, icone: Link2, tom: "text-primary" },
                   { rotulo: "Já aprovados", valor: r.resumo.jaAprovados, icone: CheckCircle2, tom: "text-slate-500" },
-                  { rotulo: "Ficam como estão", valor: r.resumo.ignorados, icone: CircleSlash, tom: "text-slate-500" },
-                ].map((c) => (
-                  <div key={c.rotulo} className="bg-card px-4 py-3">
+                  { rotulo: "Como estão", valor: r.resumo.ignorados, icone: CircleSlash, tom: "text-slate-500" },
+                  { rotulo: "Pendências", valor: r.resumo.pendentes ?? 0, icone: AlertTriangle, tom: "text-warning" },
+                ].map((c, k) => (
+                  <div key={c.rotulo} className={cn("bg-card px-4 py-3", k === 4 && "col-span-2 sm:col-span-1")}>
                     <span className="flex items-center gap-1.5 text-2xs font-medium text-muted-foreground"><c.icone className={cn("h-3.5 w-3.5", c.tom)} aria-hidden="true" />{c.rotulo}</span>
                     <span className="mt-0.5 block text-lg font-semibold tabular-nums text-foreground">{c.valor}</span>
                   </div>
                 ))}
               </div>
-              {gravaveis.length === 0 && ignorados.length === 0 && (
+              {gravaveis.length === 0 && ignorados.length === 0 && pendencias.length === 0 && (
                 <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
                   {r.resumo.total === 0 ? "Nenhum CNPJ no histórico de pagamentos ainda." : "Todo CNPJ do histórico já tem contrato ativo com quem passou com ele."}
                 </p>
@@ -126,6 +142,13 @@ export function AprovacaoPeloHistoricoDialog({ aberto, onClose }: { aberto: bool
                 <section aria-label={feito ? "Aprovados" : "Serão aprovados"} className="space-y-2">
                   <h3 className="text-xs font-semibold text-foreground">{feito ? "Aprovados" : "Serão aprovados"} ({gravaveis.length})</h3>
                   <ul className="space-y-2">{gravaveis.map((i) => <Item key={i.cnpj} i={i} />)}</ul>
+                </section>
+              )}
+              {pendencias.length > 0 && (
+                <section aria-label="Pendências do DP" className="space-y-2" data-testid="ctr-aprovacao-pendencias">
+                  <h3 className="text-xs font-semibold text-foreground">Pendências do DP — CNPJ já é de outro contrato ({pendencias.length})</h3>
+                  <p className="text-2xs leading-relaxed text-muted-foreground">Ninguém é ligado sozinho ao contrato de outra pessoa. Se for a mesma empresa, vincule à mão no contrato.</p>
+                  <ul className="space-y-2">{pendencias.map((i) => <Item key={i.cnpj} i={i} comoPendencia />)}</ul>
                 </section>
               )}
               {ignorados.length > 0 && (

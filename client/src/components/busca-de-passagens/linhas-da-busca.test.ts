@@ -94,10 +94,25 @@ describe("linhas da aba Buscar", () => {
     expect(ids({ situacao: "todas", trecho: "so_ida" })).toEqual(["d"]);
     expect(ids({ situacao: "todas", falta: "sem_aeroporto" })).toEqual(["b"]);
     expect(ids({ situacao: "todas", falta: "prontas" })).toEqual(["a", "d"]);
-    expect(ids({ situacao: "todas", de: "2026-11-13" })).toEqual([]);
+    expect(ids({ situacao: "todas", de: "2026-11-17" })).toEqual([]); // nem a ida nem a volta no período (28/10)
     expect(ids({ situacao: "todas", q: "#11" })).toEqual(["b"]);
     expect(ids({ situacao: "todas", destino: "JPA" })).toEqual(["a", "d"]);
     expect(ordenarLinhas(l).map((x) => x.vaga.id)).toEqual(["a", "b", "d"]);
+  });
+
+  it("período (28/10, dono): a vaga entra se a IDA ou a VOLTA cair no período, limites inclusivos — “só volta” não some", () => {
+    const l = linhas({ mais: [vagaFake({ id: "v", inclusionNumber: 9, eventId: "ev-jpa", ...viagem, trechosSugeridos: "so_volta", flightDepartureDate: null })] });
+    expect(l.find((x) => x.vaga.id === "v")).toMatchObject({ trecho: "so_volta", dataIda: null, dataVolta: "2026-11-16" });
+    const ids = (de: string, ate: string) => l.filter((x) => passaNosFiltros(x, { ...FILTROS_PADRAO, situacao: "todas", de, ate })).map((x) => x.vaga.id);
+    // Só a volta (16/11) cai no período: a "só volta" e as de ida e volta entram; a "só ida" (12/11) não.
+    expect(ids("2026-11-16", "2026-11-16")).toEqual(["v", "a", "b"]);
+    // Só a ida (12/11), limite inclusivo nas duas pontas.
+    expect(ids("2026-11-12", "2026-11-12")).toEqual(["a", "b", "d"]);
+    // Entre a ida e a volta, sem nenhuma das duas no período: ninguém.
+    expect(ids("2026-11-13", "2026-11-15")).toEqual([]);
+    // Só "a partir de" / só "até".
+    expect(ids("2026-11-14", "")).toEqual(["v", "a", "b"]);
+    expect(ids("", "2026-11-12")).toEqual(["a", "b", "d"]);
   });
 
   it("busca sem acento/caixa: “joao pessoa” acha “Makai João Pessoa” (28/10)", () => {

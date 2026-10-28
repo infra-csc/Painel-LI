@@ -66,6 +66,8 @@ export interface LinhaDaOc {
   actualId: string;
   eventId: string;
   colaborador: { id: string; nome: string; numero: number } | null;
+  /** 28/10 (R7): divisão da vaga — o substituto pago como prestação própria; ausente num servidor antigo. */
+  divisao?: { titularActualId: string; titularNome: string | null } | null;
   funcao: { id: string | null; nome: string | null; centroDeCusto: string | null };
   valorAprovado: number;
   rhActionAt: string | null;

@@ -341,7 +341,10 @@ export const teamInclusions = pgTable("team_inclusions", {
 export const tickets = pgTable("tickets", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamInclusionId: varchar("team_inclusion_id").notNull().references(() => teamInclusions.id),
-  transportType: text("transport_type"), // aereo, rodoviario
+  transportType: text("transport_type"), // aereo, rodoviario — tipo da IDA (e da volta, se igual)
+  // TIPO DA VOLTA (28/10, vaga #4618): só quando a volta é DIFERENTE da ida
+  // (ida aérea + volta de ônibus). NULL = igual à ida — shared/tipo-por-trecho.ts.
+  returnTransportType: text("return_transport_type"),
   purchaseDate: date("purchase_date"),
   actualDepartureDate: date("actual_departure_date"),
   actualDepartureTime: text("actual_departure_time"),
@@ -361,8 +364,14 @@ export const tickets = pgTable("tickets", {
   destinationAirport: text("destination_airport"), // aeroporto destino da ida
   returnOriginAirport: text("return_origin_airport"), // aeroporto origem da volta
   returnDestinationAirport: text("return_destination_airport"), // aeroporto destino da volta
-  value: integer("value"), // valor em centavos
+  value: integer("value"), // valor em centavos — o TOTAL da passagem (ida + volta), o que entra no custo
   purchaseOrderNumber: text("purchase_order_number"),
+  // VOLTA COMPRADA À PARTE (28/10, vaga #4618 — dono: "deveria SOMAR os valores
+  // de ida e volta"): a parte da volta no `value` e o bilhete/LOC dela. `value`
+  // continua o TOTAL (Espelho, Análises e listas somam sem mudar nada); ida =
+  // value − return_value. NULL = passagem de uma compra só (como sempre).
+  returnValue: integer("return_value"),
+  returnPurchaseOrderNumber: text("return_purchase_order_number"),
   fileUrl: text("file_url"),
   attachmentIds: text("attachment_ids").array(), // IDs de referência dos anexos da passagem
   cardLastFourDigits: text("card_last_four_digits"), // últimos 4 dígitos do cartão
@@ -681,6 +690,15 @@ export const budgetActual = pgTable("budget_actual", {
   valorHorasExtras: integer("valor_horas_extras").notNull().default(0), // centavos
   checkoutFinalEm: timestamp("checkout_final_em", { withTimezone: true }),
   checkoutFinalPor: varchar("checkout_final_por"),
+  // 28/10 (revisão R2): o Realizado ANTES do 1º check-out final — refeito
+  // depois da devolução, o recálculo parte daqui (shared/presenca.ts →
+  // BaseDoCheckoutFinal). Só o check-out final grava. Migração:
+  // scripts/migrations/2026-10-28-revisao-correcoes.sql (+ ensure-schema).
+  baseCheckoutFinal: jsonb("base_checkout_final").$type<{
+    dailyQuantity: number; dailyValue: number; totalValue: number;
+    weekdayLunch: number; weekdayDinner: number; weekendLunch: number; weekendDinner: number;
+    mobility: number; transport: number; workedDays: string[] | null; diasMeiaExtra: string[] | null;
+  }>(),
   // Módulo de Honorários, Fase 2 MANUAL (28/10) — etapas 4 (OC) e 7 (pago),
   // regras em shared/honorarios-pagamento.ts. Só as rotas de
   // server/routes/honorarios-pagamento.ts gravam (fora do insertBudgetActualSchema).
@@ -850,6 +868,8 @@ export const ticketRowSchema = createInsertSchema(tickets).omit({
   updatedAt: true,
 }).extend({
   transportType: z.enum(["aereo", "rodoviario", "van"]).optional(),
+  // Tipo da volta (28/10): só aéreo/rodoviário; null = igual à ida.
+  returnTransportType: z.enum(["aereo", "rodoviario"]).nullable().optional(),
   // Horas "HH:MM" (25/09): a regra de mobilidade 20h–5h e a de alimentação
   // leem estas colunas; texto livre aqui virava cálculo errado em silêncio.
   actualDepartureTime: horaHhmm,
@@ -941,6 +961,8 @@ export const insertBudgetActualSchema = createInsertSchema(budgetActual).omit({
   // POST/PATCH /api/budget-actual nunca traz (o zod descarta).
   ocNumero: true, ocValor: true, ocData: true, ocRegistradaEm: true, ocRegistradaPor: true, ocOrigem: true, ocJustificativa: true,
   pagoEm: true, pagoRegistradoPor: true, pagoRegistradoEm: true, pagamentoObs: true, pagamentoComprovanteId: true,
+  // 28/10 (revisão R2): a base do check-out final só o check-out grava.
+  baseCheckoutFinal: true,
 }).extend({
   // jsonb (25/09). As rotas descartam este campo do corpo; o tipo serve ao servidor.
   rhAdjustedFields: z.record(z.object({ from: z.number(), to: z.number(), label: z.string() })).nullish(),
@@ -2149,6 +2171,9 @@ export const colaboradoresAcesso = pgTable("colaboradores_acesso", {
   codigoExpiraEm: timestamp("codigo_expira_em", { withTimezone: true }),
   codigoGeradoPor: varchar("codigo_gerado_por"),
   tentativasFalhas: integer("tentativas_falhas").notNull().default(0),
+  // 28/10 (revisão S3): início da janela dos erros — passou o tempo do
+  // bloqueio, a contagem recomeça (a mesma regra do CPF sem cadastro).
+  falhasDesde: timestamp("falhas_desde", { withTimezone: true }),
   bloqueadoAte: timestamp("bloqueado_ate", { withTimezone: true }),
   termoVersaoAceita: text("termo_versao_aceita"),
   termoAceitoEm: timestamp("termo_aceito_em", { withTimezone: true }),

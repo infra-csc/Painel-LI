@@ -3,8 +3,8 @@
  * banco e aplica a regra pura de shared/fornecedor-automatico.ts.
  *
  *  - `reconhecerFornecedores({ actualIds, invoiceIds }, ator, req)`: chamado
- *    DEPOIS de registrar a OC (individual e lote), aprovar a nota fiscal e
- *    marcar o pagamento. Idempotente e à prova de falha: um erro aqui não
+ *    DEPOIS de aprovar a nota fiscal e marcar o pagamento (28/10, R6: a OC
+ *    registrada não aprova mais). Idempotente e à prova de falha: um erro aqui não
  *    desfaz a ação principal (fica no log do servidor; a varredura recupera);
  *  - `aprovarPeloHistorico({ simular }, ator, req)`: a varredura única do
  *    passado (POST /api/contratos/aprovacao-automatica[?simular=1]).
@@ -18,8 +18,8 @@ import { db } from "./db";
 import { storage } from "./storage";
 import { budgetActual, invoices, presencaConfirmacoes, type BudgetActual, type Event, type Invoice } from "@shared/schema";
 import {
-  AUTOR_DA_APROVACAO_AUTOMATICA, GATILHO_DA_APROVACAO_LABEL, MOTIVO_IGNORADO_LABEL, RAZAO_SOCIAL_NAO_INFORMADA, cnpjDaPrestacao, passagemDaNota,
-  passagensDaPrestacao, planejarAprovacao, planoGrava, resumoDosPlanos, type PassagemDoCnpj, type PlanoDoCnpj,
+  AUTOR_DA_APROVACAO_AUTOMATICA, GATILHO_DA_APROVACAO_LABEL, MOTIVO_IGNORADO_LABEL, MOTIVO_PENDENTE_LABEL, RAZAO_SOCIAL_NAO_INFORMADA, cnpjDaPrestacao,
+  passagemDaNota, passagensDaPrestacao, planejarAprovacao, planoGrava, resumoDosPlanos, type PassagemDoCnpj, type PlanoDoCnpj,
 } from "@shared/fornecedor-automatico";
 import { mascararCnpj } from "@shared/cnpj";
 import { hojeISO } from "@shared/hoje-sp";
@@ -31,8 +31,9 @@ import { createAuditLog } from "./routes/_compartilhado";
 type Filtro = { actualIds?: readonly string[]; invoiceIds?: readonly string[] } | "tudo";
 
 /**
- * As passagens de CNPJ do histórico. "tudo" = toda prestação com OC ou pago e
- * toda nota aprovada (inclusive do fluxo antigo — conta quando há CNPJ).
+ * As passagens de CNPJ do histórico. "tudo" = toda prestação PAGA e toda nota
+ * aprovada (inclusive do fluxo antigo — conta quando há CNPJ). 28/10 (R6): a
+ * OC registrada não entra.
  */
 export async function carregarPassagens(filtro: Filtro): Promise<PassagemDoCnpj[]> {
   const tudo = filtro === "tudo";
@@ -46,14 +47,14 @@ export async function carregarPassagens(filtro: Filtro): Promise<PassagemDoCnpj[
       actualIds.length ? inArray(invoices.budgetActualId, actualIds) : undefined,
       invoiceIds.length ? inArray(invoices.id, invoiceIds) : undefined,
     )));
-  const comOcOuPago: BudgetActual[] = tudo
-    ? await db.select().from(budgetActual).where(or(isNotNull(budgetActual.ocNumero), isNotNull(budgetActual.pagoEm)))
+  const pagas: BudgetActual[] = tudo
+    ? await db.select().from(budgetActual).where(isNotNull(budgetActual.pagoEm))
     : actualIds.length ? await db.select().from(budgetActual).where(inArray(budgetActual.id, actualIds)) : [];
   // As prestações das notas (para o CNPJ do check-out final / da confirmação).
-  const jaLidas = new Set(comOcOuPago.map((a) => a.id));
+  const jaLidas = new Set(pagas.map((a) => a.id));
   const faltam = Array.from(new Set(notas.map((n) => n.budgetActualId).filter((v): v is string => !!v && !jaLidas.has(v))));
   const dasNotas = faltam.length ? await db.select().from(budgetActual).where(inArray(budgetActual.id, faltam)) : [];
-  const actuals = [...comOcOuPago, ...dasNotas];
+  const actuals = [...pagas, ...dasNotas];
   const confirmacoes = actuals.length
     ? await db.select({ actualId: presencaConfirmacoes.actualId, cnpj: presencaConfirmacoes.cnpj, razaoSocial: presencaConfirmacoes.razaoSocial })
       .from(presencaConfirmacoes).where(inArray(presencaConfirmacoes.actualId, actuals.map((a) => a.id)))
@@ -76,12 +77,9 @@ export async function carregarPassagens(filtro: Filtro): Promise<PassagemDoCnpj[
   };
 
   const passagens: PassagemDoCnpj[] = [];
-  for (const a of comOcOuPago) {
+  for (const a of pagas) {
     const { cnpj, razaoSocial } = cnpjDe(a);
-    passagens.push(...passagensDaPrestacao({
-      collaboratorId: a.collaboratorId, evento: eventoDa(a.eventId), cnpj, razaoSocial,
-      ocNumero: a.ocNumero, ocData: a.ocData, ocRegistradaEm: a.ocRegistradaEm, pagoEm: a.pagoEm,
-    }));
+    passagens.push(...passagensDaPrestacao({ collaboratorId: a.collaboratorId, evento: eventoDa(a.eventId), cnpj, razaoSocial, pagoEm: a.pagoEm }));
   }
   for (const n of notas) {
     const daPrestacao = n.budgetActualId ? cnpjDe(actualPorId.get(n.budgetActualId)) : { cnpj: null, razaoSocial: null };
@@ -101,29 +99,39 @@ export interface ItemDaAprovacao {
   razaoSocial: string;
   contratoId: string | null;
   decisao: PlanoDoCnpj["decisao"]["tipo"];
-  /** O que muda (criar, vincular, abrir vigência) ou por que foi ignorado. */
+  /** O que muda (criar, abrir vigência), por que foi ignorado ou a pendência do DP. */
   descricao: string;
   frase: string;
   evento: string;
   data: string;
   gatilho: string;
   colaboradores: { id: string; nome: string }[];
+  /** 28/10 (S1): quem passou com o CNPJ e NÃO foi vinculado — o DP decide à mão. */
+  pendentes: { id: string; nome: string }[];
 }
 
 const listaDeNomes = (ns: readonly string[]) => (ns.length <= 1 ? ns.join("") : `${ns.slice(0, -1).join(", ")} e ${ns[ns.length - 1]}`);
 
 function descricaoDoPlano(p: PlanoDoCnpj, nomes: ReadonlyMap<string, string>): string {
   const d = p.decisao;
-  if (d.tipo === "criar") return `Cria o contrato (vigência aberta) e vincula ${listaDeNomes(p.colaboradorIds.map((id) => nomes.get(id) ?? "colaborador"))}.`;
+  const nomesDe = (ids: readonly string[]) => listaDeNomes(ids.map((id) => nomes.get(id) ?? "colaborador"));
+  // 28/10 (S1): quem passou e não entra sozinho no contrato — pendência do DP.
+  const um = p.pendentes.length === 1;
+  const pendencia = p.pendentes.length
+    ? ` CNPJ já é de outro contrato: ${nomesDe(p.pendentes)} ${um ? "passou" : "passaram"} com ele e não ${um ? "foi vinculado" : "foram vinculados"} — se for a mesma empresa, vincule à mão em Contratos.`
+    : "";
+  if (d.tipo === "criar") return `Cria o contrato (vigência aberta) e vincula ${nomesDe(d.vincular)}.${pendencia}`;
   if (d.tipo === "atualizar") {
     const partes = [
       d.abrirVigencia ? "abre a vigência do contrato sem datas" : null,
-      d.vincular.length ? `vincula ${listaDeNomes(d.vincular.map((id) => nomes.get(id) ?? "colaborador"))}` : null,
+      d.vincular.length ? `vincula ${nomesDe(d.vincular)}` : null,
     ].filter(Boolean).join(" e ");
-    return `${partes.charAt(0).toUpperCase()}${partes.slice(1)}.`;
+    return `${partes.charAt(0).toUpperCase()}${partes.slice(1)}.${pendencia}`;
   }
   if (d.tipo === "ignorado") return MOTIVO_IGNORADO_LABEL[d.motivo];
-  return "Já tem contrato ativo com estes colaboradores.";
+  if (d.tipo === "pendente") return `${MOTIVO_PENDENTE_LABEL[d.motivo]} ${nomesDe(p.pendentes)} ${um ? "passou" : "passaram"} com este CNPJ e não ${um ? "está" : "estão"} no contrato.`;
+  const donos = p.colaboradorIds.filter((id) => !p.pendentes.includes(id));
+  return p.pendentes.length ? `Contrato ativo de ${nomesDe(donos)}.${pendencia}` : "Já tem contrato ativo com quem passou.";
 }
 
 async function auditar(r: NonNullable<Awaited<ReturnType<typeof aplicarAprovacaoAutomatica>>>, ator: Autor, origem: string, req?: Request) {
@@ -153,8 +161,8 @@ async function aplicar(passagens: readonly PassagemDoCnpj[], ator: Autor, origem
 }
 
 /**
- * Gatilho na hora (OC registrada, nota aprovada, pagamento marcado). Nunca
- * lança: a ação principal já foi gravada.
+ * Gatilho na hora (nota aprovada, pagamento marcado — 28/10, R6: a OC não).
+ * Nunca lança: a ação principal já foi gravada.
  */
 export async function reconhecerFornecedores(
   alvo: { actualIds?: readonly string[]; invoiceIds?: readonly string[] }, ator: Autor, origem: string, req?: Request,
@@ -179,7 +187,8 @@ export async function aprovarPeloHistorico(o: { simular: boolean }, ator: Autor,
   const passagens = await carregarPassagens("tudo");
   const planos = planejarAprovacao(passagens, await contratosParaAprovacao(passagens.map((p) => p.cnpj)), hojeISO());
   const nomes = await nomesDosColaboradores(Array.from(new Set(planos.flatMap((p) => p.colaboradorIds))));
-  const visiveis = planos.filter((p) => p.decisao.tipo !== "ja_aprovado");
+  // 28/10 (S1): o "já aprovado" com pendência também aparece (o DP decide o vínculo).
+  const visiveis = planos.filter((p) => p.decisao.tipo !== "ja_aprovado" || p.pendentes.length > 0);
   const itens = (lista: readonly PlanoDoCnpj[]): ItemDaAprovacao[] => lista.map((p) => ({
     cnpj: mascararCnpj(p.cnpj),
     razaoSocial: p.razaoSocial ?? RAZAO_SOCIAL_NAO_INFORMADA,
@@ -191,6 +200,7 @@ export async function aprovarPeloHistorico(o: { simular: boolean }, ator: Autor,
     data: p.primeira.data,
     gatilho: GATILHO_DA_APROVACAO_LABEL[p.primeira.gatilho],
     colaboradores: p.colaboradorIds.map((id) => ({ id, nome: nomes.get(id) ?? "colaborador" })),
+    pendentes: p.pendentes.map((id) => ({ id, nome: nomes.get(id) ?? "colaborador" })),
   }));
   const resumo = resumoDosPlanos(planos);
   if (o.simular) return { simulado: true as const, resumo, itens: itens(visiveis), aprovados: 0 };
@@ -200,7 +210,7 @@ export async function aprovarPeloHistorico(o: { simular: boolean }, ator: Autor,
   await createAuditLog("update", "contrato", "aprovacao-automatica", {
     acao: "Aprovar fornecedores pelo histórico (varredura)", cnpjsNoHistorico: resumo.total,
     criados: feitos.filter((f) => f.feito === "criado").length, atualizados: feitos.filter((f) => f.feito === "atualizado").length,
-    jaAprovados: resumo.jaAprovados, ignorados: resumo.ignorados,
+    jaAprovados: resumo.jaAprovados, ignorados: resumo.ignorados, pendentes: resumo.pendentes,
   }, ator.id, ator.name, undefined, req);
   // Depois de gravar, a lista mostra o que foi feito (e os ignorados, que continuam).
   const depois = planejarAprovacao(passagens, await contratosParaAprovacao(passagens.map((p) => p.cnpj)), hojeISO());

@@ -200,7 +200,8 @@ export const ROTULO_DO_CAMPO: Record<string, string> = {
   emitsNf: "Emite nota fiscal", transportModeIda: "Transporte da ida", transportModeVolta: "Transporte da volta",
   skipUber: "Sem Uber",
   // passagem
-  transportType: "Tipo de transporte", value: "Valor", purchaseDate: "Data da compra",
+  transportType: "Tipo de transporte", returnTransportType: "Tipo de transporte da volta", value: "Valor", purchaseDate: "Data da compra",
+  returnValue: "Valor da volta (comprada à parte)", returnPurchaseOrderNumber: "LOC / bilhete da volta",
   purchaseOrderNumber: "LOC / bilhete", locator: "Localizador", ticketCompany: "Companhia",
   ticketStatus: "Situação da passagem", ticketObservations: "Observações da passagem",
   cardLastFourDigits: "Cartão (final)", actualDepartureDate: "Data da ida", actualDepartureTime: "Saída da ida",
@@ -277,7 +278,7 @@ export const campoOculto = (campo: string): boolean => CAMPOS_OCULTOS.has(campo)
 
 /** Valores em centavos. */
 const CAMPOS_EM_CENTAVOS = new Set([
-  "dailyValue", "value", "empreitaValor", "baggageTotalCents", "totalValue", "costAssistance", "mobility",
+  "dailyValue", "value", "returnValue", "empreitaValor", "baggageTotalCents", "totalValue", "costAssistance", "mobility",
   "mobilityIda", "mobilityVolta", "transport", "weekdayLunch", "weekdayDinner", "weekendLunch", "weekendDinner",
   "dailyRate", "precoInicial", "busca_passagens_valor_mala", "valorCentavos",
   "default_daily_value_weekday", "default_daily_value_weekend", "default_daily_value_weekday_freela",
@@ -291,7 +292,7 @@ const CAMPOS_EM_CENTAVOS = new Set([
 const CAMPOS_DE_CODIGO = new Set([
   "status", "previousStatus", "phase", "role", "collaboratorType", "atendimentoTipo", "cenoFreelaTipo",
   "percurseiroTipo", "transportModeIda", "transportModeVolta", "paymentStatus", "rhStatus", "ticketStatus",
-  "requestType", "transportType", "action",
+  "requestType", "transportType", "returnTransportType", "action",
 ]);
 const AEROPORTOS = new Set(["departureAirport", "destinationAirport", "returnOriginAirport", "returnDestinationAirport"]);
 const CIDADES = new Set(["city", "departureCityOrigin", "departureCityDestination", "returnCityOrigin", "returnCityDestination", "location"]);
@@ -342,6 +343,7 @@ const VALORES_DO_CAMPO: Record<string, Record<string, string>> = {
   cenoFreelaTipo: { ...(CENO_FREELA_TIPO_LABELS as Record<string, string>) },
   requestType: { inclusao: "Inclusão", exclusao: "Exclusão", ajuste: "Ajuste" },
   transportType: { aereo: "Aéreo", rodoviario: "Rodoviário", van: "Van" },
+  returnTransportType: { aereo: "Aéreo", rodoviario: "Rodoviário" },
   modo: { carro: "Carro", van: "Van", onibus: "Ônibus" },
   trecho: { ida: "Ida", volta: "Volta" },
 };

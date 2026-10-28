@@ -26,7 +26,7 @@ import { useConfirmarDescarte } from "@/lib/use-confirmar-descarte";
 import type { TicketFormValues } from "@/lib/ticket-form";
 import type { TeamInclusion } from "@shared/schema";
 import { casarVaga } from "./voucher-match";
-import { juntarIdaEVolta, juntarObservacao, type IdaEVoltaJuntas } from "./juntar-trechos";
+import { juntarIdaEVolta, juntarObservacao, precisaEscolherOTrecho, type IdaEVoltaJuntas } from "./juntar-trechos";
 import VagaCombobox, { type VagaOpcao } from "./vaga-combobox";
 
 interface LeituraDoServidor {
@@ -127,7 +127,16 @@ export default function VoucherLoteDialog({
     if (inputRef.current) inputRef.current.value = "";
   };
 
-  const prontas = linhas.filter((l) => l.tipo === "passagem" && l.inclusionId && l.resultado !== "ok");
+  /**
+   * Bilhete de UM trecho numa vaga que já tem ida E volta gravadas (28/10,
+   * vaga #4618): o lote não adivinha qual trecho trocar — gravava o bilhete
+   * por cima da passagem inteira (a ida aérea virava rodoviária). A linha fica
+   * de fora e diz para anexar na passagem da vaga, onde a tela pergunta.
+   */
+  const precisaDoModal = (l: Linha) =>
+    l.tipo === "passagem" && !!l.inclusionId && l.resultado !== "ok"
+    && precisaEscolherOTrecho(getPassagemAtual?.(l.inclusionId) ?? null, l);
+  const prontas = linhas.filter((l) => l.tipo === "passagem" && l.inclusionId && l.resultado !== "ok" && !precisaDoModal(l));
   // Duas linhas apontando para a mesma vaga quase sempre é engano: a segunda
   // sobrescreveria a passagem da primeira. A lista marca, o operador decide.
   const idsJaUsados = useMemo(
@@ -153,7 +162,7 @@ export default function VoucherLoteDialog({
     const atualizadas = [...linhas];
     const grupos = new Map<string, number[]>();
     atualizadas.forEach((linha, i) => {
-      if (linha.tipo !== "passagem" || !linha.inclusionId || linha.resultado === "ok") return;
+      if (linha.tipo !== "passagem" || !linha.inclusionId || linha.resultado === "ok" || precisaDoModal(linha)) return;
       grupos.set(linha.inclusionId, [...(grupos.get(linha.inclusionId) ?? []), i]);
     });
     for (const [vagaId, indices] of Array.from(grupos.entries())) {
@@ -170,7 +179,8 @@ export default function VoucherLoteDialog({
           form = { ...base, ...junto.campos };
           resumos.push(junto.resumo);
         } else {
-          form = { ...linha.campos };
+          // Voucher com ida e volta: um tipo só para os dois trechos (28/10).
+          form = { ...linha.campos, ...(linha.trechoUnico ? {} : { returnTransportType: "" }) };
         }
         // Conexão (19/10): entra nas Observações, depois do que já estava escrito.
         if (linha.observacao) form = { ...form, ticketObservations: juntarObservacao(base?.ticketObservations, linha.observacao) };
@@ -203,6 +213,8 @@ export default function VoucherLoteDialog({
     // precisa falar a mesma língua de quem vai conferir.
     if (c.purchaseOrderNumber) partes.push(`${c.transportType === "rodoviario" ? "Bilhete" : "LOC"} ${c.purchaseOrderNumber}`);
     if (c.departureAirport && c.destinationAirport) partes.push(`${c.departureAirport}→${c.destinationAirport}`);
+    // Bilhete só de volta (o leitor do ônibus põe nos campos da volta — 28/10).
+    else if (c.returnOriginAirport && c.returnDestinationAirport) partes.push(`${c.returnOriginAirport}→${c.returnDestinationAirport}`);
     if (c.actualDepartureDate) partes.push(`ida ${c.actualDepartureDate.split("-").reverse().join("/")} ${c.actualDepartureTime ?? ""}`.trim());
     if (c.actualReturnDate) partes.push(`volta ${c.actualReturnDate.split("-").reverse().join("/")} ${c.actualReturnTime ?? ""}`.trim());
     if (c.value) partes.push(`R$ ${c.value}`);
@@ -281,7 +293,13 @@ export default function VoucherLoteDialog({
                               {l.pessoa ? <>Passageiro: <strong>{l.pessoa}</strong> · </> : null}
                               {resumoCampos(l.campos)}
                             </p>
-                            {l.trechoUnico && !l.resultado && l.inclusionId && (vezesNaVaga.get(l.inclusionId) ?? 0) > 1 && (
+                            {precisaDoModal(l) && (
+                              <p className="mt-1 text-2xs font-medium text-warning flex items-start gap-1" data-testid={`lote-precisa-do-modal-${idx}`}>
+                                <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" aria-hidden="true" />
+                                Esta vaga já tem ida e volta e o bilhete é de um trecho só — não entra no lote. Anexe-o na passagem da vaga: a tela pergunta qual trecho trocar.
+                              </p>
+                            )}
+                            {l.trechoUnico && !l.resultado && l.inclusionId && !precisaDoModal(l) && (vezesNaVaga.get(l.inclusionId) ?? 0) > 1 && (
                               <p className="mt-1 text-2xs font-medium text-primary">
                                 Outro voucher desta vaga: ida e volta serão juntadas numa passagem e os valores somados.
                               </p>

@@ -10,7 +10,7 @@
 import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "../db";
 import {
-  collaborators, colaboradoresAcesso, presencas, presencaOcorrencias, presencaConfirmacoes,
+  collaborators, colaboradoresAcesso, events, presencas, presencaOcorrencias, presencaConfirmacoes, teamInclusions,
   type Collaborator, type ColaboradorAcesso, type Presenca, type PresencaOcorrencia, type PresencaConfirmacao,
 } from "@shared/schema";
 import { idsUnicos } from "./_comum";
@@ -58,17 +58,71 @@ export async function salvarAcesso(collaboratorId: string, campos: CamposDoAcess
   return a;
 }
 
-/** Soma um erro de login; no 5º seguido, bloqueia até `bloquearAte`. Atômico. */
+/**
+ * Soma um erro de login; no `limite`-ésimo dentro da janela, bloqueia até o
+ * FIM da janela. Atômico.
+ *
+ * 28/10 (revisão S3): a MESMA regra do CPF sem cadastro (contador do
+ * rate_limits, janela fixa que começa no 1º erro): a janela começa no 1º erro
+ * (`falhas_desde`) e dura o mesmo que o bloqueio (`bloquearAte` − agora);
+ * passada a janela — e com ela o bloqueio —, a contagem recomeça do 1. Antes
+ * o contador nunca zerava: depois do 1º bloqueio, cada erro novo bloqueava de
+ * novo (trava sem fim) e a resposta diferente da do CPF sem cadastro revelava
+ * quem tem senha.
+ */
 export async function registrarFalha(collaboratorId: string, limite: number, bloquearAte: Date): Promise<ColaboradorAcesso | null> {
+  const janelaMs = Math.max(1, bloquearAte.getTime() - Date.now());
+  const janela = sql`(${janelaMs}::int * interval '1 millisecond')`;
+  const novaJanela = sql`(${colaboradoresAcesso.falhasDesde} IS NULL OR ${colaboradoresAcesso.tentativasFalhas} = 0 OR ${colaboradoresAcesso.falhasDesde} + ${janela} <= now())`;
+  const tentativas = sql`(CASE WHEN ${novaJanela} THEN 1 ELSE ${colaboradoresAcesso.tentativasFalhas} + 1 END)`;
+  const inicio = sql`(CASE WHEN ${novaJanela} THEN now() ELSE ${colaboradoresAcesso.falhasDesde} END)`;
   const [a] = await db.update(colaboradoresAcesso)
     .set({
-      tentativasFalhas: sql`${colaboradoresAcesso.tentativasFalhas} + 1`,
-      bloqueadoAte: sql`CASE WHEN ${colaboradoresAcesso.tentativasFalhas} + 1 >= ${limite} THEN ${bloquearAte.toISOString()}::timestamptz ELSE ${colaboradoresAcesso.bloqueadoAte} END`,
+      tentativasFalhas: tentativas,
+      falhasDesde: inicio,
+      bloqueadoAte: sql`CASE WHEN ${tentativas} >= ${limite} THEN ${inicio} + ${janela} WHEN ${novaJanela} THEN NULL ELSE ${colaboradoresAcesso.bloqueadoAte} END`,
       atualizadoEm: new Date(),
     })
     .where(eq(colaboradoresAcesso.collaboratorId, collaboratorId))
     .returning();
   return a ?? null;
+}
+
+/**
+ * Consome o código de primeiro acesso de forma ATÔMICA (28/10, revisão S4):
+ * só grava se o hash lido ainda é o da linha e o código não venceu — dois
+ * pedidos com o mesmo código, um só passa (o outro recebe null). O código
+ * some junto (uso único).
+ */
+export async function consumirCodigoDeAcesso(collaboratorId: string, codigoHashLido: string, campos: CamposDoAcesso): Promise<ColaboradorAcesso | null> {
+  const [a] = await db.update(colaboradoresAcesso)
+    .set({ ...campos, codigoHash: null, codigoExpiraEm: null, tentativasFalhas: 0, falhasDesde: null, bloqueadoAte: null, atualizadoEm: new Date() })
+    .where(and(
+      eq(colaboradoresAcesso.collaboratorId, collaboratorId),
+      eq(colaboradoresAcesso.codigoHash, codigoHashLido),
+      sql`${colaboradoresAcesso.codigoExpiraEm} > now()`,
+    ))
+    .returning();
+  return a ?? null;
+}
+
+/**
+ * O colaborador está escalado em alguma vaga NÃO cancelada de evento do fluxo
+ * novo (termina a partir da data de corte, não cancelado)? É a régua da
+ * produção para gerar o código de acesso (28/10, revisão S4).
+ */
+export async function colaboradorEscaladoNoFluxoNovo(collaboratorId: string, dataDeCorte: string): Promise<boolean> {
+  const [v] = await db.select({ id: teamInclusions.id }).from(teamInclusions)
+    .innerJoin(events, eq(events.id, teamInclusions.eventId))
+    .where(and(
+      eq(teamInclusions.collaboratorId, collaboratorId),
+      isNull(teamInclusions.deletedAt),
+      sql`coalesce(${teamInclusions.status}, '') <> 'cancelado'`,
+      sql`coalesce(${events.status}, '') <> 'cancelado'`,
+      sql`(${events.endDate} IS NULL OR ${events.endDate} >= ${dataDeCorte})`,
+    ))
+    .limit(1);
+  return !!v;
 }
 
 // ── Presenças, ocorrências e confirmações ───────────────────────────────────

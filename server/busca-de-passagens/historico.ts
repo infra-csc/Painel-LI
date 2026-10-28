@@ -144,6 +144,8 @@ export async function carregarPassagens(desde: Date | null): Promise<PassagemDaB
       AND ti.phase <> 'sugestao'
       AND e.status NOT IN ('excluido', 'excluído')
       AND (t.transport_type IS NULL OR t.transport_type = 'aereo')
+      -- 28/10: volta de ônibus numa passagem aérea — o valor junta os dois, não é preço de voo.
+      AND (t.return_transport_type IS NULL OR t.return_transport_type = 'aereo')
       AND ${desdeDia ? drizzleSql`COALESCE(t.purchase_date, e.start_date) >= ${desdeDia}::date` : drizzleSql`TRUE`}
   `);
   return linhasDe<Record<string, unknown>>(rows).map((l) => ({

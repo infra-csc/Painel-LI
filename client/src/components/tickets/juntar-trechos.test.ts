@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { juntarIdaEVolta, juntarObservacao } from "./juntar-trechos";
+import { buildTicketPayload } from "@/lib/ticket-form";
 
 const idaGru = {
   departureAirport: "GRU", destinationAirport: "REC",
@@ -24,8 +25,12 @@ describe("ida e volta em vouchers diferentes (15/09)", () => {
     expect(r!.campos.returnOriginAirport).toBe("REC");
     expect(r!.campos.actualReturnDate).toBe("2026-09-21");
     expect(r!.campos.returnArrivalTime).toBe("21:15");
-    expect(r!.campos.value).toBe("2.050,50");
-    expect(r!.campos.purchaseOrderNumber).toBe("ABC123 / DEF456");
+    // Cada trecho com o seu valor e LOC (28/10); o total gravado é a soma.
+    expect(r!.campos.value).toBe("850,00");
+    expect(r!.campos.returnValue).toBe("1.200,50");
+    expect(buildTicketPayload(r!.campos).value).toBe(205050);
+    expect(r!.campos.purchaseOrderNumber).toBe("ABC123");
+    expect(r!.campos.returnPurchaseOrderNumber).toBe("DEF456");
     expect(r!.campos.isOneWay).toBe(false);
     expect(r!.resumo).toContain("R$ 850,00 + R$ 1.200,50 = R$ 2.050,50");
   });
@@ -35,7 +40,8 @@ describe("ida e volta em vouchers diferentes (15/09)", () => {
       { ...idaGru, value: "850.5", purchaseOrderNumber: "ABC123" },
       { campos: { ...voltaLida, value: "100,00", purchaseOrderNumber: "DEF456" }, trechoUnico: true },
     );
-    expect(r!.campos.value).toBe("950,50");
+    expect(r!.campos.value).toBe("850,50");
+    expect(r!.campos.returnValue).toBe("100,00");
   });
 
   it("voucher mais cedo que o trecho já preenchido vira a ida", () => {
@@ -46,7 +52,8 @@ describe("ida e volta em vouchers diferentes (15/09)", () => {
     expect(r!.campos.actualDepartureDate).toBe("2026-09-18");
     expect(r!.campos.departureAirport).toBe("REC");
     expect(r!.campos.actualReturnDate).toBe("2026-09-25");
-    expect(r!.campos.value).toBe("900,00");
+    expect(r!.campos.value).toBe("400,00");
+    expect(r!.campos.returnValue).toBe("500,00");
   });
 
   it("passagem só com a volta: o voucher novo entra como ida", () => {
@@ -58,7 +65,8 @@ describe("ida e volta em vouchers diferentes (15/09)", () => {
     expect(r!.campos.actualDepartureDate).toBe("2026-09-19");
     expect(r!.campos.actualReturnDate).toBe("2026-09-21");
     expect(r!.campos.isReturnOnly).toBe(false);
-    expect(r!.campos.value).toBe("500,00");
+    expect(r!.campos.value).toBe("200,00");
+    expect(r!.campos.returnValue).toBe("300,00");
   });
 
   it("mesmo voucher relido não soma de novo", () => {

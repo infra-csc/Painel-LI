@@ -16,7 +16,9 @@ import { and, eq, isNotNull, isNull, lt, or } from "drizzle-orm";
 import { db } from "./db";
 import { storage } from "./storage";
 import { budgetActual, presencas, systemSettings, type User } from "@shared/schema";
-import { CHAVE_DO_EXPURGO_AUTOMATICO, CHAVE_DO_ULTIMO_EXPURGO, dataLimiteDoExpurgo, expurgoAutomaticoLigado } from "@shared/honorarios-pagamento";
+import {
+  CHAVE_DO_EXPURGO_AUTOMATICO, CHAVE_DO_ULTIMO_EXPURGO, dataLimiteDoExpurgo, expurgoAutomaticoLigado, inicioDoDiaEmBrasilia,
+} from "@shared/honorarios-pagamento";
 import { FUSO_DA_OPERACAO, hojeISO } from "@shared/hoje-sp";
 import { lerConfiguracaoDoBanco } from "./presenca-servico";
 import { createAuditLog } from "./routes/_compartilhado";
@@ -48,14 +50,21 @@ export async function expurgoAutomaticoEstaLigado(): Promise<boolean> {
   return expurgoAutomaticoLigado(settings.find((s) => s.key === CHAVE_DO_EXPURGO_AUTOMATICO)?.value);
 }
 
-/** Presenças com selfie ainda no storage, de prestações pagas antes do limite. */
+/**
+ * Presenças com selfie ainda no storage, de prestações pagas antes do limite.
+ * 28/10 (S6): o REGISTRO do pagamento também tem de ser anterior ao limite (o
+ * prazo conta do mais recente dos dois — data retroativa não apaga na hora);
+ * sem registro (dado antigo), vale a data — `pagamentoPassouDaGuarda`.
+ */
 async function candidatos(dataLimite: string) {
   return db.select({
     id: presencas.id, actualId: presencas.actualId, checkinFotoId: presencas.checkinFotoId, checkoutFotoId: presencas.checkoutFotoId,
   }).from(presencas)
     .innerJoin(budgetActual, eq(budgetActual.id, presencas.actualId))
     .where(and(
-      isNotNull(budgetActual.pagoEm), lt(budgetActual.pagoEm, dataLimite), isNull(presencas.fotoExpurgadaEm),
+      isNotNull(budgetActual.pagoEm), lt(budgetActual.pagoEm, dataLimite),
+      or(isNull(budgetActual.pagoRegistradoEm), lt(budgetActual.pagoRegistradoEm, inicioDoDiaEmBrasilia(dataLimite))),
+      isNull(presencas.fotoExpurgadaEm),
       or(isNotNull(presencas.checkinFotoId), isNotNull(presencas.checkoutFotoId)),
     ));
 }

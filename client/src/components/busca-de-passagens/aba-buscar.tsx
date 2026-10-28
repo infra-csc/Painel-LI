@@ -47,7 +47,7 @@ const ICONE_SITUACAO = { pendentes: Clock, compradas: CheckCircle2, todas: ListC
 
 /** Opções de um filtro com a contagem "se eu escolher isto mantendo o resto". */
 function opcoes(linhas: LinhaDaBusca[], f: FiltrosDaBusca, campo: CampoContado, chave: (l: LinhaDaBusca) => string[], nome: (id: string, l: LinhaDaBusca) => string): OpcaoDeFiltro[] {
-  const mapa = new Map<string, OpcaoDeFiltro>();
+  const mapa = new Map<string, OpcaoDeFiltro & { n: number }>();
   for (const l of linhas) {
     if (!passaNosFiltros(l, f, campo)) continue;
     for (const id of chave(l)) {

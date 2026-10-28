@@ -2,7 +2,7 @@
 // modal individual. Obrigatoriedade (asterisco), erro inline e o payload vêm
 // de @/lib/ticket-form; aqui só há apresentação. `variant` ajusta o visual
 // (o lote é compacto, o modal é espaçado) sem mudar campos nem regra.
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Bus, Truck, CreditCard, AlertTriangle, Calculator, PlaneTakeoff, PlaneLanding } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { RequiredMark } from "@/components/forms/required-mark";
@@ -11,6 +11,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   isFieldRequired,
+  toCents,
+  voltaCompradaAParte,
+  tiposDoFormulario,
   todayIso,
   buildPlannedImpact,
   formatPlannedImpact,
@@ -104,15 +107,27 @@ export default function TicketFormFields({
   scope, variant, form, disabled = false, helpers, handlers, impactCtx, suggestion, testId,
 }: TicketFormFieldsProps) {
   const type = form.transportType || "aereo";
+  // Tipo POR TRECHO (28/10, vaga #4618): a volta pode ser de ônibus numa passagem aérea.
+  const tipos = tiposDoFormulario(form);
+  const misto = tipos.ida !== tipos.volta;
+  // Volta comprada à parte (28/10 — dono: "deveria SOMAR os valores de ida e
+  // volta"): cada trecho com o seu valor e o seu bilhete/LOC; o total é a soma.
+  const [abrirVoltaAParte, setAbrirVoltaAParte] = useState(false);
+  // Só no modal e com ida E volta neste bilhete; volta de outro tipo já abre separada.
+  const podeVoltaAParte = variant === "modal" && !form.isOneWay && !form.isReturnOnly && form.transportType !== "van";
+  const aParte = podeVoltaAParte && (misto || abrirVoltaAParte || voltaCompradaAParte(form));
+  const totalCents = (toCents(form.value) ?? 0) + (aParte ? toCents(form.returnValue) ?? 0 : 0);
+  const brl = (c: number) => `R$ ${(c / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const oneWay = !!form.isOneWay;
   // Bilhete só de volta: os campos da ida não são deste registro.
   const returnOnly = !!form.isReturnOnly;
   const isRodo = type === "rodoviario";
+  const voltaRodo = tipos.volta === "rodoviario";
   const isVan = type === "van";
   const isBatch = variant === "batch";
 
   const set = (field: string, value: unknown) => handlers.onFieldChange(scope, field, value);
-  const R = (field: string) => (isFieldRequired(type, oneWay, field, returnOnly) ? <RequiredMark /> : null);
+  const R = (field: string) => (isFieldRequired(type, oneWay, field, returnOnly, form.returnTransportType) ? <RequiredMark /> : null);
   const E = (field: string) => helpers.errCls(scope, field);
   const M = (field: string) => helpers.fieldErrorMsg(scope, field);
   const val = (field: keyof TicketFormValues & string) => (form[field] as string | undefined) || "";
@@ -219,8 +234,10 @@ export default function TicketFormFields({
     const exO = leg === "ida" ? "Ex: São Paulo" : "Ex: Rio de Janeiro";
     const exD = leg === "ida" ? "Ex: Rio de Janeiro" : "Ex: São Paulo";
     const evBadge = <span className="text-2xs font-medium bg-muted text-muted-foreground px-1.5 py-px rounded-md normal-case">Local do evento</span>;
+    // Cada trecho com o rótulo do SEU tipo (28/10): Aeroporto × Rodoviária.
+    const rodo = leg === "ida" ? isRodo : voltaRodo;
 
-    if (isBatch && !isRodo) {
+    if (isBatch && !rodo) {
       // Aéreo no lote: Cidade + IATA na mesma linha
       const pair = (cityF: keyof TicketFormValues & string, airF: keyof TicketFormValues & string, label: string, exCity: string, exIata: string) => (
         <div className="space-y-1.5">
@@ -250,8 +267,8 @@ export default function TicketFormFields({
     return (<>
       {textField({ field: cityO, label: "Cidade de origem", placeholder: exO, extraLabel: leg === "volta" ? evBadge : undefined })}
       {textField({ field: cityD, label: "Cidade de destino", placeholder: exD, extraLabel: leg === "ida" ? evBadge : undefined })}
-      {textField({ field: airO, label: isRodo ? "Rodoviária de origem" : "Aeroporto de origem", placeholder: isRodo ? "Ex: Terminal Rodoviário" : (leg === "ida" ? "Ex: GRU, CGH, BSB" : "Ex: SDU, GIG, GRU") })}
-      {textField({ field: airD, label: isRodo ? "Rodoviária de destino" : "Aeroporto de destino", placeholder: isRodo ? "Ex: Terminal Rodoviário" : (leg === "ida" ? "Ex: SDU, GIG, RJ" : "Ex: GRU, CGH, BSB") })}
+      {textField({ field: airO, label: rodo ? "Rodoviária de origem" : "Aeroporto de origem", placeholder: rodo ? "Ex: Terminal Rodoviário" : (leg === "ida" ? "Ex: GRU, CGH, BSB" : "Ex: SDU, GIG, GRU") })}
+      {textField({ field: airD, label: rodo ? "Rodoviária de destino" : "Aeroporto de destino", placeholder: rodo ? "Ex: Terminal Rodoviário" : (leg === "ida" ? "Ex: SDU, GIG, RJ" : "Ex: GRU, CGH, BSB") })}
     </>);
   };
 
@@ -267,7 +284,7 @@ export default function TicketFormFields({
   const idaSection = (
     <section className={isBatch ? card : "bg-card border border-border rounded-xl p-4 space-y-3"}>
       {sectionHeader({
-        title: isBatch ? (isRodo ? "Embarque" : "Trecho de ida") : "Ida",
+        title: isBatch ? (isRodo ? "Embarque" : "Trecho de ida") : misto ? `Ida · ${isRodo ? "Rodoviária" : "Aérea"}` : "Ida",
         tone: "blue",
         icon: isRodo ? <Bus className="w-3.5 h-3.5 text-primary" aria-hidden="true" /> : <PlaneTakeoff className="w-3.5 h-3.5 text-primary" aria-hidden="true" />,
       })}
@@ -285,9 +302,9 @@ export default function TicketFormFields({
   const voltaSection = (
     <section className={isBatch ? card : "bg-card border border-border rounded-xl p-4 space-y-3"}>
       {sectionHeader({
-        title: isBatch ? (isRodo ? "Desembarque" : "Trecho de volta") : "Volta",
+        title: isBatch ? (voltaRodo ? "Desembarque" : "Trecho de volta") : misto ? `Volta · ${voltaRodo ? "Rodoviária" : "Aérea"}` : "Volta",
         tone: "orange",
-        icon: isRodo ? <Bus className="w-3.5 h-3.5 text-warning-strong" aria-hidden="true" /> : <PlaneLanding className="w-3.5 h-3.5 text-warning-strong" aria-hidden="true" />,
+        icon: voltaRodo ? <Bus className="w-3.5 h-3.5 text-warning-strong" aria-hidden="true" /> : <PlaneLanding className="w-3.5 h-3.5 text-warning-strong" aria-hidden="true" />,
       })}
       <div className={isBatch ? "p-3 bg-card space-y-2" : "space-y-3"}>
         {legPlace("volta")}
@@ -328,10 +345,10 @@ export default function TicketFormFields({
           : <h4 className="m-0 mb-3 flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground"><CreditCard className="w-3.5 h-3.5" aria-hidden="true" />Informações da compra</h4>}
         <div className={isBatch ? "p-3 bg-card grid grid-cols-1 md:grid-cols-2 gap-x-3 gap-y-2" : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"}>
           <div className={fieldWrap}>
-            <Label htmlFor={idOf("purchaseOrderNumber")} className={L}>{isRodo ? "Bilhete" : "LOC"}{R("purchaseOrderNumber")}</Label>
+            <Label htmlFor={idOf("purchaseOrderNumber")} className={L}>{aParte ? `${isRodo ? "Bilhete" : "LOC"} da ida` : misto ? "LOC / Bilhete" : isRodo ? "Bilhete" : "LOC"}{R("purchaseOrderNumber")}</Label>
             <Input
               id={idOf("purchaseOrderNumber")}
-              placeholder={isBatch ? (isRodo ? "Ex: 012345678" : "Ex: AX782Q") : (isRodo ? "Número do bilhete" : "Número da LOC")}
+              placeholder={isBatch ? (isRodo ? "Ex: 012345678" : "Ex: AX782Q") : aParte ? (isRodo ? "Número do bilhete" : "Número da LOC") : misto ? "Ex: AX782Q / 012345678" : (isRodo ? "Número do bilhete" : "Número da LOC")}
               value={val("purchaseOrderNumber")}
               onChange={(e) => set("purchaseOrderNumber", e.target.value)}
               className={`${I}${isBatch ? " font-mono" : ""}${E("purchaseOrderNumber")}`}
@@ -355,7 +372,7 @@ export default function TicketFormFields({
             {M("purchaseDate")}
           </div>
           <div className={isBatch ? fieldWrap : ""}>
-            <Label htmlFor={idOf("value")} className={L}>Valor da passagem{R("value")}</Label>
+            <Label htmlFor={idOf("value")} className={L}>{aParte ? "Valor da ida" : "Valor da passagem"}{R("value")}</Label>
             {/* Guarda o texto como digitado; a conversão para centavos usa parseBrNumber. */}
             <Input
               id={idOf("value")}
@@ -369,6 +386,54 @@ export default function TicketFormFields({
             {M("value")}
           </div>
         </div>
+        {/* VOLTA COMPRADA À PARTE (28/10, vaga #4618): bilhete e valor da volta;
+            o valor da passagem é a soma (é o total que entra no custo). */}
+        {podeVoltaAParte && (aParte ? (
+          <div className="mt-4 border-t border-border pt-4" data-testid={`volta-a-parte-${scope}`}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor={idOf("returnPurchaseOrderNumber")} className={L}>{voltaRodo ? "Bilhete" : "LOC"} da volta</Label>
+                <Input
+                  id={idOf("returnPurchaseOrderNumber")}
+                  placeholder={voltaRodo ? "Número do bilhete" : "Número da LOC"}
+                  value={val("returnPurchaseOrderNumber")}
+                  onChange={(e) => set("returnPurchaseOrderNumber", e.target.value)}
+                  className={E("returnPurchaseOrderNumber")}
+                  data-testid={testId("return-purchase-order")}
+                  disabled={disabled}
+                />
+              </div>
+              <div>
+                <Label htmlFor={idOf("returnValue")} className={L}>Valor da volta</Label>
+                <Input
+                  id={idOf("returnValue")}
+                  placeholder="0,00" type="text" inputMode="decimal"
+                  value={val("returnValue")}
+                  onChange={(e) => set("returnValue", e.target.value)}
+                  className={`tabular-nums${E("returnValue")}`}
+                  data-testid={testId("return-ticket-value")}
+                  disabled={disabled}
+                />
+                {M("returnValue")}
+              </div>
+              <div className="flex flex-col justify-end">
+                <div className="rounded-lg bg-surface-muted px-3 py-2" aria-live="polite" data-testid={`total-ida-volta-${scope}`}>
+                  <div className="text-2xs text-muted-foreground">Total da passagem (ida + volta)</div>
+                  <div className="text-sm font-semibold tabular-nums text-foreground">{brl(totalCents)}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : !disabled && (
+          <button
+            type="button"
+            onClick={() => setAbrirVoltaAParte(true)}
+            className="mt-3 text-xs font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+            data-testid={`abrir-volta-a-parte-${scope}`}
+          >
+            Volta comprada à parte? Informar bilhete e valor da volta
+          </button>
+        ))}
       </section>
 
       {/* Ida | Volta */}

@@ -1,7 +1,7 @@
 /**
  * Filtros da aba Buscar (09/10) — as peças comuns de Passagens/Hospedagem
  * (`components/common/barra-de-filtros.tsx` e `filter-popover.tsx`): busca,
- * evento, "Sai de", destino, funções e data da ida à vista; trecho e dado
+ * evento, "Sai de", destino, funções e data da viagem (ida ou volta, 28/10) à vista; trecho e dado
  * faltando em "Filtros", com etiqueta removível quando fogem do padrão.
  * A situação (Pendentes / Compradas / Todas) fica na faixa acima da barra.
  * "Incluir eventos passados" (15/10) é um interruptor à vista: desligado por
@@ -14,6 +14,7 @@ import { FiltroMultiplo, FiltroUnico, type OpcaoDeFiltro } from "@/components/co
 import { BuscaDaLista, EtiquetaDeFiltro, LimparFiltros, MaisFiltros } from "@/components/common/barra-de-filtros";
 import { FILTROS_PADRAO, type FiltrosDaBusca } from "./filtros-da-busca";
 import { ddmm } from "./formato";
+import { hojeISO } from "@shared/hoje-sp";
 
 const TRECHOS = [
   { id: "todos", nome: "Todos os trechos" },
@@ -39,10 +40,10 @@ const LISTAS = [
 function DataDaIda({ de, ate, onChange }: { de: string; ate: string; onChange: (de: string, ate: string) => void }) {
   const [aberto, setAberto] = useState(false);
   const ativo = !!(de || ate);
-  const texto = de && ate ? `Ida ${ddmm(de)}–${ddmm(ate)}` : de ? `Ida a partir de ${ddmm(de)}` : ate ? `Ida até ${ddmm(ate)}` : "Data da ida";
-  const hoje = new Date();
-  const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  const mais = (n: number) => { const d = new Date(hoje); d.setDate(d.getDate() + n); return iso(d); };
+  // 28/10 (dono): o período vale para a IDA ou a VOLTA; "hoje" é o dia de Brasília.
+  const texto = de && ate ? `Viagem ${ddmm(de)}–${ddmm(ate)}` : de ? `Viagem a partir de ${ddmm(de)}` : ate ? `Viagem até ${ddmm(ate)}` : "Data da viagem";
+  const hoje = hojeISO();
+  const mais = (n: number) => { const d = new Date(`${hoje}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
   const campo = "h-9 w-full rounded-lg border border-border bg-card px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12";
   return (
     <Popover open={aberto} onOpenChange={setAberto}>
@@ -52,10 +53,11 @@ function DataDaIda({ de, ate, onChange }: { de: string; ate: string; onChange: (
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" collisionPadding={12} className="w-[min(300px,calc(100vw-24px))] space-y-3 rounded-xl p-3.5">
-        <p className="m-0 text-sm font-semibold text-foreground">Data da ida</p>
+        <p className="m-0 text-sm font-semibold text-foreground">Data da viagem</p>
+        <p className="m-0 text-xs text-muted-foreground">Entra a vaga com a ida ou a volta no período.</p>
         <div className="flex flex-wrap gap-1.5">
           {[[7, "Próximos 7 dias"], [30, "Próximos 30 dias"], [60, "Próximos 60 dias"]].map(([n, r]) => (
-            <button key={n} type="button" onClick={() => { onChange(iso(hoje), mais(Number(n))); setAberto(false); }} className="h-8 rounded-md border border-border bg-card px-2.5 text-xs font-medium text-slate-700 hover:bg-muted">{r}</button>
+            <button key={n} type="button" onClick={() => { onChange(hoje, mais(Number(n))); setAberto(false); }} className="h-8 rounded-md border border-border bg-card px-2.5 text-xs font-medium text-slate-700 hover:bg-muted">{r}</button>
           ))}
         </div>
         <div className="grid grid-cols-2 gap-2">

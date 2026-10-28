@@ -13,7 +13,23 @@ import type { TicketFormValues } from "@/lib/ticket-form";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { pontuarSemelhanca } from "./voucher-match";
-import { juntarIdaEVolta, juntarObservacao } from "./juntar-trechos";
+import {
+  juntarIdaEVolta, juntarObservacao, precisaEscolherOTrecho, ladoSugerido, substituirUmTrecho, descreverBilhete, descreverTrecho,
+  type LadoDoBilhete,
+} from "./juntar-trechos";
+
+/**
+ * Pergunta aberta (28/10, vaga #4618): o bilhete é de UM trecho e a passagem
+ * já tem ida e volta — qual trecho ele substitui? `responder(null)` = só anexar.
+ */
+export interface PerguntaDoTrecho {
+  /** "de ônibus · Rodoviária Novo Rio → Barra Funda · 15/11 23:45" */
+  bilhete: string;
+  ida: string;
+  volta: string;
+  sugerido: LadoDoBilhete;
+  responder: (lado: LadoDoBilhete | null) => void;
+}
 
 /** Abaixo disto, tratamos como pessoa diferente e não preenchemos nada. */
 const LIMIAR_MESMA_PESSOA = 0.34;
@@ -72,6 +88,7 @@ export function useVoucherFill({ colaborador, trecho, para = "passagem", atual, 
 }) {
   const { toast } = useToast();
   const [lendo, setLendo] = useState(false);
+  const [pergunta, setPergunta] = useState<PerguntaDoTrecho | null>(null);
 
   const lerArquivo = async (arquivo: File) => {
     if (arquivo.type !== "application/pdf") return; // imagem/outro anexo: só guarda
@@ -151,12 +168,37 @@ export function useVoucherFill({ colaborador, trecho, para = "passagem", atual, 
       // Ida e volta em vouchers diferentes (15/09): o formulário já tem um
       // trecho e este PDF traz o outro → junta, soma o valor e os LOCs.
       if (para === "passagem") {
-        const junto = juntarIdaEVolta(atual, { campos, trechoUnico: leitura.trechoUnico });
+        // Bilhete de UM trecho numa passagem que já tem ida e volta (28/10):
+        // pergunta qual trecho ele troca e mexe SÓ nele (tipo incluído).
+        const lido = { campos, trechoUnico: leitura.trechoUnico };
+        if (atual && precisaEscolherOTrecho(atual, lido)) {
+          const base = atual;
+          setPergunta({
+            bilhete: descreverBilhete(lido),
+            ida: descreverTrecho(base, "ida"),
+            volta: descreverTrecho(base, "volta"),
+            sugerido: ladoSugerido(base, lido),
+            responder: (lado) => {
+              setPergunta(null);
+              if (!lado) {
+                toast({ title: "Anexado", description: "O bilhete ficou anexado; a passagem não mudou." });
+                return;
+              }
+              const troca = substituirUmTrecho(base, lido, lado);
+              onPreencher(comObservacao(troca.campos));
+              toast({ title: `${lado === "ida" ? "Ida" : "Volta"} trocada pelo bilhete`, description: `${troca.resumo} Confira antes de registrar.` });
+            },
+          });
+          return;
+        }
+        const junto = juntarIdaEVolta(atual, lido);
         if (junto) {
           onPreencher(comObservacao(junto.campos));
           toast({ title: "Ida e volta juntadas", description: `${junto.resumo} Confira antes de registrar.` });
           return;
         }
+        // Bilhete com ida e volta: um tipo só para os dois trechos.
+        if (!leitura.trechoUnico) campos = { ...campos, returnTransportType: "" };
       }
 
       // Voucher com um trecho só + formulário em "só volta": o que o leitor
@@ -198,5 +240,5 @@ export function useVoucherFill({ colaborador, trecho, para = "passagem", atual, 
     }
   };
 
-  return { lerArquivo, lendo };
+  return { lerArquivo, lendo, pergunta };
 }

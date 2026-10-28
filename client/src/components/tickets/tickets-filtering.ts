@@ -107,7 +107,7 @@ export function passaNosFiltrosDePassagem(
   inclusion: TeamInclusion,
   filters: TicketFilters,
   ctx: {
-    ticketByInclusion: Map<string, { transportType?: string | null; actualArrivalTime?: string | null }>;
+    ticketByInclusion: Map<string, { transportType?: string | null; returnTransportType?: string | null; actualArrivalTime?: string | null }>;
     /** Set ou Map — só o `has` importa aqui. */
     pendingSwapByInclusion: { has: (id: string) => boolean };
     showOnlyPendingSwaps: boolean;
@@ -135,6 +135,8 @@ export function passaNosFiltrosDePassagem(
     // van registrada como terrestre; ônibus terrestre entra em "Rodoviário".
     const tipos = new Set<string>();
     if (t) tipos.add(t.transportType || "aereo");
+    // Volta de outro tipo (28/10): ida aérea + volta de ônibus aparece nos dois filtros.
+    if (t?.returnTransportType) tipos.add(t.returnTransportType);
     for (const r of Object.values(cob?.porPerna ?? {})) if (r) tipos.add(r.modo === "onibus" ? "rodoviario" : r.modo);
     if (!tipos.has(filters.transportType)) return false;
   }

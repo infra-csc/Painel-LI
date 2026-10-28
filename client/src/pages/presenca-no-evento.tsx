@@ -386,7 +386,8 @@ export default function PresencaNoEventoPage() {
         <>
           <DialogoMarcar alvo={alvoMarcar} configuracao={dados.configuracao} marcar={acoes.marcar} onClose={() => setAlvoMarcar(null)} />
           <DialogoCorrigir alvo={alvoCorrigir} corrigir={acoes.corrigir} onClose={() => setAlvoCorrigir(null)} />
-          <DialogoOcorrencia alvo={alvoOcorrencia} lancar={acoes.lancarOcorrencia} onClose={() => setAlvoOcorrencia(null)} />
+          <DialogoOcorrencia alvo={alvoOcorrencia} lancar={acoes.lancarOcorrencia} onClose={() => setAlvoOcorrencia(null)}
+            financeiras={dados?.permissoes.ocorrenciasFinanceiras ?? true} horaExtraMaxDia={dados?.configuracao.horaExtraMaxDia} />
           <DialogoConfirmar alvo={alvoConfirmar} confirmar={acoes.confirmar} onClose={() => setAlvoConfirmar(null)} />
           <DialogoCheckoutFinal alvo={checkoutVivo} hoje={hoje} checkoutFinal={acoes.checkoutFinal} onClose={() => setAlvoCheckout(null)} />
           <LightboxDaSelfie

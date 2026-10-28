@@ -249,7 +249,7 @@ export function registrarNotasFiscais(app: Express): void {
       }, { type: "aprovado" });
       if (!invoice) return res.status(409).json({ message: "Esta nota acabou de mudar de status — recarregue a lista." });
       await createAuditLog("approve", "invoice", req.params.id, invoice, user.id, user.name, inv, req);
-      // 28/10: nota aprovada com CNPJ (o da nota ou o da prestação) aprova o fornecedor.
+      // 28/10: nota aprovada aprova o fornecedor — com CNPJ na prestação, só se o da nota é o mesmo (S1).
       await reconhecerFornecedores({ invoiceIds: [invoice.id] }, { id: user.id, name: user.name || user.email || "Usuário" }, "nota fiscal aprovada", req);
       res.json(invoice);
     } catch (error) {

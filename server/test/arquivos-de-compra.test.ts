@@ -320,3 +320,39 @@ describe("papéis", () => {
     expect((await agent.get("/api/flash/compras")).status).toBe(200);
   });
 });
+
+describe("revisão 28/10 (R1) — o Flash não compra o mesmo crédito duas vezes", () => {
+  it("reabrir o comparativo depois da compra: o comprado fica no lote, sai um estorno; reaprovar com valor maior só compra a diferença", async () => {
+    const { syncFlashFromComparison, reverseFlashFromComparison } = await import("../flash-credit");
+    const evento = await criarEvento();
+    const funcao = await criarFuncao();
+    const { colab } = await colaborador();
+    const [actual] = await ctx.db.insert(ctx.schema.budgetActual).values({
+      eventId: evento.id, collaboratorId: colab.id, functionId: funcao.id, collaboratorType: "freela",
+      dailyQuantity: 1, dailyValue: 10_000, weekdayLunch: 4_500, totalValue: 14_500, sentForReview: true, rhStatus: "aprovado",
+    }).returning();
+    const comparativo = { id: `cmp-${unico()}`, eventId: evento.id };
+    await syncFlashFromComparison(comparativo, {});
+    const hojeSp = hojeISO();
+    const periodo = { inicio: hojeSp, fim: hojeSp, eventId: evento.id };
+    const pv = await previa(periodo);
+    expect(pv.body.totais.totalCents).toBe(4_500);
+    const lote = await gerar({ ...periodo, assinatura: pv.body.assinatura });
+    expect(lote.status, lote.text).toBe(201);
+
+    // Reabre o comparativo (estorno): o crédito comprado NÃO some.
+    await reverseFlashFromComparison(comparativo, {});
+    const doEvento = () => ctx.db.select().from(ctx.schema.flashMovements).where(eq(ctx.schema.flashMovements.eventId, evento.id));
+    let linhas = await doEvento();
+    expect(linhas.filter((m) => m.compraId === lote.body.lote.id).map((m) => m.amountCents)).toEqual([4_500]);
+    expect(linhas.filter((m) => !m.compraId).map((m) => [m.type, m.amountCents])).toEqual([["debito", 4_500]]);
+
+    // Reaprova com a alimentação maior: o estorno sai e só a diferença (+500) fica a comprar.
+    await ctx.db.update(ctx.schema.budgetActual).set({ weekdayLunch: 5_000, totalValue: 15_000 }).where(eq(ctx.schema.budgetActual.id, actual.id));
+    await syncFlashFromComparison(comparativo, {});
+    linhas = await doEvento();
+    expect(linhas.filter((m) => !m.compraId).map((m) => [m.type, m.amountCents])).toEqual([["credito", 500]]);
+    const depois = await previa(periodo);
+    expect(depois.body.totais.totalCents).toBe(500);
+  });
+});

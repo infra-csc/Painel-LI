@@ -13,6 +13,7 @@ import { extractTravelSuggestion } from "@/lib/ticket-form";
 import SuggestedDates from "./suggested-dates";
 import { LBL, VAL, SECAO } from "./ticket-summary-tab";
 import { formatDate, formatBrl, isOneWayTicket } from "./use-tickets-data";
+import { nomeDosTiposDaPassagem, rotuloDoNumeroDaCompra, tipoDoTrecho, valoresPorTrecho, voltaComOutroTipo } from "@shared/tipo-por-trecho";
 
 interface TicketViewDetailsProps {
   ticket: Ticket;
@@ -25,6 +26,17 @@ export default function TicketViewDetails({ ticket, inclusion }: TicketViewDetai
   const isRodo = ticket.transportType === "rodoviario";
   const suggestion = extractTravelSuggestion(inclusion);
   const TipoIcone = isVan ? Truck : isRodo ? Bus : Plane;
+  // Tipo POR TRECHO (28/10, vaga #4618): ida aérea + volta de ônibus.
+  const misto = voltaComOutroTipo(ticket);
+  const valores = valoresPorTrecho(ticket);
+  const rotuloDoTipo = (leg: "ida" | "volta") => (tipoDoTrecho(ticket, leg) === "rodoviario" ? "Bilhete" : "LOC");
+  const compras = ticket.returnPurchaseOrderNumber
+    ? [
+        ...(ticket.purchaseOrderNumber ? [{ rotulo: `${rotuloDoTipo("ida")} da ida`, numero: ticket.purchaseOrderNumber }] : []),
+        { rotulo: `${rotuloDoTipo("volta")} da volta`, numero: ticket.returnPurchaseOrderNumber },
+      ]
+    : ticket.purchaseOrderNumber ? [{ rotulo: rotuloDoNumeroDaCompra(ticket), numero: ticket.purchaseOrderNumber }] : [];
+  const rodoNo = (leg: "ida" | "volta") => tipoDoTrecho(ticket, leg) === "rodoviario";
 
   const openAttachment = async (attachmentId: string) => {
     try {
@@ -52,6 +64,7 @@ export default function TicketViewDetails({ ticket, inclusion }: TicketViewDetai
     // Chegada também na VOLTA (dono, 18/09): é por ela que se agenda o Uber.
     const arrival = leg === "ida" ? ticket.actualArrivalTime : ticket.returnArrivalTime;
     const Icone = leg === "ida" ? PlaneTakeoff : PlaneLanding;
+    const isRodo = rodoNo(leg);
     const rotuloPonto = (lado: "origem" | "destino") => `${isRodo ? "Rodoviária" : "Aeroporto"} de ${lado}`;
     // Ponta da rota: o código/terminal em destaque e a cidade embaixo.
     const ponta = (lado: "origem" | "destino", terminal: string | null | undefined, cidade: string | null | undefined) => (
@@ -78,7 +91,7 @@ export default function TicketViewDetails({ ticket, inclusion }: TicketViewDetai
       <section className="rounded-xl border border-border bg-card overflow-hidden" aria-label={leg === "ida" ? "Ida" : "Volta"}>
         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border">
           {isRodo ? <Bus className="w-4 h-4 text-primary" aria-hidden="true" /> : <Icone className="w-4 h-4 text-primary" aria-hidden="true" />}
-          <span className="text-xs font-semibold uppercase tracking-[0.06em] text-primary">{leg === "ida" ? "Ida" : "Volta"}</span>
+          <span className="text-xs font-semibold uppercase tracking-[0.06em] text-primary">{leg === "ida" ? "Ida" : "Volta"}{misto ? ` · ${isRodo ? "Rodoviária" : "Aérea"}` : ""}</span>
           {date && (
             <span className="ml-auto text-sm font-semibold text-foreground tabular-nums" title="Data">
               <span className="sr-only">Data: </span>{formatDate(date)}
@@ -118,21 +131,38 @@ export default function TicketViewDetails({ ticket, inclusion }: TicketViewDetai
           </span>
           <div className="min-w-0">
             <div className="text-sm font-semibold text-foreground">
-              {isVan ? "Van" : isRodo ? "Transporte rodoviário" : "Passagem aérea"}
+              {isVan ? "Van" : misto ? nomeDosTiposDaPassagem(ticket) : isRodo ? "Transporte rodoviário" : "Passagem aérea"}
             </div>
             {ticket.purchaseDate && <div className="text-xs text-muted-foreground">Comprada em {formatDate(ticket.purchaseDate)}</div>}
           </div>
-          {ticket.purchaseOrderNumber && (
-            <span className="ml-auto inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md bg-muted text-xs text-slate-600">
-              {isVan ? "Empresa" : isRodo ? "Bilhete" : "LOC"}
-              <span className="font-mono font-semibold text-foreground">{ticket.purchaseOrderNumber}</span>
+          {/* Um número por compra (28/10): LOC da ida e, à parte, o bilhete da volta. */}
+          {(ticket.purchaseOrderNumber || ticket.returnPurchaseOrderNumber) && (
+            <span className="ml-auto flex flex-wrap justify-end gap-1.5">
+              {compras.map((c) => (
+                <span key={c.rotulo} className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md bg-muted text-xs text-slate-600">
+                  {c.rotulo}
+                  <span className="font-mono font-semibold text-foreground">{c.numero}</span>
+                </span>
+              ))}
             </span>
           )}
         </div>
         {!isVan && (
           <dl className="m-0 px-4 py-3 flex flex-wrap gap-x-8 gap-y-2">
             {ticket.purchaseDate && <div><dt className={LBL}>Data da compra</dt><dd className={`m-0 ${VAL}`}>{formatDate(ticket.purchaseDate)}</dd></div>}
-            {ticket.value != null && ticket.value > 0 && <div><dt className={LBL}>Valor da passagem</dt><dd className={`m-0 ${VAL} tabular-nums`}>{formatBrl(ticket.value)}</dd></div>}
+            {ticket.value != null && ticket.value > 0 && (
+              <div>
+                <dt className={LBL}>{valores.voltaCents !== null ? "Valor da passagem (ida + volta)" : "Valor da passagem"}</dt>
+                <dd className={`m-0 ${VAL} tabular-nums`}>{formatBrl(ticket.value)}</dd>
+              </div>
+            )}
+            {/* Volta comprada à parte (28/10): o valor de cada trecho. */}
+            {valores.voltaCents !== null && (
+              <>
+                <div><dt className={LBL}>Ida</dt><dd className={`m-0 ${VAL} tabular-nums`} data-testid="valor-da-ida">{formatBrl(valores.idaCents ?? 0)}</dd></div>
+                <div><dt className={LBL}>Volta</dt><dd className={`m-0 ${VAL} tabular-nums`} data-testid="valor-da-volta">{formatBrl(valores.voltaCents)}</dd></div>
+              </>
+            )}
           </dl>
         )}
         {isVan && ticket.ticketObservations && (
@@ -151,7 +181,7 @@ export default function TicketViewDetails({ ticket, inclusion }: TicketViewDetai
             <div className="rounded-xl border border-dashed border-border bg-surface-muted p-4 flex items-center justify-center text-center">
               <div>
                 <div className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground mb-1">
-                  {isRodo ? <Bus className="w-3.5 h-3.5" aria-hidden="true" /> : <PlaneLanding className="w-3.5 h-3.5" aria-hidden="true" />}Volta
+                  {rodoNo("volta") ? <Bus className="w-3.5 h-3.5" aria-hidden="true" /> : <PlaneLanding className="w-3.5 h-3.5" aria-hidden="true" />}Volta
                 </div>
                 <div className="text-xs text-muted-foreground">Apenas ida / sem informações de volta</div>
               </div>

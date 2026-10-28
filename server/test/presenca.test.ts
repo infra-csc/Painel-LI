@@ -21,7 +21,7 @@
  */
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import request from "supertest";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { hojeISO } from "@shared/hoje-sp";
 import { completarCpf } from "@shared/pagamento";
 import { completarCnpj, digitosDoCnpj } from "@shared/cnpj";
@@ -35,6 +35,8 @@ vi.mock("../objectStorage", async (importOriginal) => {
   const { gravarMetadadosDoAnexo } = await import("../objectAcl");
   const { Readable } = await import("node:stream");
   const objetos = new Map<string, { conteudo: Buffer; metadata: Record<string, any> }>();
+  // 28/10 (revisão S5): os testes conferem se a selfie saiu do storage.
+  (globalThis as any).__objetosDoStorage = objetos;
   class ArquivoEmMemoria {
     constructor(readonly id: string) {}
     async getMetadata() {
@@ -48,6 +50,7 @@ vi.mock("../objectStorage", async (importOriginal) => {
       o.metadata = { ...o.metadata, ...patch, metadata: { ...(o.metadata.metadata ?? {}), ...(patch.metadata ?? {}) } };
     }
     createReadStream() { return Readable.from([objetos.get(this.id)!.conteudo]); }
+    async delete() { objetos.delete(this.id); }
   }
   class ObjectStorageService extends original.ObjectStorageService {
     arquivoDoAnexo(id: string) {
@@ -102,7 +105,8 @@ async function colaboradorComCpf(o: { secundario?: boolean; ativo?: boolean } = 
 }
 
 async function gerarCodigo(colabId: string): Promise<string> {
-  const { agent } = await agenteLogado("production");
+  // 28/10 (revisão S4): a produção só gera para quem está escalado no fluxo novo — o DP gera para qualquer um.
+  const { agent } = await agenteLogado("financial");
   const r = await mutacao(agent.post(`/api/colaboradores/${colabId}/codigo-de-acesso`)).send({});
   expect(r.status, r.text).toBe(201);
   return r.body.codigo as string;
@@ -430,7 +434,7 @@ describe("presença no evento (produção/DP)", () => {
     expect(falta.body.calculo.valorCalculado).toBe(40_000);
     expect(falta.body.dias[1].estado).toBe("falta");
     expect((await mutacao(agent.post(`/api/presenca/${actual.id}/ocorrencias`)).send({ tipo: "falta", dia: "2026-10-02" })).status).toBe(409);
-    const horas = await mutacao(agent.post(`/api/presenca/${actual.id}/ocorrencias`)).send({ tipo: "horas_extras", horas: 4 });
+    const horas = await mutacao(agent.post(`/api/presenca/${actual.id}/ocorrencias`)).send({ tipo: "horas_extras", horas: 4, dia: "2026-10-01" });
     expect(horas.body.calculo.valorCalculado).toBe(40_000 + 10_000);
     const id = falta.body.ocorrencias.find((o: { tipo: string }) => o.tipo === "falta").id;
     const removida = await agent.delete(`/api/presenca/ocorrencias/${id}`).set("Origin", ORIGEM_PERMITIDA);
@@ -584,4 +588,196 @@ describe("seed da demonstração (server/dev/demo-seed-presenca.ts)", () => {
     const minhas = await portal.get("/api/colaborador/prestacoes");
     expect(minhas.body.prestacoes.map((p: { evento: { id: string } }) => p.evento.id)).toContain(evento.id);
   }, 120_000);
+});
+
+// ── Revisão de 28/10 (Frente X) ─────────────────────────────────────────────
+
+describe("revisão 28/10 — acesso do colaborador (S3, S4)", () => {
+  const tentar = (c: string, senha: string) => mutacao(request(ctx.app).post("/api/colaborador/entrar")).send({ cpf: c, senha });
+  const passarMinutos = async (colabId: string, minutos: number) => {
+    await ctx.db.execute(sql`UPDATE colaboradores_acesso SET
+      bloqueado_ate = bloqueado_ate - (${minutos} * interval '1 minute'),
+      falhas_desde = falhas_desde - (${minutos} * interval '1 minute') WHERE collaborator_id = ${colabId}`);
+    await ctx.db.execute(sql`UPDATE rate_limits SET expira_em = expira_em - (${minutos} * interval '1 minute') WHERE chave LIKE 'colab-cpf:%'`);
+  };
+
+  it("S3: 5 erros, 16 min, 1 erro → a MESMA resposta (401) com e sem cadastro; o bloqueio não se renova sozinho", async () => {
+    const { colab, cpf } = await colaboradorNoPortal({ aceitarTermo: false });
+    const semCadastro = cpfNovo();
+    for (let i = 0; i < 5; i++) { await tentar(cpf, "senha-errada-9"); await tentar(semCadastro, "senha-errada-9"); }
+    expect((await tentar(cpf, "senha-errada-9")).status).toBe(429);
+    await passarMinutos(colab.id, 16);
+    const com = await tentar(cpf, "senha-errada-9");
+    const sem = await tentar(semCadastro, "senha-errada-9");
+    expect(sem.status).toBe(401);
+    expect(com.status).toBe(sem.status);
+    expect(com.body).toEqual(sem.body);
+    expect((await tentar(cpf, SENHA)).status).toBe(200);
+  });
+
+  it("S3: 4 erros, 16 min, 1 erro → a janela recomeça nos dois casos (401, não 429)", async () => {
+    const { colab, cpf } = await colaboradorNoPortal({ aceitarTermo: false });
+    const semCadastro = cpfNovo();
+    for (let i = 0; i < 4; i++) { await tentar(cpf, "senha-errada-9"); await tentar(semCadastro, "senha-errada-9"); }
+    await passarMinutos(colab.id, 16);
+    const com = await tentar(cpf, "senha-errada-9");
+    const sem = await tentar(semCadastro, "senha-errada-9");
+    expect(sem.status).toBe(401);
+    expect(com.status).toBe(401);
+  });
+
+  it("S4: a produção só gera código para quem está escalado em evento do fluxo novo (vaga não cancelada); o DP para qualquer um", async () => {
+    const { colab } = await colaboradorComCpf();
+    const producao = await agenteLogado("production");
+    const semVaga = await mutacao(producao.agent.post(`/api/colaboradores/${colab.id}/codigo-de-acesso`)).send({});
+    expect(semVaga.status).toBe(403);
+    const evento = await criarEvento({ startDate: somarDias(hoje, 3), endDate: somarDias(hoje, 4) });
+    const funcao = await criarFuncao();
+    const vaga = await criarVaga({ userId: producao.user.id, eventId: evento.id, functionId: funcao.id, collaboratorId: colab.id, status: "cancelado", phase: "escalacao" });
+    expect((await mutacao(producao.agent.post(`/api/colaboradores/${colab.id}/codigo-de-acesso`)).send({})).status).toBe(403);
+    await ctx.db.update(ctx.schema.teamInclusions).set({ status: "escalado" }).where(eq(ctx.schema.teamInclusions.id, vaga.id));
+    expect((await mutacao(producao.agent.post(`/api/colaboradores/${colab.id}/codigo-de-acesso`)).send({})).status).toBe(201);
+    const dp = await agenteLogado("financial");
+    const { colab: outro } = await colaboradorComCpf();
+    expect((await mutacao(dp.agent.post(`/api/colaboradores/${outro.id}/codigo-de-acesso`)).send({})).status).toBe(201);
+  });
+
+  it("S4: o código é consumido de forma atômica — trocado entre a leitura e a gravação, o antigo não vale", async () => {
+    const { colab, cpf } = await colaboradorComCpf();
+    const codigo = await gerarCodigo(colab.id);
+    const { consumirCodigoDeAcesso } = await import("../storage/presenca");
+    const [acesso] = await ctx.db.select().from(ctx.schema.colaboradoresAcesso).where(eq(ctx.schema.colaboradoresAcesso.collaboratorId, colab.id));
+    // Outro pedido usou o código primeiro: o hash lido já não está lá.
+    expect(await consumirCodigoDeAcesso(colab.id, acesso.codigoHash!, { senhaHash: "x" })).not.toBeNull();
+    expect(await consumirCodigoDeAcesso(colab.id, acesso.codigoHash!, { senhaHash: "y" })).toBeNull();
+    const r = await mutacao(request.agent(ctx.app).post("/api/colaborador/primeiro-acesso")).send({ cpf, codigo, senha: SENHA });
+    expect(r.status).toBe(401);
+  });
+});
+
+describe("revisão 28/10 — ocorrências e check-out final (R2, S2, S7)", () => {
+  it("S2: Área de Função só lança falta/substituição; horas extras exigem dia e respeitam o teto; diária extra só perto do período", async () => {
+    const { colab } = await colaboradorComCpf();
+    const { actual, funcao } = await prestacaoPassada(colab.id);
+    const area = await agenteLogado("function_area");
+    await ctx.db.insert(ctx.schema.functionManagers).values({ functionId: funcao.id, userId: area.user.id });
+    const url = `/api/presenca/${actual.id}/ocorrencias`;
+    expect((await mutacao(area.agent.post(url)).send({ tipo: "horas_extras", horas: 2, dia: "2026-10-01" })).status).toBe(403);
+    expect((await mutacao(area.agent.post(url)).send({ tipo: "diaria_extra", dia: "2026-10-04" })).status).toBe(403);
+    expect((await mutacao(area.agent.post(url)).send({ tipo: "falta", dia: "2026-10-03" })).status).toBe(201);
+    const { agent } = await agenteLogado("production");
+    expect((await mutacao(agent.post(url)).send({ tipo: "horas_extras", horas: 2 })).status).toBe(400);
+    expect((await mutacao(agent.post(url)).send({ tipo: "horas_extras", horas: 13, dia: "2026-10-01" })).status).toBe(400);
+    expect((await mutacao(agent.post(url)).send({ tipo: "horas_extras", horas: 10, dia: "2026-10-01" })).status).toBe(201);
+    expect((await mutacao(agent.post(url)).send({ tipo: "horas_extras", horas: 3, dia: "2026-10-01" })).status).toBe(400);
+    expect((await mutacao(agent.post(url)).send({ tipo: "diaria_extra", dia: "2026-10-20" })).status).toBe(400);
+    expect((await mutacao(agent.post(url)).send({ tipo: "diaria_extra", dia: "2026-10-05" })).status).toBe(201);
+  });
+
+  it("S7: a Área de Função não recebe localização, valores, cálculo, OC nem NF", async () => {
+    const { colab, portal } = await colaboradorNoPortal();
+    const { evento, funcao, actual } = await eventoDeHoje(colab.id);
+    expect((await selfie(portal, `/api/colaborador/presencas/${actual.id}/${hoje}/entrada`)).status).toBe(201);
+    const area = await agenteLogado("function_area");
+    await ctx.db.insert(ctx.schema.functionManagers).values({ functionId: funcao.id, userId: area.user.id });
+    const r = await area.agent.get(`/api/presenca/eventos/${evento.id}`);
+    expect(r.status).toBe(200);
+    const [p] = r.body.prestacoes;
+    expect(p.dias[1].entrada).toMatchObject({ lat: null, lng: null, precisaoM: null });
+    expect(p.calculo).toMatchObject({ valorBase: null, valorCalculado: null, valorDaHora: null, valorHorasExtras: null, linhas: [] });
+    expect(p.limiteDoAjuste).toBeNull();
+    expect(p.notaFiscal).toBeUndefined();
+    expect(p.realizado).toMatchObject({ totalValue: null, dailyValue: null });
+    expect(p.checkoutFinal).toMatchObject({ valorCalculado: null, valorFinal: null, valorHorasExtras: null });
+    const texto = JSON.stringify(r.body);
+    expect(texto).not.toContain("-23.55");
+    expect(texto).not.toContain("60000");
+    // a produção continua vendo
+    const prod = await agenteLogado("production");
+    const pp = (await prod.agent.get(`/api/presenca/eventos/${evento.id}`)).body.prestacoes[0];
+    expect(pp.dias[1].entrada.lat).toBeCloseTo(-23.55);
+    expect(pp.calculo.valorCalculado).toBe(60_000);
+  });
+
+  it("R2: refazer o check-out final depois da devolução recalcula da base — as horas extras não contam duas vezes", async () => {
+    const { colab } = await colaboradorComCpf();
+    const { actual } = await prestacaoPassada(colab.id);
+    const { agent } = await agenteLogado("production");
+    expect((await mutacao(agent.post(`/api/presenca/${actual.id}/ocorrencias`)).send({ tipo: "horas_extras", horas: 8, dia: "2026-10-01" })).status).toBe(201);
+    const primeiro = await mutacao(agent.post(`/api/presenca/${actual.id}/checkout-final`)).send({ valorFinal: 80_000, justificativa: "Fechamento do evento" });
+    expect(primeiro.status, primeiro.text).toBe(200);
+    expect(primeiro.body.checkoutFinal.valorCalculado).toBe(80_000);
+    // O DP devolve.
+    await ctx.db.update(ctx.schema.budgetActual).set({ rhStatus: "devolvido" }).where(eq(ctx.schema.budgetActual.id, actual.id));
+    const tela = await agent.get(`/api/presenca/eventos/${actual.eventId}`);
+    const linha = tela.body.prestacoes.find((p: { actualId: string }) => p.actualId === actual.id);
+    expect(linha.calculo.valorCalculado).toBe(80_000);
+    expect(linha.dias.map((d: { dia: string }) => d.dia)).toEqual(["2026-10-01", "2026-10-02", "2026-10-03"]);
+    const segundo = await mutacao(agent.post(`/api/presenca/${actual.id}/checkout-final`)).send({ valorFinal: 88_000, justificativa: "Refeito" });
+    expect(segundo.status, segundo.text).toBe(200);
+    expect(segundo.body.checkoutFinal).toMatchObject({ valorCalculado: 80_000, valorFinal: 88_000, ajustePct: 10 });
+    const gravado = await ctx.storage.getBudgetActualById(actual.id);
+    expect(gravado!.baseCheckoutFinal).toMatchObject({ totalValue: 60_000, dailyValue: 20_000 });
+  });
+});
+
+describe("revisão 28/10 — selfies (S5) e Voltar ao Planejado (S5, S8)", () => {
+  const objetos = () => (globalThis as any).__objetosDoStorage as Map<string, unknown>;
+
+  it("S5: a gravação da presença falha depois de subir a selfie → o objeto sai do storage", async () => {
+    const { colab, portal } = await colaboradorNoPortal();
+    const { actual } = await eventoDeHoje(colab.id);
+    const { ObjectStorageService } = await import("../objectStorage");
+    const original = ObjectStorageService.prototype.enviarAnexo;
+    let fotoId = "";
+    const espiao = vi.spyOn(ObjectStorageService.prototype, "enviarAnexo").mockImplementationOnce(async function (this: InstanceType<typeof ObjectStorageService>, id, ...resto) {
+      fotoId = id;
+      await original.call(this, id, ...resto);
+      // Outro aparelho fez o check-in do mesmo dia no meio do envio.
+      await ctx.db.insert(ctx.schema.presencas).values({ actualId: actual.id, eventId: actual.eventId, collaboratorId: colab.id, dia: hoje, checkinEm: new Date(), checkinPor: "representante" });
+    });
+    const r = await selfie(portal, `/api/colaborador/presencas/${actual.id}/${hoje}/entrada`);
+    espiao.mockRestore();
+    expect(r.status).toBe(409);
+    expect(fotoId).toMatch(/^ATT-/);
+    expect(objetos().has(fotoId)).toBe(false);
+  });
+
+  async function prestacaoComPlanejado() {
+    const { colab, portal } = await colaboradorNoPortal();
+    const { actual, funcao } = await eventoDeHoje(colab.id);
+    const [planejado] = await ctx.db.insert(ctx.schema.budgetPlanned).values({
+      eventId: actual.eventId, collaboratorId: colab.id, functionId: funcao.id, collaboratorType: "freela",
+      dailyQuantity: 3, dailyValue: 20_000, totalValue: 60_000, status: "aprovado",
+    } as any).returning();
+    await ctx.db.update(ctx.schema.budgetActual).set({ plannedId: planejado.id }).where(eq(ctx.schema.budgetActual.id, actual.id));
+    expect((await selfie(portal, `/api/colaborador/presencas/${actual.id}/${hoje}/entrada`)).status).toBe(201);
+    const [p] = await ctx.db.select().from(ctx.schema.presencas).where(eq(ctx.schema.presencas.actualId, actual.id));
+    return { actual, foto: p.checkinFotoId! };
+  }
+
+  it("S5: Voltar ao Planejado apaga as selfies do storage e a auditoria não guarda lat/lng nem os ids das fotos", async () => {
+    const { actual, foto } = await prestacaoComPlanejado();
+    expect(objetos().has(foto)).toBe(true);
+    const dp = await agenteLogado("financial");
+    const r = await mutacao(dp.agent.post(`/api/budget-actual/${actual.id}/voltar-ao-planejado`)).send({ motivo: "Mobilidade calculada errado" });
+    expect(r.status, r.text).toBe(200);
+    expect(r.body.selfiesApagadas).toBe(1);
+    expect(objetos().has(foto)).toBe(false);
+    const logs = await ctx.db.select().from(ctx.schema.systemLogs).where(eq(ctx.schema.systemLogs.entityId, actual.id));
+    const texto = JSON.stringify(logs);
+    expect(logs.some((l) => l.action === "delete")).toBe(true);
+    expect(texto).not.toContain(foto);
+    expect(texto).not.toContain("-23.55");
+  });
+
+  it("S8: dois \"Voltar ao Planejado\" ao mesmo tempo — só um passa, a auditoria registra um", async () => {
+    const { actual } = await prestacaoComPlanejado();
+    const dp = await agenteLogado("financial");
+    const pedir = () => mutacao(dp.agent.post(`/api/budget-actual/${actual.id}/voltar-ao-planejado`)).send({ motivo: "Dois cliques seguidos" });
+    const [a, b] = await Promise.all([pedir(), pedir()]);
+    expect([a.status, b.status].filter((s) => s === 200)).toHaveLength(1);
+    const logs = await ctx.db.select().from(ctx.schema.systemLogs).where(eq(ctx.schema.systemLogs.entityId, actual.id));
+    expect(logs.filter((l) => l.action === "delete")).toHaveLength(1);
+  });
 });

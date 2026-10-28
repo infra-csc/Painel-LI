@@ -62,7 +62,8 @@ export type AlimField = "weekdayLunch" | "weekdayDinner" | "weekendLunch" | "wee
  * `valueCents` JÁ inclui o ½ (comMeiaDiaria), então a soma da grade é o
  * subtotal gravado, como sempre.
  */
-export interface DayEntry { date: string; valueCents: number; active: boolean; isWeekend: boolean; meia?: boolean }
+/** `meiaCents` (28/10, revisão R5): o ½ que entrou no dia — desmarcar tira exatamente ele. */
+export interface DayEntry { date: string; valueCents: number; active: boolean; isWeekend: boolean; meia?: boolean; meiaCents?: number }
 
 export interface DayCounts { weekdays: number; weekends: number; startDate: string | null; endDate: string | null }
 

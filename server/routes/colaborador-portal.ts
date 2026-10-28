@@ -26,20 +26,20 @@ import type { Express, Request, Response } from "express";
 import { createHash } from "crypto";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../db";
 import { storage } from "../storage";
-import { budgetActual, type Collaborator, type ColaboradorAcesso } from "@shared/schema";
+import { budgetActual, type BudgetActual, type Collaborator, type ColaboradorAcesso } from "@shared/schema";
 import {
   BLOQUEIO_MINUTOS, OCORRENCIA_LABEL, TENTATIVAS_ANTES_DO_BLOQUEIO, diaEmBrasilia, diaValido, erroDaSenha, horaEmBrasilia,
-  podeRegistrarEntrada, podeRegistrarSaida, type ConfiguracaoDaPresenca, type TipoDeOcorrencia,
+  podeRegistrarEntrada, podeRegistrarSaida, type ConfiguracaoDaPresenca, type EstadoDoDia, type TipoDeOcorrencia,
 } from "@shared/presenca";
 import { cnpjValido, digitosDoCnpj, mascararCnpj } from "@shared/cnpj";
 import { contratoVigenteEm } from "@shared/contratos";
 import { hojeISO } from "@shared/hoje-sp";
 import { PostgresRateLimitStore } from "../rate-limit-store";
 import { encerrarSessaoDoColaborador, iniciarSessaoDoColaborador } from "../colaborador-sessao";
-import { acessosDosColaboradores, colaboradoresPorCpf, fotoEhDoColaborador, obterAcesso, registrarFalha, salvarAcesso } from "../storage/presenca";
+import { acessosDosColaboradores, colaboradoresPorCpf, consumirCodigoDeAcesso, fotoEhDoColaborador, obterAcesso, registrarFalha, salvarAcesso } from "../storage/presenca";
 import { contratosDosColaboradores } from "../storage/contratos";
 import {
   estadosDosDias, lerConfiguracaoDoBanco, lerDataDeCorteDoBanco, montarPrestacao, montarPrestacoes, permissaoDeConfirmar,
@@ -52,7 +52,7 @@ import type { Invoice } from "@shared/schema";
 import { obterPagamento } from "../storage/contratos";
 import { gravarDadosDePagamento, temContaOuPix } from "../pagamento-servico";
 import {
-  blocoDoPortal, contaDoPortal, enviarNotaDaPrestacao, lerCamposDaNota, notaDaPrestacao, notasDasPrestacoes, receberArquivoDaNota,
+  anexoDaNotaParaOColaborador, blocoDoPortal, contaDoPortal, enviarNotaDaPrestacao, lerCamposDaNota, notaDaPrestacao, notasDasPrestacoes, receberArquivoDaNota,
   type ContaDoPortal,
 } from "../honorarios-pagamento-servico";
 import { prazoDaMontada } from "../presenca-servico";
@@ -176,12 +176,55 @@ function prazoParaOColaborador(m: PrestacaoMontada, hoje: string, nota: Invoice 
   };
 }
 
+/** 28/10 (R7): a divisão (o substituto) no portal — a presença e a confirmação ficam com o titular. */
+const MSG_DIVISAO_SEM_CONFIRMACAO = "Você trabalhou como substituto nesta vaga: a presença e a confirmação ficam com o titular. A nota fiscal e o pagamento são seus.";
+
+/** A divisão é do fluxo novo? (a MESMA regra da presença, sem a exclusão das divisões) */
+const divisaoDoFluxoNovo = (a: BudgetActual, evento: Parameters<typeof prestacaoDoFluxoNovo>[1], dataDeCorte: string) =>
+  !!a.splitParentId && !!a.collaboratorId && prestacaoDoFluxoNovo({ ...a, splitParentId: null }, evento, dataDeCorte);
+
+/**
+ * 28/10 (R7): a divisão ("Dividir escalação") como o SUBSTITUTO vê — só a OC,
+ * a nota e o pagamento (prestação própria); dias sem check-in e sem
+ * confirmação; o valor é o do Realizado (fechado pelo produtor).
+ */
+function divisaoDoColaborador(m: PrestacaoMontada, hoje: string, pagamento: { nota: Invoice | null; conta: ContaDoPortal; prazos: PrazosDosHonorarios }) {
+  const ocultos = !valoresVisiveisAoColaborador(m.evento.ocultarValoresColaborador, m.actual.ocNumero);
+  const doColaborador = prazoDoColaborador(prazoDaMontada(m, pagamento.prazos, hoje, pagamento.nota));
+  const prazo = doColaborador && doColaborador.etapa !== "confirmar_presenca" ? doColaborador : null;
+  const fechada = m.actual.sentForReview || m.actual.rhStatus === "aprovado";
+  return {
+    id: m.actual.id,
+    divisao: true,
+    evento: { id: m.evento.id, nome: m.evento.name, cidade: m.evento.location, inicio: m.evento.startDate, fim: m.evento.endDate },
+    funcao: m.funcaoNome,
+    dias: m.dias.map((dia) => ({ dia, estado: (dia > hoje ? "futuro" : "concluido") as EstadoDoDia, entrada: null, saida: null, podeEntrar: false, podeSair: false })),
+    ocorrencias: [],
+    diasExtras: [],
+    confirmacao: null,
+    prazo: prazo ? { etapa: prazo.etapa, venceEm: prazo.venceEm, situacao: prazo.situacao, dias: prazo.dias } : null,
+    podeConfirmar: false,
+    motivoNaoPodeConfirmar: MSG_DIVISAO_SEM_CONFIRMACAO,
+    checkoutFinalFeito: fechada,
+    valoresOcultos: ocultos,
+    valores: ocultos ? null : {
+      valorCalculado: m.actual.totalValue,
+      valorDaDiaria: m.actual.dailyValue,
+      memoria: [],
+      valorFinal: fechada ? m.actual.totalValue : null,
+    },
+    notaEPagamento: blocoDoPortal(m.actual, m.evento, pagamento.nota, m.funcaoNome, pagamento.conta, m.dias[0] ?? null, m.dias[m.dias.length - 1] ?? null),
+  };
+}
+
 function prestacaoDoColaborador(m: PrestacaoMontada, hoje: string, pagamento: { nota: Invoice | null; conta: ContaDoPortal; prazos: PrazosDosHonorarios }) {
+  if (m.actual.splitParentId) return divisaoDoColaborador(m, hoje, pagamento);
   const ocultos = !valoresVisiveisAoColaborador(m.evento.ocultarValoresColaborador, m.actual.ocNumero);
   const confirmar = permissaoDeConfirmar(m, hoje);
   const prazo = prazoParaOColaborador(m, hoje, pagamento.nota, pagamento.prazos, confirmar.ok);
   return {
     id: m.actual.id,
+    divisao: false,
     evento: { id: m.evento.id, nome: m.evento.name, cidade: m.evento.location, inicio: m.evento.startDate, fim: m.evento.endDate },
     funcao: m.funcaoNome,
     dias: estadosDosDias(m, hoje).map(({ dia, estado }) => {
@@ -291,11 +334,12 @@ export function registrarColaboradorPortal(app: Express): void {
         if (estaBloqueado(depois)) return res.status(429).json({ message: MSG_BLOQUEADO, bloqueado: true });
         return res.status(401).json({ message: MSG_CODIGO });
       }
-      // Código vale UMA vez: some junto com a troca da senha.
-      const atualizado = await salvarAcesso(alvo.colab.id, {
-        senhaHash: await bcrypt.hash(senha, 10), codigoHash: null, codigoExpiraEm: null,
-        tentativasFalhas: 0, bloqueadoAte: null, ultimoAcessoEm: new Date(),
+      // Código vale UMA vez: some junto com a troca da senha — 28/10 (revisão
+      // S4): de forma atômica (só se o hash lido ainda é o da linha).
+      const atualizado = await consumirCodigoDeAcesso(alvo.colab.id, acesso.codigoHash!, {
+        senhaHash: await bcrypt.hash(senha, 10), ultimoAcessoEm: new Date(),
       });
+      if (!atualizado) return res.status(401).json({ message: MSG_CODIGO });
       await iniciarSessaoDoColaborador(req, alvo.colab.id);
       await createAuditLog("update", "colaborador_acesso", alvo.colab.id, { acao: acesso.senhaHash ? "trocou a senha com o código de acesso" : "criou a senha no primeiro acesso" }, undefined, nomeNaAuditoria(alvo.colab), undefined, req);
       res.json(eu(alvo.colab, atualizado, await lerConfiguracaoDoBanco()));
@@ -335,10 +379,11 @@ export function registrarColaboradorPortal(app: Express): void {
     if (!colab) return;
     try {
       const [config, dataDeCorte] = await Promise.all([lerConfiguracaoDoBanco(), lerDataDeCorteDoBanco()]);
+      // 28/10 (R7): as divisões em que ele é o substituto também (OC, nota e pagamento).
       const minhas = await db.select().from(budgetActual)
-        .where(and(eq(budgetActual.collaboratorId, colab.id), isNull(budgetActual.splitParentId), eq(budgetActual.didNotAttend, false)));
+        .where(and(eq(budgetActual.collaboratorId, colab.id), eq(budgetActual.didNotAttend, false)));
       const eventos = new Map((await storage.getEventsByIds(minhas.map((a) => a.eventId))).map((e) => [e.id, e]));
-      const doFluxoNovo = minhas.filter((a) => prestacaoDoFluxoNovo(a, eventos.get(a.eventId), dataDeCorte));
+      const doFluxoNovo = minhas.filter((a) => prestacaoDoFluxoNovo(a, eventos.get(a.eventId), dataDeCorte) || divisaoDoFluxoNovo(a, eventos.get(a.eventId), dataDeCorte));
       const hoje = diaEmBrasilia();
       const montadas = (await montarPrestacoes(doFluxoNovo, config))
         .sort((a, b) => String(b.evento.startDate).localeCompare(String(a.evento.startDate)));
@@ -360,6 +405,20 @@ export function registrarColaboradorPortal(app: Express): void {
   async function minhaPrestacao(req: Request, res: Response, colab: Collaborator, config: ConfiguracaoDaPresenca): Promise<PrestacaoMontada | null> {
     const m = await montarPrestacao(String(req.params.actualId), config);
     if (!m || m.actual.collaboratorId !== colab.id || !prestacaoDoFluxoNovo(m.actual, m.evento, await lerDataDeCorteDoBanco())) {
+      res.status(404).json({ message: "Prestação não encontrada." });
+      return null;
+    }
+    return m;
+  }
+
+  /**
+   * 28/10 (R7): para a NOTA e o pagamento, a prestação dele OU a divisão em
+   * que ele é o substituto. A presença e a confirmação seguem em `minhaPrestacao`.
+   */
+  async function minhaPrestacaoDaNota(req: Request, res: Response, colab: Collaborator, config: ConfiguracaoDaPresenca): Promise<PrestacaoMontada | null> {
+    const m = await montarPrestacao(String(req.params.actualId), config);
+    const corte = await lerDataDeCorteDoBanco();
+    if (!m || m.actual.collaboratorId !== colab.id || !(prestacaoDoFluxoNovo(m.actual, m.evento, corte) || divisaoDoFluxoNovo(m.actual, m.evento, corte))) {
       res.status(404).json({ message: "Prestação não encontrada." });
       return null;
     }
@@ -440,7 +499,7 @@ export function registrarColaboradorPortal(app: Express): void {
     if ("erro" in campos) return res.status(400).json({ message: campos.erro, campo: campos.campo });
     try {
       const config = await lerConfiguracaoDoBanco();
-      const m = await minhaPrestacao(req, res, colab, config);
+      const m = await minhaPrestacaoDaNota(req, res, colab, config);
       if (!m) return;
       const nota = await notaDaPrestacao(m.actual.id);
       const pode = podeEnviarNotaDaOc(m.actual, nota);
@@ -485,14 +544,18 @@ export function registrarColaboradorPortal(app: Express): void {
     }
   });
 
-  /** O arquivo da PRÓPRIA nota fiscal (para conferir o que foi enviado). */
+  /**
+   * O arquivo da PRÓPRIA nota fiscal (para conferir o que foi enviado).
+   * 28/10 (S9): só o que ele enviou ou o DP/produção enviou para AQUELA
+   * prestação — nunca selfie, contrato ou arquivo de outra nota.
+   */
   app.get("/api/colaborador/prestacoes/:actualId/nota-fiscal/arquivo", async (req, res) => {
     const colab = await requireColaborador(req, res);
     if (!colab) return;
-    const m = await minhaPrestacao(req, res, colab, await lerConfiguracaoDoBanco());
+    const m = await minhaPrestacaoDaNota(req, res, colab, await lerConfiguracaoDoBanco());
     if (!m) return;
     const nota = await notaDaPrestacao(m.actual.id);
-    const id = nota?.attachmentUrl?.match(/^\/api\/attachments\/(ATT-[A-Z0-9-]{4,60})\/(view|download)$/)?.[1];
+    const id = await anexoDaNotaParaOColaborador(nota, m.actual.id, colab.id);
     if (!id) return res.status(404).json({ message: "Nota fiscal não encontrada." });
     const { ObjectStorageService } = await import("../objectStorage");
     const servico = new ObjectStorageService();

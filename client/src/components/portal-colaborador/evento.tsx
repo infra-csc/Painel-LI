@@ -63,10 +63,13 @@ function BlocoDaData({ dia, hoje }: { dia: string; hoje: boolean }) {
 
 function LinhaDoDia({ p, d, hoje, ocorrencias }: { p: PrestacaoDoPortal; d: DiaDoPortal; hoje: string; ocorrencias: OcorrenciaDoPortal[] }) {
   const ehHoje = d.dia === hoje;
-  const estado = ESTADO_PARA_O_COLABORADOR[d.estado];
+  // 28/10 (R7): na divisão (substituto) o dia não tem check-in — só "substituto neste dia".
+  const estado = p.divisao && d.estado !== "futuro"
+    ? { rotulo: "Substituto neste dia", tom: "ok" as const, dica: undefined }
+    : ESTADO_PARA_O_COLABORADOR[d.estado];
   const tipo = d.podeEntrar ? "entrada" : d.podeSair ? "saida" : null;
   const porProdutor = !!(d.entrada?.porRepresentante || d.saida?.porRepresentante);
-  const mostrarHorarios = d.estado !== "futuro" && d.estado !== "falta" && d.estado !== "hoje_sem_checkin";
+  const mostrarHorarios = !p.divisao && d.estado !== "futuro" && d.estado !== "falta" && d.estado !== "hoje_sem_checkin";
   return (
     <li className={cn("rounded-xl border bg-card p-3.5", ehHoje ? "border-primary/35 shadow-1" : "border-border")}>
       <div className="flex gap-3">
@@ -228,6 +231,12 @@ export function TelaDoEvento({ p, hoje }: { p: PrestacaoDoPortal; hoje: string }
     <div>
       <VoltarPara texto="Meus eventos" para="/" />
       <CabecalhoDoEvento p={p} />
+      {/* 28/10 (R7): o substituto (divisão da vaga) — a nota e o pagamento são dele. */}
+      {p.divisao && (
+        <div className="mt-4" data-testid="portal-divisao">
+          <Aviso tom="info" icone={UserCheck}>{p.motivoNaoPodeConfirmar ?? "Você trabalhou como substituto nesta vaga."}</Aviso>
+        </div>
+      )}
       {pagamentoNoTopo && pagamento}
 
       <section aria-labelledby="dias-titulo" className="mt-7">
@@ -259,10 +268,12 @@ export function TelaDoEvento({ p, hoje }: { p: PrestacaoDoPortal; hoje: string }
         <Valores p={p} />
       </section>
 
-      <section aria-labelledby="confirmacao-titulo" className="mt-7">
-        <TituloDaSecao id="confirmacao-titulo">Confirmação</TituloDaSecao>
-        <Confirmacao p={p} />
-      </section>
+      {!p.divisao && (
+        <section aria-labelledby="confirmacao-titulo" className="mt-7">
+          <TituloDaSecao id="confirmacao-titulo">Confirmação</TituloDaSecao>
+          <Confirmacao p={p} />
+        </section>
+      )}
       {!pagamentoNoTopo && pagamento}
     </div>
   );

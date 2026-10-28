@@ -149,8 +149,9 @@ export interface Movimento {
   segueParaOutroEvento: boolean;
 }
 
-const tipoDaPassagem = (t: PassagemDaEscala): ModoDoMovimento => {
-  const tipo = String(t.transportType ?? "").toLowerCase();
+// Por trecho (28/10, vaga #4618): a saída (volta) usa o tipo da volta — ida aérea + volta de ônibus.
+const tipoDaPassagem = (t: PassagemDaEscala, lado: "ida" | "volta" = "ida"): ModoDoMovimento => {
+  const tipo = String((lado === "volta" && t.returnTransportType) || t.transportType || "").toLowerCase();
   if (tipo === "rodoviario") return "rodoviario";
   if (tipo === "van") return "van";
   return "aereo";
@@ -191,7 +192,7 @@ function saidaDaPassagem(v: VagaDaEscala, t: PassagemDaEscala): Movimento | null
   const partida = horaDe(t.actualReturnTime);
   const chegada = horaDe(t.returnArrivalTime);
   return {
-    vagaId: v.id, tipo: "saida", dia, hora: partida ?? chegada, fonte: "passagem", modo: tipoDaPassagem(t), partida, chegada,
+    vagaId: v.id, tipo: "saida", dia, hora: partida ?? chegada, fonte: "passagem", modo: tipoDaPassagem(t, "volta"), partida, chegada,
     de: textoOuNull(t.returnOriginAirport) ?? textoOuNull(t.returnCityOrigin),
     para: textoOuNull(t.returnDestinationAirport) ?? textoOuNull(t.returnCityDestination),
     cidadeDe: textoOuNull(t.returnCityOrigin), cidadePara: textoOuNull(t.returnCityDestination),

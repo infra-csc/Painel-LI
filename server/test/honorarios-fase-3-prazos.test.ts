@@ -55,7 +55,8 @@ async function colaborador() {
 
 async function colaboradorNoPortal() {
   const { colab, cpf } = await colaborador();
-  const c = await mutacao(prod.agent.post(`/api/colaboradores/${colab.id}/codigo-de-acesso`)).send({});
+  // 28/10 (revisão S4): a produção só gera para quem está escalado — aqui o DP gera.
+  const c = await mutacao(dp.agent.post(`/api/colaboradores/${colab.id}/codigo-de-acesso`)).send({});
   expect(c.status, c.text).toBe(201);
   const portal = request.agent(ctx.app);
   const r = await mutacao(portal.post("/api/colaborador/primeiro-acesso")).send({ cpf, codigo: c.body.codigo, senha: SENHA });

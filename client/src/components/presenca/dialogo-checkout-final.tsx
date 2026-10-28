@@ -59,7 +59,7 @@ export function DialogoCheckoutFinal({ alvo, hoje, checkoutFinal, onClose }: {
   useEffect(() => {
     if (!alvo) return;
     const pr = alvo.prestacao;
-    setValor(pr.calculo.valorCalculado);
+    setValor(pr.calculo.valorCalculado ?? 0);
     setOrigem(pr.confirmacao?.cnpj ? "confirmado" : "outro");
     setCnpj(""); setRazao(""); setJustificativa(""); setTentou(false); setErro(null);
     // Só ao abrir para OUTRA prestação: a prestação viva (recarga a cada minuto,
@@ -69,7 +69,7 @@ export function DialogoCheckoutFinal({ alvo, hoje, checkoutFinal, onClose }: {
 
   if (!p || !alvo) return null;
 
-  const calculado = p.calculo.valorCalculado;
+  const calculado = p.calculo.valorCalculado ?? 0;
   const limite = p.limiteDoAjuste;
   const naFaixa = dentroDaFaixa(valor, limite);
   const pendentes = erro?.dias?.length ? erro.dias : p.diasPendentes;

@@ -28,6 +28,7 @@
  * nasce com eles marcados).
  */
 import { MAX_DIAS_DE_TRABALHO, listarDiasDeTrabalho } from "./dias-de-trabalho";
+import { fatorDeDeflacaoDoDia, type DeflationFactors } from "./calculation-rules";
 
 /** Rótulo curto do dia marcado (Escalação, Planejado, Realizado). */
 export const MEIA_DIARIA_ROTULO = "1,5 diária (carga/descarga)";
@@ -99,7 +100,68 @@ export function meiasDiariasDoPlanejado(
   return { dias, totalCents: dias.reduce((s, d) => s + d.valorCents, 0) };
 }
 
-/** Valor do dia com o ½ (Realizado: o DP marca o dia na grade). */
+// ── A regra do DIA — uma só para Planejado, Realizado e presença (28/10) ────
+// Revisão de 28/10 (R3/R5): o Realizado somava o ½ como 1,5 × a diária MÉDIA
+// e a presença tirava a média na falta; o Planejado usa o valor DAQUELE dia
+// (com o fator de deflação). Agora os três usam as funções abaixo.
+
+/**
+ * Diária do dia na posição `posicao` (0 = 1º dia que recebe diária): diária ×
+ * fator da deflação daquela posição. `fatores` null = valor fechado por dia
+ * (percurso, empreita): fator 1 em todos.
+ */
+export function diariaDoDiaNaPosicao(diariaCents: number, posicao: number, fatores: DeflationFactors | null): number {
+  const fator = fatores ? fatorDeDeflacaoDoDia(posicao + 1, fatores) : 1;
+  return Math.round(Math.max(0, diariaCents) * fator);
+}
+
+/** O ½ de um dia: metade do valor do dia (zero quando o dia não tem diária). */
+export function meiaDaDiaria(valorDoDiaCents: number): number {
+  return Math.round(Math.max(0, valorDoDiaCents) / 2);
+}
+
+export interface ValorDoDiaDeDiaria {
+  dia: string;
+  /** Diária do dia, sem o ½. */
+  baseCents: number;
+  /** O ½ (0 se o dia não está marcado). */
+  meiaCents: number;
+  /** base + ½. */
+  valorCents: number;
+}
+
+/**
+ * Do subtotal GRAVADO (diárias com os ½ dentro, como o Planejado grava e o
+ * Realizado guarda) de volta ao valor de CADA dia pela regra do Planejado: a
+ * diária cheia sai de subtotal ÷ Σ(fator do dia + fator ÷ 2 nos dias com ½);
+ * cada dia vale diária × fator (+ o ½). Só os `diasComDiaria` (pela regra do
+ * colaborador) têm valor — ½ marcado em dia sem diária não conta (28/10, R4).
+ * O último dia absorve o centavo do arredondamento (a soma fecha no subtotal).
+ */
+export function valoresDosDiasDoSubtotal(a: {
+  subtotalCents: number;
+  diasComDiaria: readonly string[];
+  diasMeiaExtra?: readonly (string | null | undefined)[] | null;
+  fatores: DeflationFactors | null;
+}): { diaria: number; dias: ValorDoDiaDeDiaria[] } {
+  const dias = Array.from(new Set(a.diasComDiaria)).sort();
+  const meias = new Set((a.diasMeiaExtra ?? []).map((d) => String(d ?? "").slice(0, 10)).filter((d) => dias.includes(d)));
+  const fator = (i: number) => (a.fatores ? fatorDeDeflacaoDoDia(i + 1, a.fatores) : 1);
+  const pesos = dias.reduce((s, d, i) => s + fator(i) * (meias.has(d) ? 1.5 : 1), 0);
+  const subtotal = Math.max(0, Math.round(a.subtotalCents || 0));
+  const diaria = pesos > 0 ? subtotal / pesos : 0;
+  const lista = dias.map((dia, i) => {
+    const baseCents = diariaDoDiaNaPosicao(diaria, i, a.fatores);
+    const meiaCents = meias.has(dia) ? meiaDaDiaria(baseCents) : 0;
+    return { dia, baseCents, meiaCents, valorCents: baseCents + meiaCents };
+  });
+  const resto = subtotal - lista.reduce((s, d) => s + d.valorCents, 0);
+  const ultimo = lista[lista.length - 1];
+  if (ultimo && resto !== 0 && ultimo.baseCents + resto >= 0) { ultimo.baseCents += resto; ultimo.valorCents += resto; }
+  return { diaria, dias: lista };
+}
+
+/** Valor do dia com o ½ (legado: 1,5 × o valor). Prefira `meiaDaDiaria` sobre a diária do dia pela regra. */
 export function comMeiaDiaria(valorDoDiaCents: number): number {
   return Math.round(valorDoDiaCents * 1.5);
 }

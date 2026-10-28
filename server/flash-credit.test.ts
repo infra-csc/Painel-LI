@@ -5,8 +5,9 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("./db", () => ({ db: {} }));
 vi.mock("./storage", () => ({ storage: {} }));
 
-import { planejarSyncFlash } from "./flash-credit";
+import { descricaoDoAjuste, planejarSyncFlash } from "./flash-credit";
 import type { FlashMovement } from "@shared/schema";
+import { FLASH_SOURCE_COMPARATIVO_AJUSTE } from "@shared/flash-rules";
 
 const existente = (over: Partial<FlashMovement>): FlashMovement => ({
   id: "m-" + (over.sourceRef ?? "x") + "-" + (over.category ?? "alimentacao"),
@@ -22,6 +23,7 @@ const existente = (over: Partial<FlashMovement>): FlashMovement => ({
   createdAt: new Date("2026-09-20T12:00:00Z"),
   sourceType: "comparativo",
   sourceRef: "p1",
+  compraId: null,
   ...over,
 });
 
@@ -113,5 +115,54 @@ describe("planejarSyncFlash — criar/atualizar/remover por (prestação, catego
     ], [], descricao, "ev1", ids());
     expect(plano.criar).toHaveLength(1);
     expect(plano.movementIds).toEqual(["novo-1"]);
+  });
+});
+
+describe("revisão 28/10 (R1) — crédito já comprado é imutável; a diferença vira ajuste fora de lote", () => {
+  const descricao = "Comparativo — Evento X";
+  const comprado = (over: Partial<FlashMovement> = {}) => existente({ sourceRef: "p1", category: "alimentacao", amountCents: 1000, compraId: "lote-1", ...over });
+
+  it("valor SOBE depois da compra: o comprado fica; a diferença (+500) vira complemento novo, sem lote", () => {
+    const plano = planejarSyncFlash([{ actualId: "p1", collaboratorId: "c1", category: "alimentacao", amountCents: 1500 }], [comprado()], descricao, "ev1", ids());
+    expect(plano.atualizar).toEqual([]);
+    expect(plano.remover).toEqual([]);
+    expect(plano.criar).toEqual([]);
+    expect(plano.criarAjustes).toEqual([{ id: "novo-1", actualId: "p1", collaboratorId: "c1", category: "alimentacao", type: "credito", amountCents: 500 }]);
+  });
+
+  it("valor DESCE depois da compra: estorno (débito) de 400", () => {
+    const plano = planejarSyncFlash([{ actualId: "p1", collaboratorId: "c1", category: "alimentacao", amountCents: 600 }], [comprado()], descricao, "ev1", ids());
+    expect(plano.criarAjustes).toEqual([expect.objectContaining({ type: "debito", amountCents: 400 })]);
+    expect(plano.remover).toEqual([]);
+  });
+
+  it("Voltar ao Planejado / reabrir o comparativo (a regra não quer mais): o comprado NÃO é apagado — estorno do valor todo", () => {
+    const plano = planejarSyncFlash([], [comprado()], descricao, "ev1", ids());
+    expect(plano.remover).toEqual([]);
+    expect(plano.criarAjustes).toEqual([expect.objectContaining({ actualId: "p1", type: "debito", amountCents: 1000 })]);
+  });
+
+  it("reaprovar com o mesmo valor depois do estorno ainda não comprado: o estorno sai (nada a comprar de novo)", () => {
+    const estorno = existente({ id: "est-1", sourceType: FLASH_SOURCE_COMPARATIVO_AJUSTE, type: "debito", amountCents: 1000, compraId: null });
+    const plano = planejarSyncFlash([{ actualId: "p1", collaboratorId: "c1", category: "alimentacao", amountCents: 1000 }], [comprado(), estorno], descricao, "ev1", ids());
+    expect(plano.remover.map((m) => m.id)).toEqual(["est-1"]);
+    expect(plano.criarAjustes).toEqual([]);
+    expect(plano.criar).toEqual([]);
+  });
+
+  it("complemento ainda não comprado acompanha o valor (atualiza o MESMO ajuste); idempotente", () => {
+    const comp = existente({ id: "comp-1", sourceType: FLASH_SOURCE_COMPARATIVO_AJUSTE, type: "credito", amountCents: 500, compraId: null, description: descricaoDoAjuste(descricao, "credito") });
+    const sobe = planejarSyncFlash([{ actualId: "p1", collaboratorId: "c1", category: "alimentacao", amountCents: 1800 }], [comprado(), comp], descricao, "ev1", ids());
+    expect(sobe.atualizar.map((a) => [a.prev.id, a.changes.amountCents])).toEqual([["comp-1", 800]]);
+    const igual = planejarSyncFlash([{ actualId: "p1", collaboratorId: "c1", category: "alimentacao", amountCents: 1500 }], [comprado(), comp], descricao, "ev1", ids());
+    expect(igual.atualizar).toEqual([]);
+    expect(igual.criarAjustes).toEqual([]);
+    expect(igual.remover).toEqual([]);
+  });
+
+  it("sem nada comprado, a regra de sempre: o lançamento principal acompanha o valor (e sai quando a regra não quer)", () => {
+    const livre = existente({ sourceRef: "p1", category: "alimentacao", amountCents: 1000, compraId: null });
+    expect(planejarSyncFlash([{ actualId: "p1", collaboratorId: "c1", category: "alimentacao", amountCents: 1500 }], [livre], descricao, "ev1", ids()).atualizar).toHaveLength(1);
+    expect(planejarSyncFlash([], [livre], descricao, "ev1", ids()).remover).toEqual([livre]);
   });
 });

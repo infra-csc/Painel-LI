@@ -188,3 +188,36 @@ describe("mobilidade coerente (28/10 — caso Lucas)", () => {
     expect(linhaDoPlanejado(r)).toMatchObject({ mobility: 0, mobilityIda: 0, mobilityVolta: 0 });
   });
 });
+
+describe("revisão 28/10 — o que a linha do Planejado grava", () => {
+  const honorario: HonorarioNaVaga = {
+    honorarioId: "h1", tipo: "vaga", nome: "Fulano", status: "aprovado", situacao: "aprovado", valorCents: 100_000,
+    empreita: null, aprovadoPor: "Marcos", aprovadoEm: "2026-10-21T13:00:00.000Z", colaboradorTrocado: false,
+  };
+
+  it("R4: ½ sem efeito (honorário aprovado) não vai para a linha — o Realizado não pode tratá-lo como 1,5", () => {
+    const r = calcularPlanejadoDaVaga({
+      vaga: { scheduleStartDate: "2026-09-01", scheduleEndDate: "2026-09-03", needsTicket: true, dailyRates: 3, dailyValue: 0, cenoFreelaTipo: "viagem", diasMeiaExtra: ["2026-09-02"] },
+      functionName: "Cenotécnica", collaboratorType: "freela", settings: {}, eventLocation: "Recife - PE", honorario,
+    });
+    expect(linhaDoPlanejado(r).diasMeiaExtra).toEqual([]);
+  });
+
+  it("R4: casa com ½ marcado em dia útil (½ de zero) grava só o dia que tem valor", () => {
+    const r = calcularPlanejadoDaVaga({
+      vaga: { ...semana, needsTicket: false, dailyRates: 6, dailyValue: 0, diasMeiaExtra: ["2026-09-01", "2026-09-05"] },
+      functionName: "Produção", collaboratorType: "casa", settings: {}, eventLocation: "São Paulo - SP",
+    });
+    expect(linhaDoPlanejado(r).diasMeiaExtra).toEqual(["2026-09-05"]);
+  });
+
+  it("R8: casa sem dia de diária (só dias úteis) grava diária 0 — nada de diária nominal para a hora extra nem para o Realizado espalhar", () => {
+    const r = calcularPlanejadoDaVaga({
+      vaga: { scheduleStartDate: "2026-09-01", scheduleEndDate: "2026-09-03", needsTicket: false, dailyRates: 3, dailyValue: 0 },
+      functionName: "Produção", collaboratorType: "casa", settings: {}, eventLocation: "São Paulo - SP",
+    });
+    const linha = linhaDoPlanejado(r);
+    expect(linha.dailyQuantity).toBe(0);
+    expect(linha.dailyValue).toBe(0);
+  });
+});

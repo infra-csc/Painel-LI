@@ -11,6 +11,7 @@ import { isPercursoFunction } from "@shared/calculation-rules";
 import { isCenotecnicaFunction as isCenoEmpreitaFunction } from "@shared/alimentacao";
 import { ATENDIMENTO_SHORT, PERCURSEIRO_SHORT, CENO_FREELA_SHORT, type NormalizedSwap } from "./scaling-utils";
 import { getScalingStatusKey } from "./scaling-status";
+import { nomeDosTiposDaPassagem, voltaComOutroTipo } from "@shared/tipo-por-trecho";
 import { StatusDaVagaBadge } from "@/components/common/status-badge";
 
 /**
@@ -169,7 +170,7 @@ export function needsDaLinha(
       icon: tipo === "rodoviario" ? <Bus className="w-3.5 h-3.5" aria-hidden="true" /> : <Plane className="w-3.5 h-3.5" aria-hidden="true" />,
       label: nome,
       title: comprada
-        ? `${nome} comprada${anexos ? ` · ${anexos} ${anexos === 1 ? "anexo" : "anexos"}` : ""}`
+        ? `${nome} comprada${opts.ticket && voltaComOutroTipo(opts.ticket) ? ` (${nomeDosTiposDaPassagem(opts.ticket).toLowerCase()})` : ""}${anexos ? ` · ${anexos} ${anexos === 1 ? "anexo" : "anexos"}` : ""}`
         : `Precisa de transporte — ainda não comprada`,
       cls: comprada ? NEED_INFO : NEED_FALTA,
     });

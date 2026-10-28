@@ -24,6 +24,7 @@ export interface MarcacaoDaPresenca {
   /** Só para quem vê as selfies (admin, DP, produção); a Área de Função recebe null. */
   fotoId: string | null;
   fotoUrl: string | null;
+  /** 28/10 (revisão S7): null para a Área de Função (não recebe localização). */
   lat: number | null;
   lng: number | null;
   precisaoM: number | null;
@@ -64,16 +65,17 @@ export interface ConfirmacaoDaPresenca {
   contestacaoDoColaborador?: ContestacaoParaTela | null;
 }
 
+/** 28/10 (revisão S7): para a Área de Função os valores vêm null e as linhas vazias (só os dias). */
 export interface CalculoDaPrestacao {
-  valorBase: number;
-  valorCalculado: number;
+  valorBase: number | null;
+  valorCalculado: number | null;
   linhas: string[];
   diasPagos: string[];
   diasComFalta: string[];
   diasExtras: string[];
   horasExtras: number;
-  valorDaHora: number;
-  valorHorasExtras: number;
+  valorDaHora: number | null;
+  valorHorasExtras: number | null;
 }
 
 export interface PrestacaoDaPresenca {
@@ -117,7 +119,7 @@ export interface PrestacaoDaPresenca {
     termoAceito: boolean;
     ultimoAcessoEm: string | null;
   };
-  realizado: { rhStatus: string | null; sentForReview: boolean | null; totalValue: number; dailyValue: number };
+  realizado: { rhStatus: string | null; sentForReview: boolean | null; totalValue: number | null; dailyValue: number | null };
   /** Etapas 4–7 (28/10): a OC, a nota e se dá para enviar a NF como representante. */
   notaFiscal?: NotaFiscalDaPresenca;
   /**
@@ -144,6 +146,8 @@ export interface PermissoesDaPresenca {
   checkoutFinal: boolean;
   gerarCodigo: boolean;
   ajusteSemLimite: boolean;
+  /** 28/10 (revisão S2): lança diária extra e horas extras (produção/DP/admin); a Área de Função não. */
+  ocorrenciasFinanceiras?: boolean;
 }
 
 export interface NaArena {
@@ -160,6 +164,8 @@ export interface RespostaDaPresenca {
     selfieObrigatoria: boolean;
     localizacao: ModoDeLocalizacao;
     horaExtraDivisor: number;
+    /** Teto de horas extras por dia (28/10, revisão S2). */
+    horaExtraMaxDia?: number;
     produtorAjusteMaxPct: number;
     provisorio: boolean;
   };

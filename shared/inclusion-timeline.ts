@@ -52,7 +52,7 @@ export interface FontesDoHistorico {
   logs: { id: string; action: string; details: string | null; previousValue: string | null; newValue: string | null; userName: string | null; createdAt: Quando }[];
   passagens: {
     id: string; createdAt: Quando; purchaseDate?: Quando; emittedAt?: Quando; emittedByName?: string | null;
-    ticketStatus?: string | null; transportType?: string | null;
+    ticketStatus?: string | null; transportType?: string | null; returnTransportType?: string | null;
     departureCityOrigin?: string | null; departureCityDestination?: string | null;
   }[];
   hospedagens: { id: string; createdAt: Quando; hotelName?: string | null; checkInDate?: Quando; checkOutDate?: Quando; hotelStatus?: string | null }[];
@@ -273,7 +273,10 @@ export function montarHistoricoDaVaga(f: FontesDoHistorico): EntradaDoHistorico[
   // 3) Passagens
   for (const t of f.passagens) {
     const trecho = [t.departureCityOrigin, t.departureCityDestination].filter(Boolean).join(" → ");
-    const tipo = t.transportType === "rodoviario" ? "rodoviária" : t.transportType === "aereo" ? "aérea" : null;
+    const tipoBase = t.transportType === "rodoviario" ? "rodoviária" : t.transportType === "aereo" ? "aérea" : null;
+    // Volta de outro tipo (28/10): "Passagem aérea, volta rodoviária".
+    const tipo = tipoBase && t.returnTransportType && t.returnTransportType !== t.transportType
+      ? `${tipoBase}, volta ${t.returnTransportType === "rodoviario" ? "rodoviária" : "aérea"}` : tipoBase;
     const registrada = toIso(t.createdAt);
     if (registrada) {
       add({ id: `passagem-${t.id}-registrada`, at: registrada, diaFixo: null, categoria: "passagem", titulo: "Passagem registrada",

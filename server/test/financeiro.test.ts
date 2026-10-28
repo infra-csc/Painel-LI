@@ -319,7 +319,8 @@ describe("Comparativo: /api/budget-comparison/:id/{approve,reject}", () => {
     expect(recusa.status).toBe(200);
     expect(recusa.body.status).toBe("rejeitado");
     expect(recusa.body.rejectionReason).toBe("valores errados");
-    expect(recusa.body.flashReverse).toEqual({ ok: true, removed: 2 });
+    // 28/10 (revisão R1): nada comprado ainda → apaga; crédito em lote vivo ganharia estorno.
+    expect(recusa.body.flashReverse).toEqual({ ok: true, removed: 2, estornos: 0 });
     expect(await lancamentos()).toHaveLength(0);
 
     // Rejeitado de novo → 409 (recusar só parte de pendente/aprovado/devolvido)

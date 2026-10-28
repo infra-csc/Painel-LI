@@ -12,11 +12,13 @@
  */
 import type { Request, Response } from "express";
 import multer from "multer";
-import { and, eq, inArray, isNull, or, sql as drizzleSql } from "drizzle-orm";
+import { and, arrayContains, eq, inArray, isNotNull, isNull, like, ne, or, sql as drizzleSql } from "drizzle-orm";
 import { db } from "./db";
 import { storage } from "./storage";
+import { normalizeRole, type CanonicalRole } from "@shared/roles";
 import {
-  budgetActual as budgetActualTable, collaborators as collaboratorsTable, invoices as invoicesTable, teamInclusions,
+  accommodations as accommodationsTable, budgetActual as budgetActualTable, collaborators as collaboratorsTable, invoices as invoicesTable,
+  teamInclusions, tickets as ticketsTable,
   type BudgetActual, type Collaborator, type Event, type HistoricoNfEntrada, type Invoice, type User,
 } from "@shared/schema";
 import {
@@ -29,8 +31,8 @@ import { nfIsentaPorEscalacao } from "@shared/prestacao-rules";
 import { cnpjValido, digitosDoCnpj, mascararCnpj } from "@shared/cnpj";
 import { hojeISO } from "@shared/hoje-sp";
 import { pagamentoMascarado } from "@shared/pagamento";
-import { contratosDosColaboradores, obterPagamento } from "./storage/contratos";
-import { confirmacoesDasPrestacoes } from "./storage/presenca";
+import { contratosDosColaboradores, ehAnexoDeContrato, obterPagamento } from "./storage/contratos";
+import { confirmacoesDasPrestacoes, ehFotoDePresenca } from "./storage/presenca";
 import { decifrarPagamento, temContaOuPix } from "./pagamento-servico";
 import { createAuditLog } from "./routes/_compartilhado";
 
@@ -50,6 +52,8 @@ const dia = (v: Date | string | null | undefined) => (v ? String(v instanceof Da
 export interface PrestacaoDoPagamentoMontada {
   actual: BudgetActual;
   colaborador: Collaborator | null;
+  /** 28/10 (R7): divisão da vaga (o substituto) — o titular; null na prestação raiz. */
+  divisao: { titularActualId: string; titularNome: string | null } | null;
   funcao: { id: string | null; nome: string | null; centroDeCusto: string | null };
   nota: Invoice | null;
   emiteNf: boolean;
@@ -57,12 +61,16 @@ export interface PrestacaoDoPagamentoMontada {
 }
 
 /**
- * As prestações RAIZ (sem divisão, participaram) do evento, com nota,
- * contrato do CNPJ emissor, isenção de NF da escalação e função. `ids`
- * restringe a um subconjunto.
+ * As prestações do evento que participaram, com nota, contrato do CNPJ
+ * emissor, isenção de NF da escalação e função. `ids` restringe a um
+ * subconjunto. 28/10 (R7): as divisões com colaborador próprio (o substituto
+ * da "Dividir escalação") entram como prestações próprias.
  */
 export async function montarDoEvento(eventId: string, ids?: readonly string[]): Promise<PrestacaoDoPagamentoMontada[]> {
-  const filtros = [eq(budgetActualTable.eventId, eventId), isNull(budgetActualTable.splitParentId), eq(budgetActualTable.didNotAttend, false)];
+  const filtros = [
+    eq(budgetActualTable.eventId, eventId), eq(budgetActualTable.didNotAttend, false),
+    or(isNull(budgetActualTable.splitParentId), isNotNull(budgetActualTable.collaboratorId))!,
+  ];
   if (ids) {
     if (ids.length === 0) return [];
     filtros.push(inArray(budgetActualTable.id, [...ids]));
@@ -74,7 +82,13 @@ export async function montarDoEvento(eventId: string, ids?: readonly string[]): 
 export async function montar(actuals: readonly BudgetActual[]): Promise<PrestacaoDoPagamentoMontada[]> {
   if (actuals.length === 0) return [];
   const ids = actuals.map((a) => a.id);
-  const colabIds = Array.from(new Set(actuals.map((a) => a.collaboratorId).filter((v): v is string => !!v)));
+  // 28/10 (R7): o titular de cada divisão (para a linha dizer de quem é a vaga).
+  const paiIds = Array.from(new Set(actuals.map((a) => a.splitParentId).filter((v): v is string => !!v)));
+  const pais = paiIds.length
+    ? await db.select({ id: budgetActualTable.id, collaboratorId: budgetActualTable.collaboratorId }).from(budgetActualTable).where(inArray(budgetActualTable.id, paiIds))
+    : [];
+  const titularDe = new Map(pais.map((p) => [p.id, p.collaboratorId]));
+  const colabIds = Array.from(new Set([...actuals.map((a) => a.collaboratorId), ...pais.map((p) => p.collaboratorId)].filter((v): v is string => !!v)));
   const funcIds = Array.from(new Set(actuals.map((a) => a.functionId).filter((v): v is string => !!v)));
   const eventIds = Array.from(new Set(actuals.map((a) => a.eventId)));
   const [notas, colaboradores, funcoes, contratos, confirmacoes, vagas] = await Promise.all([
@@ -97,9 +111,11 @@ export async function montar(actuals: readonly BudgetActual[]): Promise<Prestaca
     const origem = a.cnpjEmissor ? "checkout_final" as const : confirmacao?.cnpj ? "confirmacao" as const : null;
     const sit = situacaoDoCnpjInformado(digitos, a.collaboratorId ? contratos.get(a.collaboratorId) ?? [] : [], hoje);
     const f = a.functionId ? funcaoPorId.get(a.functionId) : undefined;
+    const titularId = a.splitParentId ? titularDe.get(a.splitParentId) ?? null : null;
     return {
       actual: a,
       colaborador: a.collaboratorId ? colabPorId.get(a.collaboratorId) ?? null : null,
+      divisao: a.splitParentId ? { titularActualId: a.splitParentId, titularNome: titularId ? colabPorId.get(titularId)?.fullName ?? null : null } : null,
       funcao: { id: a.functionId, nome: f?.name ?? null, centroDeCusto: f?.costCenter ?? null },
       nota: notas.get(a.id) ?? null,
       emiteNf: !nfIsentaPorEscalacao(vagas, a.collaboratorId, a.functionId, a.eventId),
@@ -116,7 +132,7 @@ export function paraOLote(m: PrestacaoDoPagamentoMontada): PrestacaoDoLote {
   return {
     id: m.actual.id, colaboradorNumero: m.colaborador?.collaboratorNumber ?? null, colaboradorNome: m.colaborador?.fullName ?? null,
     cpf: m.colaborador ? cpfDoCadastro(m.colaborador) : null, totalValue: m.actual.totalValue,
-    rhStatus: m.actual.rhStatus, splitParentId: m.actual.splitParentId, didNotAttend: m.actual.didNotAttend, ocNumero: m.actual.ocNumero,
+    rhStatus: m.actual.rhStatus, splitParentId: m.actual.splitParentId, collaboratorId: m.actual.collaboratorId, didNotAttend: m.actual.didNotAttend, ocNumero: m.actual.ocNumero,
     pagoEm: m.actual.pagoEm, situacaoDoCnpj: m.cnpj.situacao, emiteNf: m.emiteNf,
   };
 }
@@ -127,6 +143,8 @@ export interface LinhaDaOc {
   actualId: string;
   eventId: string;
   colaborador: { id: string; nome: string; numero: number } | null;
+  /** 28/10 (R7): divisão da vaga (o substituto é pago como prestação própria) — o titular. */
+  divisao: { titularActualId: string; titularNome: string | null } | null;
   funcao: { id: string | null; nome: string | null; centroDeCusto: string | null };
   valorAprovado: number;
   rhActionAt: string | null;
@@ -170,6 +188,7 @@ export async function linhasDaOc(montadas: readonly PrestacaoDoPagamentoMontada[
       actualId: a.id,
       eventId: a.eventId,
       colaborador: m.colaborador ? { id: m.colaborador.id, nome: m.colaborador.fullName, numero: m.colaborador.collaboratorNumber } : null,
+      divisao: m.divisao,
       funcao: m.funcao,
       valorAprovado: a.totalValue,
       rhActionAt: iso(a.rhActionAt),
@@ -365,6 +384,53 @@ export async function enviarNotaDaPrestacao(a: {
     nfCnpj: cnpjNota ? mascararCnpj(cnpjNota) : null, arquivo: nome,
   }, ator?.id, nomeDoAtor, a.nota ? { status: a.nota.status, arquivo: a.nota.attachmentName } : undefined, req);
   return gravada;
+}
+
+// ── Portal: o arquivo da nota (28/10, S9) ───────────────────────────────────
+
+/** Quem, por dentro, envia a nota de uma prestação (representante ou lançamento do DP). */
+const PAPEIS_QUE_ENVIAM_A_NOTA: readonly CanonicalRole[] = ["admin", "financial", "production"];
+const RE_ANEXO_DA_NOTA = /^\/api\/attachments\/(ATT-[A-Z0-9-]{4,60})\/(view|download)$/;
+
+/**
+ * O anexo da nota que o PORTAL pode entregar ao colaborador — ou null (404).
+ * 28/10 (S9): antes saía qualquer `ATT-…` que estivesse na nota. Agora só o
+ * que ELE enviou (dono `colaborador:<id>`) ou o que o DP/produção enviou para
+ * AQUELA prestação (dono interno com esse papel, arquivo de nenhuma outra
+ * nota); nunca outra classe — selfie, contrato, documento de colaborador,
+ * passagem/hospedagem.
+ */
+export async function anexoDaNotaParaOColaborador(nota: Invoice | null, actualId: string, collaboratorId: string): Promise<string | null> {
+  const id = nota?.attachmentUrl?.match(RE_ANEXO_DA_NOTA)?.[1];
+  if (!id) return null;
+  const { ObjectStorageService, ObjectNotFoundError } = await import("./objectStorage");
+  const servico = new ObjectStorageService();
+  let dono: string | null;
+  try {
+    const meta = await servico.metadadosDoAnexo(servico.arquivoDoAnexo(id));
+    if (meta.classe) return null;
+    dono = meta.ownerId;
+  } catch (erro) {
+    if (erro instanceof ObjectNotFoundError) return null;
+    throw erro;
+  }
+  if (!dono || (dono.startsWith("colaborador:") && dono !== `colaborador:${collaboratorId}`)) return null;
+  const [deContrato, deSelfie, deOutraClasse, deOutraNota] = await Promise.all([
+    ehAnexoDeContrato(id),
+    ehFotoDePresenca(id),
+    db.select({ id: collaboratorsTable.id }).from(collaboratorsTable).where(eq(collaboratorsTable.documentAttachmentId, id)).limit(1)
+      .then(async (doc) => doc.length > 0
+        || (await db.select({ id: ticketsTable.id }).from(ticketsTable).where(arrayContains(ticketsTable.attachmentIds, [id])).limit(1)).length > 0
+        || (await db.select({ id: accommodationsTable.id }).from(accommodationsTable).where(arrayContains(accommodationsTable.attachmentIds, [id])).limit(1)).length > 0),
+    db.select({ id: invoicesTable.id }).from(invoicesTable)
+      .where(and(like(invoicesTable.attachmentUrl, `/api/attachments/${id}/%`), or(isNull(invoicesTable.budgetActualId), ne(invoicesTable.budgetActualId, actualId))))
+      .limit(1).then((l) => l.length > 0),
+  ]);
+  if (deContrato || deSelfie || deOutraClasse || deOutraNota) return null;
+  if (dono === `colaborador:${collaboratorId}`) return id;
+  const [quem] = await storage.getUsersByIds([dono]);
+  const papel = quem ? normalizeRole(quem.role) : null;
+  return papel && PAPEIS_QUE_ENVIAM_A_NOTA.includes(papel) ? id : null;
 }
 
 /** Nota da prestação (a única). */

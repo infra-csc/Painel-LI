@@ -108,13 +108,18 @@ describe("regras de tela da presença", () => {
     const p = prestacao();
     expect(montarOcorrencia({ tipo: "falta", dia: "", horas: "", substitutoId: "", observacao: "" }, p)).toEqual({ erro: "Escolha um dia de diária desta prestação." });
     expect(montarOcorrencia({ tipo: "diaria_extra", dia: "2026-11-01", horas: "", substitutoId: "", observacao: "" }, p)).toMatchObject({ erro: expect.stringContaining("dia a mais") });
-    expect(montarOcorrencia({ tipo: "horas_extras", dia: "", horas: "1,5", substitutoId: "", observacao: " ok " }, p)).toEqual({ tipo: "horas_extras", dia: null, horas: 1.5, observacao: "ok" });
+    // 28/10 (revisão S2): horas extras com dia obrigatório e teto por dia.
+    expect(montarOcorrencia({ tipo: "horas_extras", dia: "", horas: "1,5", substitutoId: "", observacao: " ok " }, p)).toMatchObject({ erro: expect.stringContaining("dia") });
+    const dia = p.dias[0].dia;
+    expect(montarOcorrencia({ tipo: "horas_extras", dia, horas: "1,5", substitutoId: "", observacao: " ok " }, p)).toEqual({ tipo: "horas_extras", dia, horas: 1.5, observacao: "ok" });
+    expect(montarOcorrencia({ tipo: "horas_extras", dia, horas: "13", substitutoId: "", observacao: "" }, p)).toMatchObject({ erro: expect.stringContaining("12") });
+    expect(montarOcorrencia({ tipo: "horas_extras", dia, horas: "5", substitutoId: "", observacao: "" }, p, 4)).toMatchObject({ erro: expect.stringContaining("4") });
     expect(montarOcorrencia({ tipo: "substituicao", dia: "2026-11-01", horas: "", substitutoId: "", observacao: "" }, p)).toEqual({ erro: "Escolha quem substituiu." });
   });
 
   it("configuração: texto do termo novo exige versão nova; número fora da faixa explica", () => {
     const atual = CONFIGURACAO_PADRAO;
-    const base = { selfieObrigatoria: true, localizacao: "registrar" as const, horaExtraDivisor: "8", produtorAjusteMaxPct: "10", retencaoDias: "365", termoVersao: atual.termoVersao, termoTexto: atual.termoTexto };
+    const base = { selfieObrigatoria: true, localizacao: "registrar" as const, horaExtraDivisor: "8", horaExtraMaxDia: "12", produtorAjusteMaxPct: "10", retencaoDias: "365", termoVersao: atual.termoVersao, termoTexto: atual.termoTexto };
     expect(diferencaDaConfiguracao(base, atual)).toEqual({ corpo: {}, erro: null });
     expect(diferencaDaConfiguracao({ ...base, termoTexto: `${atual.termoTexto} Mais uma linha.` }, atual).erro).toMatch(/versão nova/);
     expect(diferencaDaConfiguracao({ ...base, termoTexto: `${atual.termoTexto} Mais uma linha.`, termoVersao: "v2" }, atual).corpo).toMatchObject({ termoVersao: "v2" });

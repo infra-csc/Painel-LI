@@ -14,14 +14,14 @@
  * o TODO único está lá). Regras puras em shared/flash-compras.ts.
  */
 import type { Response } from "express";
-import { and, desc, eq, gte, inArray, isNull, lte, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, sql } from "drizzle-orm";
 import { db } from "./db";
 import {
   budgetActual as budgetActualTable, collaborators as collaboratorsTable, events as eventsTable, flashCompras, flashMovements,
   type Collaborator, type Event, type FlashCompra, type User,
 } from "@shared/schema";
 import {
-  FLASH_SOURCE_COMPARATIVO, FLASH_SOURCE_MANUAL,
+  FLASH_SOURCE_COMPARATIVO, FLASH_SOURCE_COMPARATIVO_AJUSTE, FLASH_SOURCE_MANUAL,
 } from "@shared/flash-rules";
 import {
   ROTULO_DO_STATUS_DO_LOTE, itemDoLote, loteTemArquivo, montarPreviaDaCompra, podeCancelarLote, podeMarcarLotePago,
@@ -76,9 +76,12 @@ export async function enviarArquivo<L>(
 
 /** Os créditos "a comprar" do filtro, já filtrados no banco (a regra pura confere de novo). */
 async function creditosAComprar(exec: Leitor, f: FiltroDaCompra, travar = false): Promise<CreditoDoFlash[]> {
+  // 28/10 (revisão R1): o ajuste do comparativo (complemento/estorno de crédito
+  // já comprado) entra sempre — o estorno como débito (desconta na linha).
   const origens = f.incluirManuais ? [FLASH_SOURCE_COMPARATIVO, FLASH_SOURCE_MANUAL] : [FLASH_SOURCE_COMPARATIVO];
   const filtros = [
-    isNull(flashMovements.compraId), eq(flashMovements.type, "credito"), inArray(flashMovements.sourceType, origens),
+    isNull(flashMovements.compraId),
+    or(and(eq(flashMovements.type, "credito"), inArray(flashMovements.sourceType, origens)), eq(flashMovements.sourceType, FLASH_SOURCE_COMPARATIVO_AJUSTE))!,
     gte(flashMovements.movementDate, f.inicio), lte(flashMovements.movementDate, f.fim),
   ];
   if (f.eventId) filtros.push(eq(flashMovements.eventId, f.eventId));
@@ -206,7 +209,8 @@ export async function lotesParaATela(lotes: readonly FlashCompra[]): Promise<Lot
   const ids = lotes.map((l) => l.id);
   const eventIds = Array.from(new Set(lotes.map((l) => l.eventId).filter((v): v is string => !!v)));
   const [somas, eventos] = await Promise.all([
-    db.select({ compraId: flashMovements.compraId, total: sql<number>`coalesce(sum(${flashMovements.amountCents}), 0)`, n: sql<number>`count(*)` })
+    // Com sinal: o estorno do comparativo (débito) desconta no lote (28/10, R1).
+    db.select({ compraId: flashMovements.compraId, total: sql<number>`coalesce(sum(CASE WHEN ${flashMovements.type} = 'debito' THEN -${flashMovements.amountCents} ELSE ${flashMovements.amountCents} END), 0)`, n: sql<number>`count(*)` })
       .from(flashMovements).where(inArray(flashMovements.compraId, ids)).groupBy(flashMovements.compraId),
     eventIds.length ? db.select().from(eventsTable).where(inArray(eventsTable.id, eventIds)) : Promise.resolve([] as Event[]),
   ]);
@@ -294,7 +298,9 @@ export async function montarArquivoDeOc(escopo: EscopoDoArquivoDeOc, dataDeCorte
   const eventoPorId = new Map(eventos.map((e) => [e.id, e]));
   const actuals = eventos.length
     ? await db.select().from(budgetActualTable).where(and(
-      inArray(budgetActualTable.eventId, eventos.map((e) => e.id)), isNull(budgetActualTable.splitParentId), eq(budgetActualTable.didNotAttend, false),
+      inArray(budgetActualTable.eventId, eventos.map((e) => e.id)), eq(budgetActualTable.didNotAttend, false),
+      // 28/10 (R7): a divisão com colaborador próprio (o substituto) tem OC própria.
+      or(isNull(budgetActualTable.splitParentId), isNotNull(budgetActualTable.collaboratorId)),
       eq(budgetActualTable.rhStatus, "aprovado"), isNull(budgetActualTable.ocNumero),
     ))
     : [];

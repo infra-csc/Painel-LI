@@ -927,6 +927,16 @@ const PASSOS: Passo[] = [
   { descricao: "índice flash_compras_gerado_em_idx", sql: `CREATE INDEX IF NOT EXISTS flash_compras_gerado_em_idx ON flash_compras (gerado_em)` },
   { descricao: "flash_movements.compra_id (lote de compra do crédito)", sql: `ALTER TABLE flash_movements ADD COLUMN IF NOT EXISTS compra_id varchar REFERENCES flash_compras(id) ON DELETE SET NULL` },
   { descricao: "índice flash_movements_compra_idx", sql: `CREATE INDEX IF NOT EXISTS flash_movements_compra_idx ON flash_movements (compra_id)` },
+  // 28/10 — revisão (Frente X): a base do 1º check-out final (o recálculo
+  // refeito depois da devolução parte dela) e o início da janela de erros do
+  // login do portal (scripts/migrations/2026-10-28-revisao-correcoes.sql).
+  { descricao: "budget_actual.base_checkout_final (Realizado antes do 1º check-out final)", sql: `ALTER TABLE budget_actual ADD COLUMN IF NOT EXISTS base_checkout_final jsonb` },
+  { descricao: "colaboradores_acesso.falhas_desde (janela dos erros de login)", sql: `ALTER TABLE colaboradores_acesso ADD COLUMN IF NOT EXISTS falhas_desde timestamptz` },
+  // 28/10 — tipo da VOLTA da passagem (vaga #4618: ida aérea + volta de
+  // ônibus). NULL = igual à ida (scripts/migrations/2026-10-28-tipo-por-trecho.sql).
+  { descricao: "tickets.return_transport_type (tipo da volta, quando diferente da ida)", sql: `ALTER TABLE tickets ADD COLUMN IF NOT EXISTS return_transport_type text` },
+  { descricao: "tickets.return_value (parte da volta comprada à parte, dentro do total)", sql: `ALTER TABLE tickets ADD COLUMN IF NOT EXISTS return_value integer` },
+  { descricao: "tickets.return_purchase_order_number (bilhete/LOC da volta comprada à parte)", sql: `ALTER TABLE tickets ADD COLUMN IF NOT EXISTS return_purchase_order_number text` },
   // 25/09 — usuário fixo 'system' em users: team_inclusion_logs.user_id
   // aponta para ele quando a vaga muda sem ator humano. Sem a linha, a FK
   // (declarada no schema; criada NOT VALID pela migração de 25/09) recusa o

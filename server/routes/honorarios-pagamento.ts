@@ -18,14 +18,18 @@
  *   POST /api/presenca/expurgo[?simular=1]               prévia ou execução na hora
  *   PUT  /api/presenca/expurgo/automatico                { ligado }  (só o admin)
  *
+ * 28/10 (revisão, R7): a divisão da vaga com colaborador próprio (o
+ * substituto da "Dividir escalação") segue OC → NF → pago como prestação própria.
+ *
  * Papéis: OC, pago, exportação, conferência e expurgo — admin e DP
  * (`financial`). A NF pelo representante também aceita a produção. O perfil
  * Honorários não vê nada (server/perfil-honorarios.ts nega por padrão).
  * Evento LEGADO → 409 `evento_legado` (o legado segue como hoje). Toda
  * gravação vai para a auditoria — sem CPF e sem dado bancário.
  *
- * 28/10: OC registrada e pagamento marcado aprovam o fornecedor (o CNPJ da
- * prestação vira contrato ativo) — server/fornecedor-automatico.ts.
+ * 28/10: o pagamento marcado aprova o fornecedor (o CNPJ da prestação vira
+ * contrato ativo) — server/fornecedor-automatico.ts. A OC registrada não
+ * (revisão 28/10, R6: OC sem contrato ativo é pendência com justificativa).
  */
 import type { Express, Response } from "express";
 import { z } from "zod";
@@ -194,8 +198,7 @@ export function registrarHonorariosPagamento(app: Express): void {
       await createAuditLog("update", "budget_actual", depois.id, resumoDaOc(depois, {
         acao: "OC registrada", situacaoDoCnpj: m.cnpj.situacao, valorAprovado: m.actual.totalValue,
       }), user.id, nomeDe(user), { ocNumero: null }, req);
-      // 28/10: o CNPJ que passou pela OC vira fornecedor aprovado (contrato ativo).
-      await reconhecerFornecedores({ actualIds: [depois.id] }, { id: user.id, name: nomeDe(user) }, "OC registrada", req);
+      // 28/10 (R6): a OC NÃO aprova o fornecedor — sem contrato ativo ela é pendência com justificativa.
       const [linha] = await linhasDaOc(await montar([depois]));
       res.status(201).json({ linha });
     } catch (error) {
@@ -255,8 +258,7 @@ export function registrarHonorariosPagamento(app: Express): void {
       await createAuditLogsBatch(gravadas.map((d) => montarLogDeAuditoria("update", "budget_actual", d.id,
         resumoDaOc(d, { acao: "OC registrada (lote)", valorAprovado: antes.get(d.id)?.totalValue ?? null }),
         user.id, nomeDe(user), { ocNumero: null }, req)));
-      // 28/10: os CNPJs que passaram pelas OCs viram fornecedores aprovados.
-      if (gravadas.length) await reconhecerFornecedores({ actualIds: gravadas.map((d) => d.id) }, { id: user.id, name: nomeDe(user) }, "OC registrada (lote)", req);
+      // 28/10 (R6): a OC em lote também não aprova o fornecedor (só NF aprovada e pago).
       recusadas.sort((a, b) => a.linha - b.linha);
       res.json({
         registradas: gravadas.length,
@@ -356,7 +358,8 @@ export function registrarHonorariosPagamento(app: Express): void {
       const alvo = await prestacaoDoFluxoNovo(res, String(req.params.actualId));
       if (!alvo) return;
       const { m } = alvo;
-      if (m.actual.splitParentId || m.actual.didNotAttend) return res.status(404).json({ message: "Prestação não encontrada." });
+      // 28/10 (R7): a divisão com colaborador próprio (o substituto) tem a nota dela.
+      if ((m.actual.splitParentId && !m.actual.collaboratorId) || m.actual.didNotAttend) return res.status(404).json({ message: "Prestação não encontrada." });
       const gravada = await enviarNotaDaPrestacao({ req, res, actual: m.actual, nota: m.nota, campos: campos.campos, ator: user, nomeDoAtor: nomeDe(user) });
       if (!gravada) return;
       const [linha] = await linhasDaOc(await montar([m.actual]));

@@ -66,15 +66,28 @@
  * (`planejarSyncFlash`, regra pura) e grava numa transação travada por
  * advisory lock do evento — INSERT multi-linha, DELETE em lote. A trilha de
  * auditoria sai DEPOIS do commit, para não registrar o que foi desfeito.
+ *
+ * ── Crédito já comprado (28/10, revisão R1) ────────────────────────────────
+ * Com a compra em lote (shared/flash-compras), o lançamento amarrado a um lote
+ * VIVO (`compra_id` preenchido — cancelar o lote o solta) é IMUTÁVEL: o sync
+ * não atualiza nem apaga. A diferença entre o que a regra quer e o que já foi
+ * comprado vira um lançamento NOVO, fora de lote
+ * (`source_type = 'comparativo_ajuste'`): complemento (crédito) se subiu,
+ * estorno (débito) se desceu ou se a prestação saiu (Voltar ao Planejado,
+ * comparativo reaberto). Ele entra no próximo lote. Antes, reabrir/voltar
+ * APAGAVA o crédito comprado e o reenvio criava outro (comprado duas vezes),
+ * e o valor que subia depois da compra ficava no mesmo lançamento (a
+ * diferença nunca entrava em lote). O estorno do comparativo
+ * (`reverseFlashFromComparison`) é o mesmo plano com "a regra não quer nada".
  */
 import { db } from "./db";
 import { storage } from "./storage";
 import { flashMovements, type FlashMovement } from "@shared/schema";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { hojeISO } from "@shared/hoje-sp";
 import {
-  FLASH_SOURCE_COMPARATIVO,
+  FLASH_SOURCE_COMPARATIVO, FLASH_SOURCE_COMPARATIVO_AJUSTE,
   flashComparativoDescription, flashComparisonTotals, flashMovementKey,
   flashMovementsForComparison, type FlashCategory, type FlashComparisonMovement,
 } from "@shared/flash-rules";
@@ -122,8 +135,9 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
  * filtrados no banco. Pega também os órfãos, cujo budget_actual já não existe.
  */
 function currentComparisonMovements(exec: Pick<Tx, "select">, eventId: string): Promise<FlashMovement[]> {
+  // 28/10 (R1): os ajustes (complemento/estorno) também são do comparativo.
   return exec.select().from(flashMovements)
-    .where(and(eq(flashMovements.sourceType, SOURCE_COMPARATIVO), eq(flashMovements.eventId, eventId)));
+    .where(and(inArray(flashMovements.sourceType, [SOURCE_COMPARATIVO, FLASH_SOURCE_COMPARATIVO_AJUSTE]), eq(flashMovements.eventId, eventId)));
 }
 
 // ---------- Plano do sync (regra pura) ----------
@@ -132,14 +146,30 @@ export interface AtualizacaoDeLancamento {
   changes: { amountCents: number; collaboratorId: string; eventId: string; description: string };
 }
 
+/** Ajuste novo, fora de lote (28/10, R1): complemento (crédito) ou estorno (débito). */
+export interface AjusteDoComparativo extends FlashComparisonMovement {
+  id: string;
+  type: "credito" | "debito";
+}
+
 export interface PlanoDeSyncFlash {
   /** a criar, na ordem de `wanted` (ids já gerados: o RETURNING multi-linha não promete ordem) */
   criar: Array<FlashComparisonMovement & { id: string }>;
+  /** complementos/estornos de crédito já comprado (28/10, R1) */
+  criarAjustes: AjusteDoComparativo[];
   atualizar: AtualizacaoDeLancamento[];
-  /** automáticos que a regra não quer mais */
+  /** automáticos fora de lote que a regra não quer mais (o comprado nunca entra aqui) */
   remover: FlashMovement[];
   /** ids vigentes após o sync, na ordem de `wanted` */
   movementIds: string[];
+}
+
+/** Valor com sinal (débito negativo). */
+const comSinal = (m: Pick<FlashMovement, "type" | "amountCents">) => (m.type === "debito" ? -1 : 1) * (m.amountCents || 0);
+
+/** Descrição do ajuste no extrato. */
+export function descricaoDoAjuste(descricao: string, tipo: "credito" | "debito"): string {
+  return `${descricao} · ${tipo === "credito" ? "complemento" : "estorno"} (o crédito anterior já foi comprado)`;
 }
 
 /**
@@ -154,37 +184,71 @@ export function planejarSyncFlash(
   eventId: string,
   novoId: () => string = randomUUID,
 ): PlanoDeSyncFlash {
-  const byKey = new Map<string, FlashMovement>();
-  for (const m of existing) byKey.set(flashMovementKey(m), m);
+  const porChave = new Map<string, FlashMovement[]>();
+  for (const m of existing) {
+    const k = flashMovementKey(m);
+    porChave.set(k, [...(porChave.get(k) ?? []), m]);
+  }
 
-  const plano: PlanoDeSyncFlash = { criar: [], atualizar: [], remover: [], movementIds: [] };
+  const plano: PlanoDeSyncFlash = { criar: [], criarAjustes: [], atualizar: [], remover: [], movementIds: [] };
   const handled = new Set<string>();
+  const atualizar = (prev: FlashMovement, amountCents: number, collaboratorId: string, desc: string) => {
+    if (prev.amountCents !== amountCents || prev.collaboratorId !== collaboratorId || (prev.description || "") !== desc) {
+      plano.atualizar.push({ prev, changes: { amountCents, collaboratorId, eventId, description: desc } });
+    }
+  };
+
+  // Uma chave (prestação, categoria): o que a regra quer (W, 0 se nada) contra
+  // o que já existe. O comprado (lote vivo) fica; o resto carrega W − comprado.
+  const sincronizar = (key: string, actualId: string, category: FlashComparisonMovement["category"], w: number, collaboratorId: string) => {
+    const linhas = porChave.get(key) ?? [];
+    const comprados = linhas.filter((m) => !!m.compraId);
+    const livres = linhas.filter((m) => !m.compraId);
+    for (const m of comprados) plano.movementIds.push(m.id);
+    const diferenca = w - comprados.reduce((s, m) => s + comSinal(m), 0);
+    const principalLivre = livres.find((m) => m.sourceType === SOURCE_COMPARATIVO);
+    const temPrincipal = linhas.some((m) => m.sourceType === SOURCE_COMPARATIVO);
+    let fica: FlashMovement | null = null;
+    if (diferenca > 0 && principalLivre) {
+      // A regra de sempre: o lançamento principal (ainda não comprado) acompanha.
+      atualizar(principalLivre, diferenca, collaboratorId, description);
+      fica = principalLivre;
+    } else if (diferenca > 0 && !temPrincipal) {
+      const id = novoId();
+      plano.criar.push({ actualId, collaboratorId, category, amountCents: diferenca, id });
+      plano.movementIds.push(id);
+    } else if (diferenca !== 0) {
+      const tipo: "credito" | "debito" = diferenca > 0 ? "credito" : "debito";
+      const desc = descricaoDoAjuste(description, tipo);
+      const mesmo = livres.find((m) => m.sourceType === FLASH_SOURCE_COMPARATIVO_AJUSTE && m.type === tipo);
+      if (mesmo) {
+        atualizar(mesmo, Math.abs(diferenca), collaboratorId, desc);
+        fica = mesmo;
+      } else {
+        const id = novoId();
+        plano.criarAjustes.push({ id, actualId, collaboratorId, category, type: tipo, amountCents: Math.abs(diferenca) });
+        plano.movementIds.push(id);
+      }
+    }
+    if (fica) plano.movementIds.push(fica.id);
+    for (const m of livres) if (m !== fica) plano.remover.push(m);
+  };
 
   for (const w of wanted) {
     const key = flashMovementKey({ sourceRef: w.actualId, category: w.category });
     if (handled.has(key)) continue; // a mesma prestação/categoria duas vezes só entra uma
     handled.add(key);
-    const prev = byKey.get(key);
-    if (prev) {
-      const changed =
-        prev.amountCents !== w.amountCents ||
-        prev.collaboratorId !== w.collaboratorId ||
-        (prev.description || "") !== description;
-      if (changed) {
-        plano.atualizar.push({ prev, changes: { amountCents: w.amountCents, collaboratorId: w.collaboratorId, eventId, description } });
-      }
-      plano.movementIds.push(prev.id);
-    } else {
-      const id = novoId();
-      plano.criar.push({ ...w, id });
-      plano.movementIds.push(id);
-    }
+    sincronizar(key, w.actualId, w.category, w.amountCents, w.collaboratorId);
   }
 
   // Sobrou automático que a regra não quer mais (prestação apagada, marcada
-  // como "não participou", devolvida, ou valor zerado pelo RH) → remove.
-  for (const m of existing) {
-    if (!handled.has(flashMovementKey(m))) plano.remover.push(m);
+  // como "não participou", devolvida, voltou ao Planejado, ou valor zerado
+  // pelo RH): o livre sai; o comprado ganha o estorno (28/10, R1).
+  for (const [key, linhas] of Array.from(porChave.entries())) {
+    if (handled.has(key)) continue;
+    handled.add(key);
+    const ref = linhas[0];
+    sincronizar(key, ref.sourceRef ?? "", ref.category as FlashComparisonMovement["category"], 0, ref.collaboratorId);
   }
   return plano;
 }
@@ -216,19 +280,49 @@ export async function syncFlashFromComparison(
   // ganhava a data do dia seguinte.
   const movementDate = hojeISO();
 
-  type Auditoria = { action: string; id: string; data: unknown; oldData?: unknown };
   const auditorias: Auditoria[] = [];
 
   const plano = await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${"flash:" + comparison.eventId}))`);
     const existing = await currentComparisonMovements(tx, comparison.eventId);
     const plano = planejarSyncFlash(wanted, existing, description, comparison.eventId);
+    await aplicarPlano(tx, plano, { eventId: comparison.eventId, description, movementDate, actor, auditorias });
+    return plano;
+  });
 
+  // Só depois do commit: auditoria do que de fato ficou gravado.
+  if (actor.audit) {
+    for (const a of auditorias) await actor.audit(a.action, a.id, a.data, a.oldData);
+  }
+
+  return {
+    ok: true,
+    movements: plano.movementIds.length,
+    created: plano.criar.length + plano.criarAjustes.length,
+    updated: plano.atualizar.length,
+    removed: plano.remover.length,
+    collaborators: new Set(wanted.map(w => w.collaboratorId)).size,
+    alimentacaoCents: totals.alimentacaoCents,
+    mobilidadeCents: totals.mobilidadeCents,
+    movementIds: plano.movementIds,
+  };
+}
+
+type Auditoria = { action: string; id: string; data: unknown; oldData?: unknown };
+
+/** Grava o plano (dentro da transação travada do evento). */
+async function aplicarPlano(
+  tx: Tx,
+  plano: PlanoDeSyncFlash,
+  c: { eventId: string; description: string; movementDate: string; actor: FlashSyncActor; auditorias: Auditoria[] },
+): Promise<void> {
+  const { eventId, description, movementDate, actor, auditorias } = c;
+  {
     if (plano.criar.length > 0) {
       const linhas = plano.criar.map((w) => ({
         id: w.id,
         collaboratorId: w.collaboratorId,
-        eventId: comparison.eventId,
+        eventId,
         category: w.category as FlashCategory,
         type: "credito",
         amountCents: w.amountCents,
@@ -245,6 +339,17 @@ export async function syncFlashFromComparison(
       }
     }
 
+    // Complementos/estornos do crédito já comprado (28/10, R1): fora de lote.
+    if (plano.criarAjustes.length > 0) {
+      const criados = await tx.insert(flashMovements).values(plano.criarAjustes.map((w) => ({
+        id: w.id, collaboratorId: w.collaboratorId, eventId, category: w.category as FlashCategory, type: w.type,
+        amountCents: w.amountCents, movementDate, description: descricaoDoAjuste(description, w.type),
+        createdBy: actor.userId ?? null, createdByName: actor.userName ?? "Sistema",
+        sourceType: FLASH_SOURCE_COMPARATIVO_AJUSTE, sourceRef: w.actualId,
+      }))).returning();
+      for (const row of criados) auditorias.push({ action: "create", id: row.id, data: row });
+    }
+
     // Cada atualização tem valores próprios; são poucas por evento.
     for (const { prev, changes } of plano.atualizar) {
       const [row] = await tx.update(flashMovements).set(changes).where(eq(flashMovements.id, prev.id)).returning();
@@ -252,48 +357,38 @@ export async function syncFlashFromComparison(
     }
 
     if (plano.remover.length > 0) {
-      await tx.delete(flashMovements).where(inArray(flashMovements.id, plano.remover.map((m) => m.id)));
+      // Nunca o comprado: o plano só remove lançamento sem lote — e o DELETE confere de novo.
+      await tx.delete(flashMovements).where(and(inArray(flashMovements.id, plano.remover.map((m) => m.id)), isNull(flashMovements.compraId)));
       for (const m of plano.remover) auditorias.push({ action: "delete", id: m.id, data: m });
     }
-    return plano;
-  });
-
-  // Só depois do commit: auditoria do que de fato ficou gravado.
-  if (actor.audit) {
-    for (const a of auditorias) await actor.audit(a.action, a.id, a.data, a.oldData);
   }
-
-  return {
-    ok: true,
-    movements: plano.movementIds.length,
-    created: plano.criar.length,
-    updated: plano.atualizar.length,
-    removed: plano.remover.length,
-    collaborators: new Set(wanted.map(w => w.collaboratorId)).size,
-    alimentacaoCents: totals.alimentacaoCents,
-    mobilidadeCents: totals.mobilidadeCents,
-    movementIds: plano.movementIds,
-  };
 }
 
 /**
- * Estorno: apaga os lançamentos automáticos do comparativo (recusa/devolução).
- * Devolve quantos foram removidos. Um DELETE só, com RETURNING para a auditoria.
+ * Estorno (comparativo reaberto): apaga os automáticos ainda NÃO comprados e,
+ * para o que já está em lote vivo, lança o estorno (débito) fora de lote — o
+ * comprado nunca é apagado (28/10, R1). É o plano do sync com "a regra não
+ * quer nada"; reaprovar depois recria/compensa (idempotente).
  */
 export async function reverseFlashFromComparison(
   comparison: FlashComparisonRef,
   actor: FlashSyncActor,
-): Promise<{ removed: number }> {
-  const removidos = await db.transaction(async (tx) => {
+): Promise<{ removed: number; estornos: number }> {
+  const event = await storage.getEvent(comparison.eventId);
+  const description = flashComparativoDescription(event?.name);
+  const movementDate = hojeISO();
+  const auditorias: Auditoria[] = [];
+  const plano = await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${"flash:" + comparison.eventId}))`);
-    return await tx.delete(flashMovements)
-      .where(and(eq(flashMovements.sourceType, SOURCE_COMPARATIVO), eq(flashMovements.eventId, comparison.eventId)))
-      .returning();
+    const existing = await currentComparisonMovements(tx, comparison.eventId);
+    const plano = planejarSyncFlash([], existing, description, comparison.eventId);
+    await aplicarPlano(tx, plano, { eventId: comparison.eventId, description, movementDate, actor, auditorias });
+    return plano;
   });
   if (actor.audit) {
-    for (const m of removidos) await actor.audit("delete", m.id, m);
+    for (const a of auditorias) await actor.audit(a.action, a.id, a.data, a.oldData);
   }
-  return { removed: removidos.length };
+  return { removed: plano.remover.length, estornos: plano.criarAjustes.length };
 }
 
 /** Versão "nunca falha" para as rotas: erro vira ok=false + log. */
@@ -312,12 +407,12 @@ export async function safeSyncFlashFromComparison(
 export async function safeReverseFlashFromComparison(
   comparison: FlashComparisonRef,
   actor: FlashSyncActor,
-): Promise<{ ok: boolean; removed: number }> {
+): Promise<{ ok: boolean; removed: number; estornos: number }> {
   try {
     const r = await reverseFlashFromComparison(comparison, actor);
     return { ok: true, ...r };
   } catch (error) {
     console.error("[flash-credit] falha ao estornar o Flash do comparativo", comparison.id, error);
-    return { ok: false, removed: 0 };
+    return { ok: false, removed: 0, estornos: 0 };
   }
 }

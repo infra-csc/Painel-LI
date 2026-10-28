@@ -39,6 +39,7 @@ type Rascunho = {
   selfieObrigatoria: boolean;
   localizacao: ModoDeLocalizacao;
   horaExtraDivisor: string;
+  horaExtraMaxDia: string;
   produtorAjusteMaxPct: string;
   retencaoDias: string;
   termoVersao: string;
@@ -49,6 +50,7 @@ const paraRascunho = (c: ConfiguracaoDaPresenca): Rascunho => ({
   selfieObrigatoria: c.selfieObrigatoria,
   localizacao: c.localizacao,
   horaExtraDivisor: String(c.horaExtraDivisor).replace(".", ","),
+  horaExtraMaxDia: String(c.horaExtraMaxDia).replace(".", ","),
   produtorAjusteMaxPct: String(c.produtorAjusteMaxPct).replace(".", ","),
   retencaoDias: String(c.retencaoDias),
   termoVersao: c.termoVersao,
@@ -63,8 +65,9 @@ export function diferencaDaConfiguracao(r: Rascunho, atual: ConfiguracaoDaPresen
   const corpo: Partial<Record<keyof ConfiguracaoDaPresenca, unknown>> = {};
   if (r.selfieObrigatoria !== atual.selfieObrigatoria) corpo.selfieObrigatoria = r.selfieObrigatoria;
   if (r.localizacao !== atual.localizacao) corpo.localizacao = r.localizacao;
-  const nums: [keyof Pick<Rascunho, "horaExtraDivisor" | "produtorAjusteMaxPct" | "retencaoDias">, string, boolean][] = [
+  const nums: [keyof Pick<Rascunho, "horaExtraDivisor" | "horaExtraMaxDia" | "produtorAjusteMaxPct" | "retencaoDias">, string, boolean][] = [
     ["horaExtraDivisor", "Divisor da hora extra", false],
+    ["horaExtraMaxDia", "Horas extras por dia", false],
     ["produtorAjusteMaxPct", "Ajuste máximo do produtor", false],
     ["retencaoDias", "Guarda das selfies", true],
   ];
@@ -182,9 +185,11 @@ export function PresencaConfigCard() {
           </div>
         </LinhaDeAjuste>
 
-        <LinhaDeAjuste titulo="Hora extra e ajuste do produtor" descricao="Valor-hora = diária ÷ divisor. No check-out final, a produção ajusta o valor calculado dentro deste limite; o DP não tem limite." colunas={2}>
+        <LinhaDeAjuste titulo="Hora extra e ajuste do produtor" descricao="Valor-hora = diária do dia ÷ divisor, com um teto de horas por dia (28/10). No check-out final, a produção ajusta o valor calculado dentro deste limite; o DP não tem limite." colunas={3}>
           <CampoNumero id="cfg-prs-divisor" rotulo="Divisor da hora extra" unidade="h" valor={r.horaExtraDivisor} onChange={(v) => setR({ ...r, horaExtraDivisor: v })}
             salvo={salvo.horaExtraDivisor} padrao={pad.horaExtraDivisor} disabled={desab} />
+          <CampoNumero id="cfg-prs-he-max" rotulo="Horas extras por dia (até)" unidade="h" valor={r.horaExtraMaxDia} onChange={(v) => setR({ ...r, horaExtraMaxDia: v })}
+            salvo={salvo.horaExtraMaxDia} padrao={pad.horaExtraMaxDia} disabled={desab} />
           <CampoNumero id="cfg-prs-ajuste" rotulo="Ajuste da produção (até)" unidade="%" valor={r.produtorAjusteMaxPct} onChange={(v) => setR({ ...r, produtorAjusteMaxPct: v })}
             salvo={salvo.produtorAjusteMaxPct} padrao={pad.produtorAjusteMaxPct} disabled={desab} />
         </LinhaDeAjuste>

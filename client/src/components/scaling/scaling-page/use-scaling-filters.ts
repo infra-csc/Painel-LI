@@ -10,8 +10,8 @@
  * persistido faz o usuário abrir a tela filtrado sem perceber. A ABA também
  * não persiste — quem abre a Escalação vem trabalhar na fila.
  */
-import { useEffect, useMemo, useState } from "react";
-import { useSearch } from "wouter";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useSearch } from "wouter";
 import type { SortConfig, SortField } from "@/components/common/sortable-header";
 import { DEFAULT_PERIOD, temRecorteDePeriodo, type PeriodConfig, type RecorteDeEventos } from "../scaling-period";
 import { contarFlagsAtivas, type QueueKey } from "../scaling-queue";
@@ -53,8 +53,29 @@ const FILTROS_INICIAIS: FiltrosDaEscalacao = {
 
 const FILAS_VALIDAS: string[] = ["trabalho", "escalar", "gestor", "troca", "prontas"];
 
+/**
+ * A URL depois de "Limpar filtros" (28/10): sem o `?fila=` do sininho (senão
+ * recarregar reabre o bloco). Os outros parâmetros do MESMO link de aviso saem
+ * junto — o `t` do clique e um `?honorarios=` que tenha vindo com ele: o
+ * efeito do link de honorários (honorarios-ceno/na-escalacao.tsx) relê a URL
+ * quando ela muda e reabriria a gaveta. Sem `?fila=`, null: a URL fica como
+ * está e nada relê.
+ */
+export function urlSemFila(caminho: string, busca: string): string | null {
+  const p = new URLSearchParams(busca);
+  if (!p.has("fila")) return null;
+  for (const k of ["fila", "t", "honorarios"]) p.delete(k);
+  const resto = p.toString();
+  return resto ? `${caminho}?${resto}` : caminho;
+}
+
 export function useScalingFilters() {
   const [f, setF] = useState<FiltrosDaEscalacao>(FILTROS_INICIAIS);
+  const buscaDaUrl = useSearch();
+  const [caminho, navegar] = useLocation();
+  // Pela ref: `limpaFiltros` continua estável (criado uma vez) e lê a URL de agora.
+  const url = useRef({ caminho, buscaDaUrl, navegar });
+  url.current = { caminho, buscaDaUrl, navegar };
 
   const acoes = useMemo(() => {
     // Mesmo contrato do useState de antes: valor igual não re-renderiza.
@@ -75,9 +96,15 @@ export function useScalingFilters() {
         if (current?.field === field) return { ...prev, sortConfig: current.direction === "asc" ? { field, direction: "desc" } : null };
         return { ...prev, sortConfig: { field, direction: "asc" } };
       }),
-      limpaFiltros: () => setF((prev) => ({
-        ...prev, busca: "", eventos: {}, funcoes: {}, periodo: DEFAULT_PERIOD, flags: {}, fila: null, recorteEventos: "futuros",
-      })),
+      limpaFiltros: () => {
+        setF((prev) => ({
+          ...prev, busca: "", eventos: {}, funcoes: {}, periodo: DEFAULT_PERIOD, flags: {}, fila: null, recorteEventos: "futuros",
+        }));
+        // 28/10: o `?fila=` do sininho sai da URL junto (recarregar reabria o bloco).
+        const { caminho: c, buscaDaUrl: b, navegar: ir } = url.current;
+        const destino = urlSemFila(c, b);
+        if (destino !== null) ir(destino, { replace: true });
+      },
       /** Aviso do sininho / link direto: abre a Fila já no bloco pedido. */
       irParaFila: (fila: QueueKey) => setF((prev) => ({ ...prev, aba: "fila", flags: {}, busca: "", fila })),
       /**
@@ -93,7 +120,6 @@ export function useScalingFilters() {
 
   // Aviso do sininho abre direto o bloco (15/09): /scaling?fila=troca. O "t" do
   // link muda a cada clique, então funciona mesmo já estando na tela.
-  const buscaDaUrl = useSearch();
   useEffect(() => {
     const alvo = new URLSearchParams(buscaDaUrl).get("fila");
     if (alvo && FILAS_VALIDAS.includes(alvo)) acoes.irParaFila(alvo as QueueKey);

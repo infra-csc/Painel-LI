@@ -2,8 +2,11 @@
  * Lançar ocorrência (27/10): falta, diária extra, horas extras ou
  * substituição. Cada tipo pede só o que o servidor exige — dia da prestação
  * (falta, substituição), um dia A MAIS (diária extra), as horas (horas
- * extras, até 24 por lançamento, dia opcional) e quem substituiu. O valor é
- * recalculado pelo servidor e aparece na memória do check-out final.
+ * extras) e quem substituiu. O valor é recalculado pelo servidor e aparece na
+ * memória do check-out final.
+ * 28/10 (revisão S2): horas extras com DIA obrigatório e até o teto do dia
+ * (12 h padrão); diária extra até 2 dias antes/depois do período; a Área de
+ * Função só lança falta e substituição (o servidor confere tudo de novo).
  */
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -18,7 +21,7 @@ import { apiErrorMessage } from "@/lib/api-error";
 import { toTitleCase } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Collaborator } from "@shared/schema";
-import { OCORRENCIA_LABEL, TIPOS_DE_OCORRENCIA, type TipoDeOcorrencia } from "@shared/presenca";
+import { CONFIGURACAO_PADRAO, OCORRENCIAS_FINANCEIRAS, OCORRENCIA_LABEL, TIPOS_DE_OCORRENCIA, type TipoDeOcorrencia } from "@shared/presenca";
 import { diaComSemana, normalizar } from "./presenca-utils";
 import type { PrestacaoDaPresenca } from "./tipos";
 import type { CorpoDaOcorrencia, useAcoesDaPresenca } from "./use-presenca";
@@ -35,12 +38,16 @@ const ICONE: Record<TipoDeOcorrencia, typeof Clock> = { falta: UserRoundX, diari
 const DICA: Record<TipoDeOcorrencia, string> = {
   falta: "Tira a diária e a alimentação do dia.",
   diaria_extra: "Um dia a mais, fora dos dias previstos.",
-  horas_extras: "Horas × (diária ÷ divisor da regra).",
+  horas_extras: "Horas do dia × (diária do dia ÷ divisor da regra).",
   substituicao: "Outra pessoa trabalhou no lugar neste dia.",
 };
 
 /** Corpo do POST, ou o erro de preenchimento (pt-BR). */
-export function montarOcorrencia(f: { tipo: TipoDeOcorrencia; dia: string; horas: string; substitutoId: string; observacao: string }, p: Pick<PrestacaoDaPresenca, "dias" | "diasExtras">): CorpoDaOcorrencia | { erro: string } {
+export function montarOcorrencia(
+  f: { tipo: TipoDeOcorrencia; dia: string; horas: string; substitutoId: string; observacao: string },
+  p: Pick<PrestacaoDaPresenca, "dias" | "diasExtras">,
+  horaExtraMaxDia: number = CONFIGURACAO_PADRAO.horaExtraMaxDia,
+): CorpoDaOcorrencia | { erro: string } {
   const observacao = f.observacao.trim() || null;
   const dias = p.dias.map((d) => d.dia);
   if (f.tipo === "falta" || f.tipo === "substituicao") {
@@ -53,9 +60,12 @@ export function montarOcorrencia(f: { tipo: TipoDeOcorrencia; dia: string; horas
     if (dias.includes(f.dia)) return { erro: "Este dia já é de diária — a diária extra é um dia a mais." };
     return { tipo: f.tipo, dia: f.dia, observacao };
   }
+  if (!f.dia || (!dias.includes(f.dia) && !p.diasExtras.includes(f.dia))) return { erro: "Escolha o dia das horas extras." };
   const horas = Number(f.horas.replace(",", "."));
-  if (!Number.isFinite(horas) || horas <= 0 || horas > 24) return { erro: "Informe as horas extras (mais que 0, até 24 por lançamento)." };
-  return { tipo: f.tipo, dia: f.dia || null, horas, observacao };
+  if (!Number.isFinite(horas) || horas <= 0 || horas > horaExtraMaxDia) {
+    return { erro: `Informe as horas extras do dia (mais que 0, até ${horaExtraMaxDia.toLocaleString("pt-BR")} h).` };
+  }
+  return { tipo: f.tipo, dia: f.dia, horas, observacao };
 }
 
 function SeletorDoSubstituto({ valor, onChange, excluir }: { valor: string; onChange: (id: string) => void; excluir: string | null }) {
@@ -101,11 +111,15 @@ function SeletorDoSubstituto({ valor, onChange, excluir }: { valor: string; onCh
   );
 }
 
-export function DialogoOcorrencia({ alvo, lancar, onClose }: {
+export function DialogoOcorrencia({ alvo, lancar, onClose, financeiras = true, horaExtraMaxDia = CONFIGURACAO_PADRAO.horaExtraMaxDia }: {
   alvo: AlvoDaOcorrencia | null;
   lancar: ReturnType<typeof useAcoesDaPresenca>["lancarOcorrencia"];
   onClose: () => void;
+  /** Diária extra e horas extras (produção/DP/admin); a Área de Função só falta/substituição. */
+  financeiras?: boolean;
+  horaExtraMaxDia?: number;
 }) {
+  const tipos = TIPOS_DE_OCORRENCIA.filter((t) => financeiras || !(OCORRENCIAS_FINANCEIRAS as readonly string[]).includes(t));
   const { toast } = useToast();
   const [tipo, setTipo] = useState<TipoDeOcorrencia>("falta");
   const [dia, setDia] = useState("");
@@ -135,7 +149,7 @@ export function DialogoOcorrencia({ alvo, lancar, onClose }: {
 
   const salvar = () => {
     if (!p || !alvo) return;
-    const r = montarOcorrencia({ tipo, dia, horas, substitutoId, observacao }, p);
+    const r = montarOcorrencia({ tipo, dia, horas, substitutoId, observacao }, p, horaExtraMaxDia);
     if ("erro" in r) { setErro(r.erro); return; }
     setErro(null);
     lancar.mutate({ actualId: p.actualId, corpo: r }, {
@@ -161,7 +175,7 @@ export function DialogoOcorrencia({ alvo, lancar, onClose }: {
 
         <form className="prs-dialogo-corpo space-y-4 px-6 py-5" noValidate onSubmit={(e) => { e.preventDefault(); salvar(); }}>
           <div role="radiogroup" aria-label="Tipo de ocorrência" className="grid grid-cols-2 gap-2">
-            {TIPOS_DE_OCORRENCIA.map((t) => {
+            {tipos.map((t) => {
               const Icone = ICONE[t];
               const on = tipo === t;
               return (
@@ -176,9 +190,9 @@ export function DialogoOcorrencia({ alvo, lancar, onClose }: {
 
           {(tipo === "falta" || tipo === "substituicao" || tipo === "horas_extras") && (
             <div className="space-y-1.5">
-              <Label htmlFor="prs-oc-dia">Dia {tipo === "horas_extras" && <span className="font-normal text-muted-foreground">(opcional)</span>}</Label>
+              <Label htmlFor="prs-oc-dia">Dia</Label>
               <select id="prs-oc-dia" value={dia} onChange={(e) => setDia(e.target.value)} className="prs-select" data-testid="prs-oc-dia">
-                <option value="">{tipo === "horas_extras" ? "Sem dia específico" : "Escolha o dia"}</option>
+                <option value="">Escolha o dia</option>
                 {diasDaPrestacao.map((d) => {
                   const tirado = tipo !== "horas_extras" && diasTirados.has(d);
                   return <option key={d} value={d} disabled={tirado}>{diaComSemana(d)}{tirado ? " — já tem falta/substituição" : ""}</option>;
@@ -192,13 +206,13 @@ export function DialogoOcorrencia({ alvo, lancar, onClose }: {
             <div className="space-y-1.5">
               <Label htmlFor="prs-oc-dia-extra">Dia da diária extra</Label>
               <Input id="prs-oc-dia-extra" type="date" value={dia} onChange={(e) => setDia(e.target.value)} className="h-10 w-[200px] rounded-lg tabular-nums" />
-              <p className="m-0 text-2xs text-muted-foreground">Fora dos dias previstos ({diasDaPrestacao.length ? `${diaComSemana(diasDaPrestacao[0])} a ${diaComSemana(diasDaPrestacao[diasDaPrestacao.length - 1])}` : "sem dias"}).</p>
+              <p className="m-0 text-2xs text-muted-foreground">Fora dos dias previstos ({diasDaPrestacao.length ? `${diaComSemana(diasDaPrestacao[0])} a ${diaComSemana(diasDaPrestacao[diasDaPrestacao.length - 1])}` : "sem dias"}), até 2 dias antes ou depois.</p>
             </div>
           )}
 
           {tipo === "horas_extras" && (
             <div className="space-y-1.5">
-              <Label htmlFor="prs-oc-horas">Horas extras</Label>
+              <Label htmlFor="prs-oc-horas">Horas extras <span className="font-normal text-muted-foreground">(até {horaExtraMaxDia.toLocaleString("pt-BR")} h no dia)</span></Label>
               <Input id="prs-oc-horas" inputMode="decimal" value={horas} onChange={(e) => setHoras(e.target.value)} placeholder="Ex.: 2 ou 1,5" className="h-10 w-[140px] rounded-lg tabular-nums" data-testid="prs-oc-horas" />
             </div>
           )}

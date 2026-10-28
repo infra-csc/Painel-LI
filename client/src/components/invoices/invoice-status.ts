@@ -18,16 +18,18 @@ export function getEffectiveStatus(inv: Invoice | null | undefined): EffStatus {
 
 /**
  * A nota está AGUARDANDO a análise do RH? Enviada, de uma prestação que ainda
- * libera a NF (`isNfEligible`, sem filho de divisão). Prestação devolvida ou
- * recusada no Realizado PAUSA a nota até o reenvio — não espera o RH. Um
- * critério só para a pílula "Aguardando", o número da aba, o resumo do topo
- * e o pé da tabela (08/10: a pílula contava as pausadas e os outros não).
+ * libera a NF (`isNfEligible`). Prestação devolvida ou recusada no Realizado
+ * PAUSA a nota até o reenvio — não espera o RH. Um critério só para a pílula
+ * "Aguardando", o número da aba, o resumo do topo e o pé da tabela (08/10: a
+ * pílula contava as pausadas e os outros não). 28/10 (R7): a nota do
+ * substituto (divisão da vaga, fluxo novo) conta como as outras — no legado a
+ * divisão nunca teve nota.
  */
 export function aguardaAnaliseDoRh(
   inv: Pick<Invoice, "status">,
   actual: PrestacaoLike | null | undefined,
 ): boolean {
-  return inv.status === "enviada" && !!actual && !actual.splitParentId && isNfEligible(actual);
+  return inv.status === "enviada" && !!actual && isNfEligible(actual);
 }
 
 // `borderCls` (25/09): a borda esquerda colorida do card/linha em classe de

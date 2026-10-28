@@ -23,10 +23,13 @@ import {
 } from "@shared/schema";
 import {
   diaEmBrasilia, diaValido, diasPendentes, estadoDoDia, inclusaoDaPrestacao, lerConfiguracaoDaPresenca, periodoDaPrestacao,
-  podeConfirmarPrestacao, podeRegistrarEntrada, podeRegistrarSaida, recalcularValor, situacaoDoCnpjInformado,
-  type CalculoDaPresenca, type ConfiguracaoDaPresenca, type EstadoDoDia, type FonteDosDias, type QuemConfirma, type QuemRegistra,
+  podeConfirmarPrestacao, podeRegistrarEntrada, podeRegistrarSaida, realizadoParaCalculo, recalcularValor, situacaoDoCnpjInformado,
+  type CalculoDaPresenca, type RealizadoParaCalculo, type ConfiguracaoDaPresenca, type EstadoDoDia, type FonteDosDias, type QuemConfirma, type QuemRegistra,
 } from "@shared/presenca";
 import { ehEventoLegado } from "@shared/legado-honorarios";
+import { deflationFactorsFromSettings, isPercursoFunction } from "@shared/calculation-rules";
+import { isCenotecnicaFunction } from "@shared/alimentacao";
+import { usaEmpreitaCenotecnica, vagaComEmpreita } from "@shared/cenotecnica-empreita";
 import { prestacaoEstaTravada } from "@shared/prestacao-rules";
 import { digitosDoCnpj } from "@shared/cnpj";
 import { hojeISO } from "@shared/hoje-sp";
@@ -61,6 +64,8 @@ export interface PrestacaoMontada {
   colaborador: Collaborator | null;
   funcaoNome: string | null;
   inclusao: TeamInclusion | null;
+  /** O Realizado do recálculo: a base do 1º check-out final, se houver (28/10, R2). */
+  realizado: RealizadoParaCalculo;
   dias: string[];
   fonteDosDias: FonteDosDias;
   presencaPorDia: Map<string, Presenca>;
@@ -82,7 +87,7 @@ export async function montarPrestacoes(actuals: readonly BudgetActual[], config:
   const eventIds = Array.from(new Set(actuals.map((a) => a.eventId)));
   const colabIds = Array.from(new Set(actuals.map((a) => a.collaboratorId).filter((v): v is string => !!v)));
   const funcIds = Array.from(new Set(actuals.map((a) => a.functionId).filter((v): v is string => !!v)));
-  const [eventos, funcoes, colaboradores, vagas, todasPresencas, ocorrencias, confirmacoes] = await Promise.all([
+  const [eventos, funcoes, colaboradores, vagas, todasPresencas, ocorrencias, confirmacoes, settings] = await Promise.all([
     storage.getEventsByIds(eventIds),
     storage.getFunctionsByIds(funcIds),
     colabIds.length ? Promise.all(colabIds.map((id) => storage.getCollaborator(id))) : Promise.resolve([]),
@@ -92,7 +97,10 @@ export async function montarPrestacoes(actuals: readonly BudgetActual[], config:
     presencasDasPrestacoes(ids),
     ocorrenciasDasPrestacoes(ids),
     confirmacoesDasPrestacoes(ids),
+    storage.getSystemSettings(),
   ]);
+  // Deflação do Valores Padrão — a regra do dia é a do Planejado (28/10, R3).
+  const fatoresDoPadrao = deflationFactorsFromSettings(Object.fromEntries(settings.map((x) => [x.key, x.value])));
   const eventoPorId = new Map(eventos.map((e) => [e.id, e]));
   const funcaoPorId = new Map(funcoes.map((f) => [f.id, f.name]));
   const colabPorId = new Map(colaboradores.filter((c): c is Collaborator => !!c).map((c) => [c.id, c]));
@@ -103,16 +111,24 @@ export async function montarPrestacoes(actuals: readonly BudgetActual[], config:
     const evento = eventoPorId.get(actual.eventId);
     if (!evento) continue;
     const inclusao = inclusaoDaPrestacao(actual, vagas) ?? null;
-    const periodo = periodoDaPrestacao(actual, inclusao, evento);
+    // 28/10 (revisão R2): depois do 1º check-out final o recálculo (e os dias)
+    // partem da BASE gravada — o Realizado de agora já tem as horas extras e o ajuste.
+    const realizado = realizadoParaCalculo(actual);
+    const periodo = periodoDaPrestacao(realizado, inclusao, evento);
     const presencasDela = todasPresencas.filter((p) => p.actualId === actual.id);
     const presencaPorDia = new Map(presencasDela.map((p) => [String(p.dia).slice(0, 10), p]));
     const ocorrenciasDela = ocorrencias.filter((o) => o.actualId === actual.id);
     const funcaoNome = actual.functionId ? funcaoPorId.get(actual.functionId) ?? null : null;
+    // Valor fechado por dia (percurso, empreita): sem deflação, como no Planejado.
+    const valorFlatPorDia = isPercursoFunction(funcaoNome) || vagaComEmpreita(inclusao)
+      || usaEmpreitaCenotecnica(isCenotecnicaFunction(funcaoNome), actual.collaboratorType);
     const calculo = recalcularValor({
-      realizado: actual,
+      realizado,
       dias: periodo.dias,
       ocorrencias: ocorrenciasDela.map((o) => ({ tipo: o.tipo, dia: o.dia ? String(o.dia).slice(0, 10) : null, horas: o.horas })),
       divisorHoraExtra: config.horaExtraDivisor,
+      horaExtraMaxDia: config.horaExtraMaxDia,
+      fatores: valorFlatPorDia ? null : fatoresDoPadrao,
       nomeDaFuncao: funcaoNome,
     });
     const pendentes = diasPendentes({
@@ -122,7 +138,7 @@ export async function montarPrestacoes(actuals: readonly BudgetActual[], config:
     });
     montadas.push({
       actual, evento, colaborador: actual.collaboratorId ? colabPorId.get(actual.collaboratorId) ?? null : null,
-      funcaoNome, inclusao, dias: periodo.dias, fonteDosDias: periodo.fonte, presencaPorDia,
+      funcaoNome, inclusao, realizado, dias: periodo.dias, fonteDosDias: periodo.fonte, presencaPorDia,
       ocorrencias: ocorrenciasDela, confirmacao: confirmacaoPorActual.get(actual.id) ?? null,
       calculo, pendentes, checkoutFinalFeito: !!actual.checkoutFinalEm,
     });
@@ -268,6 +284,13 @@ export async function registrarMarcacao(a: Marcacao): Promise<Presenca | null> {
     return null;
   }
   let fotoId: string | null = null;
+  // 28/10 (revisão S5): a foto sobe ANTES de gravar; se a gravação falhar
+  // (409 da corrida ou erro), o objeto sai do storage — nada de selfie órfã.
+  const apagarFotoOrfa = async () => {
+    if (!fotoId) return;
+    const { ObjectStorageService } = await import("./objectStorage");
+    await new ObjectStorageService().apagarAnexo(fotoId);
+  };
   if (arquivo) {
     const { tipoPermitidoDoArquivo } = await import("./objectAcl");
     const tipoDoArquivo = tipoPermitidoDoArquivo(arquivo.buffer, arquivo.mimetype, arquivo.originalname);
@@ -290,18 +313,24 @@ export async function registrarMarcacao(a: Marcacao): Promise<Presenca | null> {
     : { checkoutEm: agora, checkoutFotoId: fotoId, checkoutLat: loc.lat, checkoutLng: loc.lng, checkoutPrecisaoM: loc.precisaoM, checkoutPor: por, checkoutUserId: ator?.id ?? null };
 
   let gravada: Presenca | undefined;
-  if (tipo === "entrada") {
-    [gravada] = await db.insert(presencas)
-      .values({ actualId: m.actual.id, eventId: m.actual.eventId, collaboratorId: m.actual.collaboratorId, dia, ...campos })
-      .onConflictDoUpdate({ target: [presencas.actualId, presencas.dia], set: { ...campos, atualizadoEm: agora }, setWhere: isNull(presencas.checkinEm) })
-      .returning();
-  } else {
-    [gravada] = await db.update(presencas)
-      .set({ ...campos, atualizadoEm: agora })
-      .where(and(eq(presencas.actualId, m.actual.id), eq(presencas.dia, dia), isNull(presencas.checkoutEm)))
-      .returning();
+  try {
+    if (tipo === "entrada") {
+      [gravada] = await db.insert(presencas)
+        .values({ actualId: m.actual.id, eventId: m.actual.eventId, collaboratorId: m.actual.collaboratorId, dia, ...campos })
+        .onConflictDoUpdate({ target: [presencas.actualId, presencas.dia], set: { ...campos, atualizadoEm: agora }, setWhere: isNull(presencas.checkinEm) })
+        .returning();
+    } else {
+      [gravada] = await db.update(presencas)
+        .set({ ...campos, atualizadoEm: agora })
+        .where(and(eq(presencas.actualId, m.actual.id), eq(presencas.dia, dia), isNull(presencas.checkoutEm)))
+        .returning();
+    }
+  } catch (erro) {
+    await apagarFotoOrfa();
+    throw erro;
   }
   if (!gravada) {
+    await apagarFotoOrfa();
     res.status(409).json({ message: tipo === "entrada" ? "O check-in deste dia já foi feito." : "O check-out deste dia já foi feito." });
     return null;
   }

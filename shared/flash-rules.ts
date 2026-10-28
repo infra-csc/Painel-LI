@@ -31,6 +31,13 @@
 export const FLASH_SOURCE_MANUAL = "manual";
 /** Crédito automático da aprovação do comparativo (regra vigente, 19/08). */
 export const FLASH_SOURCE_COMPARATIVO = "comparativo";
+/**
+ * Ajuste automático do comparativo (28/10, revisão R1): crédito já comprado
+ * (em lote vivo) não muda mais — a diferença vira um lançamento NOVO, fora
+ * de lote: complemento (crédito) ou estorno (débito). Entra no próximo lote.
+ * Mesma chave lógica (source_ref = budget_actual.id, categoria), sem unique.
+ */
+export const FLASH_SOURCE_COMPARATIVO_AJUSTE = "comparativo_ajuste";
 /** Legado: crédito automático da OC da NF (regra de 17/08, desligada). */
 export const FLASH_SOURCE_OC = "oc";
 
@@ -234,6 +241,7 @@ export function isAutomaticFlashMovement(m: { sourceType?: string | null } | nul
 export function flashSourceLabel(sourceType: string | null | undefined): string {
   switch (sourceType ?? FLASH_SOURCE_MANUAL) {
     case FLASH_SOURCE_COMPARATIVO: return "Comparativo";
+    case FLASH_SOURCE_COMPARATIVO_AJUSTE: return "Comparativo (ajuste)";
     case FLASH_SOURCE_OC: return "OC (legado)";
     default: return "Manual";
   }

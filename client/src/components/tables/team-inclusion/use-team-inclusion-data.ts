@@ -14,6 +14,7 @@ import { trocasPendentesPorVaga } from "@/lib/swap-types";
 import { useEventLock } from "@/lib/event-lock";
 import type { UniversalFilterValues } from "@/components/common/universal-filters";
 import type { SortConfig, SortField } from "@/components/common/sortable-header";
+import { opcoesDeEvento } from "@/components/common/opcoes-de-evento";
 import { getDisplayStatus } from "./inclusion-shared";
 
 export type InclusionFilters = UniversalFilterValues & { status: string[] };
@@ -300,9 +301,8 @@ export function useTeamInclusionData({ enabled = true }: { enabled?: boolean } =
     const porStatus = contar("status", statusDoRecorte);
     const baseEscalacao = lista.filter(i => passaNoRecorte(i, filters, ["escalationStatus"], getCollaboratorName));
     return {
-      eventos: (events ?? [])
-        .filter(e => e.status !== 'excluido' && e.status !== 'excluído')
-        .map(e => ({ id: e.id, nome: e.name, n: porEvento.get(e.id) ?? 0 })),
+      // Com evento(s) marcado(s) a lista veio só deles (28/10): os outros sem número, nem 0.
+      eventos: opcoesDeEvento(events, porEvento, filters.eventId),
       funcoes: (functions ?? []).map(f => ({ id: f.id, nome: f.name, n: porFuncao.get(f.id) ?? 0 })),
       colaboradores: (collaborators ?? []).map(c => ({ id: c.id, nome: fixEncoding(c.fullName) || "Sem nome", n: porColaborador.get(c.id) ?? 0 })),
       status: OPCOES_DE_STATUS.map(o => ({ ...o, n: porStatus.get(o.id) ?? 0 })),

@@ -263,6 +263,12 @@ export function CartaoPrestacaoLinha({
             <span className="ml-1">· {item.planned.collaboratorType === "casa" ? "Casa" : "Freela"}</span>
           )}
         </p>
+        {/* 28/10 (R7): a divisão da vaga (o substituto) é uma linha própria — de quem é a vaga. */}
+        {item.divisaoDe && (
+          <p className="m-0 mt-0.5 text-2xs text-muted-foreground truncate" data-testid="crh-divisao" title={item.divisaoDe.titularNome ? `Substituto na vaga de ${toTitleCase(item.divisaoDe.titularNome)}` : "Substituto (divisão da vaga)"}>
+            Substituto{item.divisaoDe.titularNome ? <> · vaga de {toTitleCase(item.divisaoDe.titularNome)}</> : " · divisão da vaga"}
+          </p>
+        )}
       </div>
 
       {/* Etapa */}

@@ -31,6 +31,7 @@ import { dataDeCorteLegivel } from "@shared/legado-honorarios";
 import { useDataDeCorte } from "@/components/honorarios/use-honorarios";
 import { Chip } from "./budget-card";
 import { formatCurrency, type CalculatedBudget } from "./types";
+import { linhaDoPlanejado } from "@shared/budget-engine";
 
 /** Linha do Planejado como o GET devolve (26/10: com o nome de quem pré-aprovou). */
 export type PlanejadoDaTela = BudgetPlanned & { approvedByName?: string | null };
@@ -41,23 +42,11 @@ export type PlanejadoDaTela = BudgetPlanned & { approvedByName?: string | null }
  * gravada é a média ponderada do subtotal (o schema não guarda a de fds).
  */
 export function valoresParaGravar(b: CalculatedBudget) {
-  const totalDias = b.diasComDiaria;
+  // 28/10 (revisão R4/R8): a MESMA linha do servidor (shared/budget-engine →
+  // linhaDoPlanejado) — só os dias de 1,5 com valor e diária 0 sem dia de diária.
   return {
     collaboratorType: b.collaborator?.type || "freela",
-    dailyQuantity: totalDias,
-    dailyValue: totalDias > 0 ? Math.round(b.subtotalDiarias / totalDias) : b.valorDiaria,
-    costAssistance: 0,
-    weekdayLunch: b.almocoSemana,
-    weekdayDinner: b.jantarSemana,
-    weekendLunch: b.almocoFds,
-    weekendDinner: b.jantarFds,
-    mobility: b.mobilidade,
-    mobilityIda: b.mobilidadeIda,
-    mobilityVolta: b.mobilidadeVolta,
-    transport: 0,
-    totalValue: b.totalFinal,
-    // 28/10: os dias com 1,5 diária (o ½ já está na diária média) — o Realizado nasce com eles.
-    diasMeiaExtra: b.diasMeiaExtra,
+    ...linhaDoPlanejado(b),
   };
 }
 

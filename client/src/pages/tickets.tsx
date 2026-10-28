@@ -59,6 +59,7 @@ import { AbasDePassagens, abaDaUrl, comAba, type AbaDePassagens } from "@/compon
 import AnalisesDePassagens from "@/components/tickets/analises/analises-de-passagens";
 import { mesmaVisao, visaoDaUrl, type VisaoDaAnalise } from "@/components/tickets/analises/url-da-analise";
 import { linkDosResultados } from "@/components/busca-de-passagens/resultados/estado-dos-resultados";
+import { opcoesDeEvento } from "@/components/common/opcoes-de-evento";
 import type {
   TicketFilters, TicketFormState, FieldErrorsState, BatchResult, FormFieldHelpers, TicketFormHandlers,
 } from "@/components/tickets/types";
@@ -237,9 +238,9 @@ export default function Tickets() {
     // 900 colaboradores em que 890 devolvem zero não ajuda a escolher.
     return {
       semPeriodo,
-      eventos: (events ?? [])
-        .filter(e => e.status !== "excluido" && e.status !== "excluído" && porEvento.has(e.id))
-        .map(e => ({ id: e.id, nome: e.name, n: porEvento.get(e.id) ?? 0 })),
+      // Com evento escolhido (28/10, dono): a lista veio só dele — os outros
+      // eventos aparecem SEM número em vez de sumir do seletor.
+      eventos: opcoesDeEvento(events, porEvento, f.eventId && f.eventId !== "all" ? [f.eventId] : [], { somenteComLinhas: true }),
       funcoes: (functions ?? [])
         .filter(f => porFuncao.has(f.id))
         .map(f => ({ id: f.id, nome: f.name, n: porFuncao.get(f.id) ?? 0 })),

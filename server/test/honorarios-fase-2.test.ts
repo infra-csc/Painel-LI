@@ -108,8 +108,8 @@ async function colaborador() {
 /** Colaborador com senha e termo aceito, e o agente do portal logado. */
 async function colaboradorNoPortal() {
   const { colab, cpf } = await colaborador();
-  const prod = await agenteLogado("production");
-  const c = await mutacao(prod.agent.post(`/api/colaboradores/${colab.id}/codigo-de-acesso`)).send({});
+  // 28/10 (revisão S4): a produção só gera para quem está escalado — aqui o DP gera.
+  const c = await mutacao(dp.agent.post(`/api/colaboradores/${colab.id}/codigo-de-acesso`)).send({});
   expect(c.status, c.text).toBe(201);
   const portal = request.agent(ctx.app);
   const r = await mutacao(portal.post("/api/colaborador/primeiro-acesso")).send({ cpf, codigo: c.body.codigo, senha: SENHA });
@@ -575,12 +575,14 @@ describe("demonstração", () => {
     await semearPresencaDemo(ctx.db as any);
     const r = await semearPagamentoDemo(ctx.db as any);
     expect(r.prestacoes).toBe(6);
-    expect(r.portal).toHaveLength(2);
+    // 28/10 (revisão): + o substituto da divisão (R7) com acesso ao portal e um pago com CNPJ alheio (S1).
+    expect(r.portal).toHaveLength(3);
     const [evento] = await ctx.db.select().from(ctx.schema.events).where(eq(ctx.schema.events.name, "Corrida Noturna do Recife"));
     const lista = await dp.agent.get(`/api/ordens-de-compra?eventId=${evento.id}`);
     expect(lista.status, lista.text).toBe(200);
     expect(lista.body.linhas.map((l: { estado: string }) => l.estado).sort())
-      .toEqual(["com_oc", "nf_devolvida", "nf_enviada", "pago", "programado", "sem_oc"]);
+      .toEqual(["com_oc", "com_oc", "nf_devolvida", "nf_enviada", "pago", "pago", "programado", "sem_oc"]);
+    expect(lista.body.linhas.filter((l: { divisao: unknown }) => l.divisao)).toHaveLength(1);
     const enviada = lista.body.linhas.find((l: { estado: string }) => l.estado === "nf_enviada");
     expect(enviada.conferencia.valor).toMatchObject({ confere: false, diferenca: -5_000 });
     // Idempotente: rodar de novo não duplica.

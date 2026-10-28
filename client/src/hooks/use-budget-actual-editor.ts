@@ -9,11 +9,14 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BudgetActual, BudgetPlanned, InsertBudgetActual, TeamInclusion, Ticket } from "@shared/schema";
-import { isFuncaoLocal, isPercursoFunction, regraDiariaPorTipo } from "@shared/calculation-rules";
+import { deflationFactorsFromSettings, isFuncaoLocal, isPercursoFunction, regraDiariaPorTipo } from "@shared/calculation-rules";
 import { isTransporteTerrestre } from "@shared/atendimento";
-import { calcAlimentacao, dataDeChegadaDaIda, refeicaoCentsDia, refeicaoPerfil, toHoraHHMM } from "@shared/alimentacao";
+import { calcAlimentacao, dataDeChegadaDaIda, isCenotecnicaFunction, refeicaoCentsDia, refeicaoPerfil, toHoraHHMM } from "@shared/alimentacao";
 import { idaEVoltaDaMobilidade } from "@shared/comparativo";
-import { comMeiaDiaria, semMeiaDiaria } from "@shared/meia-diaria";
+import { diariaDoDiaNaPosicao, meiaDaDiaria, semMeiaDiaria, valoresDosDiasDoSubtotal } from "@shared/meia-diaria";
+import { listarDiasDeTrabalho } from "@shared/dias-de-trabalho";
+import { tipoDaVolta } from "@shared/tipo-por-trecho";
+import { usaEmpreitaCenotecnica, vagaComEmpreita } from "@shared/cenotecnica-empreita";
 import {
   alimSignature, isWeekendDate, reconstructDailyValues, subtotalDiariasDe,
   type AlimField, type DayCounts, type DayEntry, type EditFormBase, type ModalActualTab, type TravelSource,
@@ -164,9 +167,10 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
     const inclusion = getItemInclusion(item);
     const ticket = inclusion ? ticketByInclusion.get(inclusion.id) : undefined;
     const voa = !!inclusion?.needsTicket;
-    // Van/ônibus no retorno já paga jantar a partir das 20h (regra 17/08)
+    // Van/ônibus no retorno já paga jantar a partir das 20h (regra 17/08) —
+    // vale o tipo da VOLTA (28/10: ida de avião e volta de ônibus).
     const terrestre =
-      ticket?.transportType === "rodoviario" || ticket?.transportType === "van" ||
+      tipoDaVolta(ticket) === "rodoviario" || ticket?.transportType === "van" ||
       (!ticket && (
         isTransporteTerrestre(inclusion?.flightDepartureSuggestedTime) ||
         isTransporteTerrestre(inclusion?.flightArrivalSuggestedTime) ||
@@ -254,6 +258,21 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
     [editFormBase, alimAuto],
   );
 
+  // 28/10 (revisão R5): a diária cheia da regra (subtotal ÷ pesos dos dias),
+  // calculada ao abrir — o ½ marcado depois sai dela, como no Planejado.
+  const [diariaDaRegra, setDiariaDaRegra] = useState(0);
+
+  /** Quais dias recebem diária (regra do tipo) e se há deflação (percurso/empreita: valor fechado, sem). */
+  const regraDaMeiaDoItem = useCallback((item: BudgetActual) => {
+    const fn = getFunctionName(item.functionId);
+    const regra = isPercursoFunction(fn) ? "todos" : regraDiariaPorTipo(item.collaboratorType, fn);
+    const flat = isPercursoFunction(fn) || vagaComEmpreita(getItemInclusion(item)) || usaEmpreitaCenotecnica(isCenotecnicaFunction(fn), item.collaboratorType);
+    return {
+      temDiaria: (d: string) => regra === "todos" || (regra === "fds" && isWeekendDate(d)),
+      fatores: flat ? null : deflationFactorsFromSettings(systemSettings),
+    };
+  }, [getFunctionName, getItemInclusion, systemSettings]);
+
   const openEditModal = (item: BudgetActual, initialTab: ModalActualTab = "custos") => {
     setModalActualTab(initialTab);
     setEditingItem(item);
@@ -264,37 +283,36 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
     // é reconstruído SÓ sobre os fds (dias úteis ficam com diária 0), como no Planejado.
     // (regraDiariaPorTipo === "fds" e há fds → úteis não entram na reconstrução)
     const recRegra = regraDiariaPorTipo(item.collaboratorType, getFunctionName(item.functionId));
-    const recWeekdays = (recRegra === "fds" && days.weekends > 0) || recRegra === "nenhuma" ? 0 : days.weekdays;
+    // 28/10 (revisão R8): casa sem fim de semana NÃO espalha o subtotal nos
+    // dias úteis — a casa não recebe diária neles (antes: `fds && weekends > 0`).
+    const recWeekdays = recRegra === "fds" || recRegra === "nenhuma" ? 0 : days.weekdays;
 
-    // 1,5 diária (28/10): os dias marcados valem 1,5 dia na reconstrução —
-    // o subtotal gravado já tem o ½ deles (shared/meia-diaria.ts).
-    const meias = new Set((item.diasMeiaExtra ?? []).map((d) => String(d).slice(0, 10)));
-    const meiasUtil = recWeekdays > 0 ? Array.from(meias).filter((d) => !isWeekendDate(d)).length : 0;
-    const meiasFds = days.weekends > 0 ? Array.from(meias).filter((d) => isWeekendDate(d)).length : 0;
-    const unUtil = recWeekdays + meiasUtil / 2;
-    const unFds = days.weekends + meiasFds / 2;
-
-    let valorUtil = 0;
-    let valorFds = 0;
-    // Subtotal de diárias que o grid de dias TEM de reproduzir centavo a
-    // centavo (ver o ajuste de resto logo abaixo do grid).
     let subtotalOrigem = 0;
-
     const isUnfilled = totalDays === 0 || storedSubtotalDiarias <= 0;
-
     if (!isUnfilled) {
       // Restore from saved actual values
       subtotalOrigem = storedSubtotalDiarias;
-      ({ valorUtil, valorFds } = reconstructDailyValues(storedSubtotalDiarias, unUtil, unFds));
     } else {
       // Actual not yet filled — pre-fill DIÁRIAS from planned values so user has a starting point
       const plannedRef = getPlannedRef(item);
-      if (plannedRef && plannedRef.dailyValue > 0) {
-        const plannedSub = subtotalDiariasDe(plannedRef);
-        subtotalOrigem = plannedSub;
-        ({ valorUtil, valorFds } = reconstructDailyValues(plannedSub, unUtil, unFds));
-      }
+      if (plannedRef && plannedRef.dailyValue > 0) subtotalOrigem = subtotalDiariasDe(plannedRef);
     }
+
+    // 1,5 diária — revisão 28/10 (R4/R5): o ½ é o do Planejado (metade da
+    // diária DAQUELE dia, com o fator da deflação — shared/meia-diaria) e só
+    // em dia que recebe diária pela regra. O subtotal gravado já tem os ½: sai
+    // a diária cheia, os ½ ficam no dia marcado e o resto se reparte como antes.
+    const datasDoPeriodo = days.startDate && days.endDate ? listarDiasDeTrabalho(days.startDate, days.endDate) : [];
+    const ativasNoPeriodo = datasDoPeriodo.filter((d) => !item.workedDays || item.workedDays.length === 0 || item.workedDays.includes(d));
+    const regraDaMeia = regraDaMeiaDoItem(item);
+    const meiasNaAbertura = valoresDosDiasDoSubtotal({
+      subtotalCents: subtotalOrigem, diasComDiaria: ativasNoPeriodo.filter(regraDaMeia.temDiaria),
+      diasMeiaExtra: item.diasMeiaExtra, fatores: regraDaMeia.fatores,
+    });
+    setDiariaDaRegra(meiasNaAbertura.diaria);
+    const meiaPorDia = new Map(meiasNaAbertura.dias.filter((d) => d.meiaCents > 0).map((d) => [d.dia, d.meiaCents]));
+    const somaDasMeias = Array.from(meiaPorDia.values()).reduce((s, v) => s + v, 0);
+    const { valorUtil, valorFds } = reconstructDailyValues(subtotalOrigem - somaDasMeias, recWeekdays, days.weekends);
 
     // Alimentação e mobilidade: SEMPRE inicializa com os valores do próprio item.
     // Usar o planejado aqui fazia reabrir+salvar reverter ajustes feitos pelo RH.
@@ -329,8 +347,8 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
         const isWknd = isWeekendDate(dateStr);
         const active = !workedDaysList || workedDaysList.length === 0 || workedDaysList.includes(dateStr);
         const base = isWknd ? valorFds : valorUtil;
-        const meia = meias.has(dateStr) && active;
-        dayEntries.push({ date: dateStr, valueCents: meia ? comMeiaDiaria(base) : base, active, isWeekend: isWknd, meia });
+        const meiaCents = active ? meiaPorDia.get(dateStr) ?? 0 : 0;
+        dayEntries.push({ date: dateStr, valueCents: base + meiaCents, active, isWeekend: isWknd, meia: meiaCents > 0, meiaCents });
         cur.setDate(cur.getDate() + 1);
       }
     }
@@ -379,9 +397,21 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
    * perde) o ½; desmarcar volta ao valor de antes, centavo a centavo.
    */
   const alternarMeiaDiaria = (date: string) => {
-    setEditDayEntries(prev => prev.map(d => d.date !== date ? d
-      : d.meia ? { ...d, meia: false, valueCents: semMeiaDiaria(d.valueCents) }
-      : { ...d, meia: true, valueCents: comMeiaDiaria(d.valueCents) }));
+    if (!editingItem) return;
+    // 28/10 (revisão R4/R5): o ½ do Planejado — metade da diária do dia na
+    // posição dele (com a deflação); dia sem diária pela regra não marca.
+    const regra = regraDaMeiaDoItem(editingItem);
+    setEditDayEntries(prev => {
+      const comDiaria = prev.filter(d => d.active && regra.temDiaria(d.date)).map(d => d.date).sort();
+      return prev.map(d => {
+        if (d.date !== date) return d;
+        if (d.meia) return { ...d, meia: false, meiaCents: 0, valueCents: d.meiaCents != null ? d.valueCents - d.meiaCents : semMeiaDiaria(d.valueCents) };
+        const posicao = comDiaria.indexOf(date);
+        if (posicao < 0) return d;
+        const meiaCents = diariaDaRegra > 0 ? meiaDaDiaria(diariaDoDiaNaPosicao(diariaDaRegra, posicao, regra.fatores)) : meiaDaDiaria(d.valueCents);
+        return meiaCents > 0 ? { ...d, meia: true, meiaCents, valueCents: d.valueCents + meiaCents } : d;
+      });
+    });
   };
 
   // Recalcula a alimentação pelos dias ativos + horários da viagem e reseta o
@@ -440,7 +470,8 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
         // Persiste os dias ativos — sem isso, dias desativados/extras entravam no total mas sumiam ao reabrir
         workedDays: activeDays.map(d => d.date),
         // 1,5 diária (28/10): os dias ativos marcados (o ½ já está no valor do dia).
-        diasMeiaExtra: activeDays.filter(d => d.meia).map(d => d.date),
+        // 28/10 (revisão R4): só o dia cujo ½ tem valor.
+        diasMeiaExtra: activeDays.filter(d => d.meia && (d.meiaCents ?? 1) > 0).map(d => d.date),
         // Alimentação: só o RESULTADO é persistido. Os horários de chegada/
         // partida usados no cálculo NÃO têm coluna aqui (e não criamos uma):
         // ficam como estado do modal, derivados da passagem/escalação.

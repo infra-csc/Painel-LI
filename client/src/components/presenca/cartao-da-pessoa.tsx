@@ -170,7 +170,7 @@ export const CartaoDaPessoa = memo(function CartaoDaPessoa({ p, hoje, permissoes
           {verValores && (
             <div className="prs-valor text-right">
               <span className="block text-2xs text-muted-foreground">{p.checkoutFinal.feito ? "Valor final" : "Calculado"}</span>
-              <span className="block text-sm font-semibold tabular-nums text-foreground">{reais(p.checkoutFinal.feito && p.checkoutFinal.valorFinal != null ? p.checkoutFinal.valorFinal : p.calculo.valorCalculado)}</span>
+              <span className="block text-sm font-semibold tabular-nums text-foreground">{reais(p.checkoutFinal.feito && p.checkoutFinal.valorFinal != null ? p.checkoutFinal.valorFinal : p.calculo.valorCalculado ?? 0)}</span>
             </div>
           )}
           <div className="flex items-center gap-1">
@@ -357,7 +357,7 @@ export const CartaoDaPessoa = memo(function CartaoDaPessoa({ p, hoje, permissoes
               {p.checkoutFinal.feito && p.checkoutFinal.valorFinal != null ? (
                 <p className="m-0">
                   <span className="font-semibold text-foreground tabular-nums">{reais(p.checkoutFinal.valorFinal)}</span>
-                  <span className="text-slate-600"> no check-out final ({textoDoAjuste(p.checkoutFinal.valorCalculado ?? p.calculo.valorCalculado, p.checkoutFinal.valorFinal)} sobre {reais(p.checkoutFinal.valorCalculado ?? p.calculo.valorCalculado)})</span>
+                  <span className="text-slate-600"> no check-out final ({textoDoAjuste(p.checkoutFinal.valorCalculado ?? p.calculo.valorCalculado ?? 0, p.checkoutFinal.valorFinal)} sobre {reais(p.checkoutFinal.valorCalculado ?? p.calculo.valorCalculado ?? 0)})</span>
                   {p.checkoutFinal.em && <span className="block text-2xs text-muted-foreground">{p.checkoutFinal.por?.nome ?? "—"} · {dataHoraBr(p.checkoutFinal.em)}</span>}
                 </p>
               ) : (

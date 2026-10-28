@@ -177,7 +177,8 @@ export function useImportacao() {
 
 // ── Aprovar fornecedores pelo histórico (28/10) ─────────────────────────────
 
-export type DecisaoDaAprovacao = "criar" | "atualizar" | "ja_aprovado" | "ignorado";
+/** 28/10 (S1): "pendente" = o CNPJ já é de outro contrato; o DP vincula à mão (ou não). */
+export type DecisaoDaAprovacao = "criar" | "atualizar" | "ja_aprovado" | "ignorado" | "pendente";
 
 export interface ItemDaAprovacaoApi {
   cnpj: string;
@@ -190,9 +191,11 @@ export interface ItemDaAprovacaoApi {
   data: string;
   gatilho: string;
   colaboradores: { id: string; nome: string }[];
+  /** 28/10 (S1): quem passou com o CNPJ e não foi vinculado (ausente num servidor antigo). */
+  pendentes?: { id: string; nome: string }[];
 }
 
-export interface ResumoDaAprovacao { criar: number; atualizar: number; jaAprovados: number; ignorados: number; total: number }
+export interface ResumoDaAprovacao { criar: number; atualizar: number; jaAprovados: number; ignorados: number; pendentes?: number; total: number }
 
 export interface RespostaDaAprovacao {
   simulado: boolean;

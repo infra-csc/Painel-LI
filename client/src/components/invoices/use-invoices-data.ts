@@ -11,6 +11,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useQueriesState } from "@/components/common/query-state";
 import type { BudgetActual, Collaborator, Event, Function as FunctionRow, Invoice, PaymentCompany, TeamInclusion } from "@shared/schema";
 import { isNfEligible, nfIsentaPorEscalacao } from "@shared/prestacao-rules";
+import { useDataDeCorte } from "@/components/honorarios/use-honorarios";
 import { aguardaAnaliseDoRh } from "./invoice-status";
 
 export function useInvoicesData(selectedEventId: string) {
@@ -68,9 +69,16 @@ export function useInvoicesData(selectedEventId: string) {
 
   // Elegibilidade da NF vem de @shared/prestacao-rules — a mesma regra que o
   // servidor aplica. Antes cada tela tinha sua cópia e elas divergiram.
+  // 28/10 (R7): no fluxo novo, a divisão com colaborador próprio (o
+  // substituto) tem nota própria; no legado segue fora, como sempre foi.
+  const { ehLegado } = useDataDeCorte();
+  const eventoDoFluxoNovo = useMemo(() => {
+    const e = activeEvents.find(x => x.id === selectedEventId);
+    return !!e && !ehLegado(e);
+  }, [activeEvents, selectedEventId, ehLegado]);
   const approvedActuals = useMemo(() => budgetActuals.filter(
-    a => isNfEligible(a) && !a.splitParentId
-  ), [budgetActuals]);
+    a => isNfEligible(a) && (!a.splitParentId || (eventoDoFluxoNovo && !!a.collaboratorId && !a.didNotAttend))
+  ), [budgetActuals, eventoDoFluxoNovo]);
 
   const getInvoice = useCallback((actualId: string) =>
     invoices.find(inv => inv.budgetActualId === actualId), [invoices]);

@@ -14,9 +14,26 @@
  * os dois trechos; a passagem está vazia ou já tem ida E volta; ou o LOC lido
  * já está na passagem (é o mesmo voucher relido — somar dobraria o valor).
  */
-import { toCents } from "@/lib/ticket-form";
+import { normalizeTransportType, toCents, type TransportType } from "@/lib/ticket-form";
 
 type Campos = Record<string, unknown>;
+
+/**
+ * TIPO POR TRECHO (28/10, vaga #4618): cada trecho guarda o seu tipo. O da
+ * ida é `transportType`; o da volta, `returnTransportType` quando diferente
+ * ("" = igual à ida). Passagem só de volta guarda o tipo em `transportType`.
+ */
+function tipoDoLado(c: Campos, lado: "ida" | "volta"): TransportType {
+  if (lado === "ida") return normalizeTransportType(c.transportType);
+  return normalizeTransportType(vazio(c.returnTransportType) ? c.transportType : c.returnTransportType);
+}
+
+/** Os dois tipos gravados no formato do formulário ("" = volta igual à ida). */
+function camposDosTipos(ida: TransportType, volta: TransportType): Campos {
+  return { transportType: ida, returnTransportType: volta !== ida ? volta : "" };
+}
+
+const NOME_DO_TIPO: Record<TransportType, string> = { aereo: "aérea", rodoviario: "de ônibus", van: "de van" };
 
 /** Campos de um trecho, no nome da IDA → nome equivalente na VOLTA. */
 const IDA_PARA_VOLTA: Record<string, string> = {
@@ -50,6 +67,9 @@ function escreverTrecho(t: Campos, lado: "ida" | "volta"): Campos {
 
 const locsDe = (v: unknown): string[] =>
   String(v ?? "").split("/").map((s) => s.trim().toUpperCase()).filter(Boolean);
+
+/** "1.234,50" — o formato do campo de valor do formulário. */
+const formatarReais = (cents: number) => (cents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const reais = (cents: number) =>
   `R$ ${(cents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -85,10 +105,16 @@ export function juntarIdaEVolta(
   const mNovo = momento(novo);
   const novoPrimeiro = mExistente && mNovo ? mNovo < mExistente : !aIda;
   const [ida, volta] = novoPrimeiro ? [novo, existente] : [existente, novo];
+  // Cada trecho leva o SEU tipo (28/10): ida aérea + volta de ônibus não vira
+  // tudo rodoviário (nem tudo aéreo).
+  const tipoExistente = tipoDoLado(atual, aIda ? "ida" : "volta");
+  const tipoNovo = vazio(lido.campos.transportType) ? tipoExistente : normalizeTransportType(lido.campos.transportType);
+  const [tipoIda, tipoVolta] = novoPrimeiro ? [tipoNovo, tipoExistente] : [tipoExistente, tipoNovo];
 
   const campos: Campos = {
     ...escreverTrecho(ida, "ida"),
     ...escreverTrecho(volta, "volta"),
+    ...camposDosTipos(tipoIda, tipoVolta),
     isOneWay: false,
     isReturnOnly: false,
   };
@@ -96,12 +122,17 @@ export function juntarIdaEVolta(
   const cAtual = toCents(atual.value) ?? 0;
   const cLido = toCents(lido.campos.value) ?? 0;
   const total = cAtual + cLido;
-  if (total > 0) {
-    campos.value = (total / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
-
+  // Cada trecho com o SEU valor e o SEU LOC/bilhete (28/10 — dono: "deveria
+  // SOMAR os valores de ida e volta"): o da ida fica em value/purchaseOrderNumber,
+  // o da volta em returnValue/returnPurchaseOrderNumber; o total gravado é a soma.
+  const compraExistente = { loc: locsAtual.join(" / "), cents: cAtual };
+  const compraNova = { loc: locsLido.join(" / "), cents: cLido };
+  const [compraIda, compraVolta] = novoPrimeiro ? [compraNova, compraExistente] : [compraExistente, compraNova];
+  campos.value = compraIda.cents > 0 ? formatarReais(compraIda.cents) : "";
+  campos.returnValue = compraVolta.cents > 0 ? formatarReais(compraVolta.cents) : "";
+  campos.purchaseOrderNumber = compraIda.loc;
+  campos.returnPurchaseOrderNumber = compraVolta.loc;
   const locs = Array.from(new Set([...locsAtual, ...locsLido]));
-  if (locs.length) campos.purchaseOrderNumber = locs.join(" / ");
 
   const cias = Array.from(new Set([atual.ticketCompany, lido.campos.ticketCompany].filter((c) => !vazio(c)).map((c) => String(c).trim().toUpperCase())));
   if (cias.length) campos.ticketCompany = cias.join(" / ");
@@ -116,7 +147,125 @@ export function juntarIdaEVolta(
   const conta = cAtual > 0 && cLido > 0
     ? ` Valor somado: ${reais(cAtual)} + ${reais(cLido)} = ${reais(total)}.`
     : total > 0 ? ` Valor: ${reais(total)} — um dos vouchers veio sem valor, confira.` : "";
-  return { campos, resumo: `${partes}.${conta}` };
+  const tipos = tipoIda !== tipoVolta ? ` Ida ${NOME_DO_TIPO[tipoIda]} e volta ${NOME_DO_TIPO[tipoVolta]} — cada trecho com o seu tipo.` : "";
+  return { campos, resumo: `${partes}.${conta}${tipos}` };
+}
+
+// ── Bilhete de UM trecho numa passagem que já tem ida E volta (28/10) ──────
+//
+// Caso #4618: ida e volta aéreas compradas; a volta virou ônibus. O bilhete do
+// ônibus trazia só a volta e era aplicado por cima da passagem inteira — o
+// tipo da IDA virava rodoviário e o LOC do voo sumia. Agora a tela PERGUNTA
+// qual trecho o bilhete substitui e mexe só nele.
+
+export type LadoDoBilhete = "ida" | "volta";
+
+/** O bilhete traz um trecho só e a passagem já tem os dois: é preciso escolher qual trocar. */
+export function precisaEscolherOTrecho(atual: Campos | null | undefined, lido: { campos: Campos; trechoUnico?: boolean }): boolean {
+  if (!atual || !lido.trechoUnico) return false;
+  if (!temIda(lido.campos) && !temVolta(lido.campos)) return false;
+  return temIda(atual) && temVolta(atual);
+}
+
+const diasEntre = (a: string, b: string) => Math.abs(Date.parse(`${a}T12:00:00Z`) - Date.parse(`${b}T12:00:00Z`)) / 86_400_000;
+
+/**
+ * Qual trecho o bilhete deve substituir — a sugestão da pergunta. O leitor do
+ * ônibus SABE (põe a volta nos campos da volta); o do voo põe um trecho só
+ * sempre nos campos de ida — aí vale a data mais próxima. Empate: a ida.
+ */
+export function ladoSugerido(atual: Campos, lido: { campos: Campos }): LadoDoBilhete {
+  if (!temIda(lido.campos) && temVolta(lido.campos)) return "volta";
+  const dia = String(lido.campos.actualDepartureDate ?? "").slice(0, 10);
+  const ida = String(atual.actualDepartureDate ?? "").slice(0, 10);
+  const volta = String(atual.actualReturnDate ?? "").slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dia) && /^\d{4}-\d{2}-\d{2}$/.test(ida) && /^\d{4}-\d{2}-\d{2}$/.test(volta)) {
+    return diasEntre(dia, volta) < diasEntre(dia, ida) ? "volta" : "ida";
+  }
+  return "ida";
+}
+
+const br = (iso: unknown) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso ?? ""));
+  return m ? `${m[3]}/${m[2]}` : "";
+};
+
+/** "aérea · GRU → SDU · 11/11 12:05" — para a pergunta e o aviso. */
+export function descreverTrecho(c: Campos, lado: LadoDoBilhete): string {
+  const t = lerTrecho(c, lado);
+  const de = String(t.departureAirport || t.departureCityOrigin || "").trim();
+  const para = String(t.destinationAirport || t.departureCityDestination || "").trim();
+  const quando = [br(t.actualDepartureDate), String(t.actualDepartureTime ?? "").trim()].filter(Boolean).join(" ");
+  return [NOME_DO_TIPO[tipoDoLado(c, lado)], de || para ? `${de || "?"} → ${para || "?"}` : "", quando].filter(Boolean).join(" · ");
+}
+
+/** O trecho do bilhete lido (onde quer que o leitor o tenha posto), descrito com o tipo dele. */
+export function descreverBilhete(lido: { campos: Campos }): string {
+  const lado: LadoDoBilhete = temIda(lido.campos) ? "ida" : "volta";
+  const c = { ...lido.campos, returnTransportType: "" };
+  return descreverTrecho(c, lado);
+}
+
+/**
+ * Troca SÓ o trecho escolhido pelo do bilhete — campos, tipo, bilhete/LOC e
+ * valor DELE (a volta comprada à parte: returnPurchaseOrderNumber/returnValue).
+ * O outro trecho fica como estava, com o seu tipo, LOC e valor; o total da
+ * passagem é a soma (dono, 28/10). Trocar a ida de uma passagem de uma compra
+ * só passa aquela compra para a volta (é o que sobrou dela).
+ */
+export function substituirUmTrecho(atual: Campos, lido: { campos: Campos }, lado: LadoDoBilhete): IdaEVoltaJuntas {
+  const novo = temIda(lido.campos) ? lerTrecho(lido.campos, "ida") : lerTrecho(lido.campos, "volta");
+  const outro: LadoDoBilhete = lado === "ida" ? "volta" : "ida";
+  const tipoOutro = tipoDoLado(atual, outro);
+  const tipoNovo = vazio(lido.campos.transportType) ? tipoDoLado(atual, lado) : normalizeTransportType(lido.campos.transportType);
+  const [tipoIda, tipoVolta] = lado === "ida" ? [tipoNovo, tipoOutro] : [tipoOutro, tipoNovo];
+
+  const campos: Campos = {
+    ...escreverTrecho(novo, lado),
+    ...camposDosTipos(tipoIda, tipoVolta),
+    isOneWay: false,
+    isReturnOnly: false,
+  };
+
+  const cias = Array.from(new Set([atual.ticketCompany, lido.campos.ticketCompany].filter((c) => !vazio(c)).map((c) => String(c).trim().toUpperCase())));
+  if (cias.length) campos.ticketCompany = cias.join(" / ");
+
+  // A compra de cada trecho (28/10): ida em value/purchaseOrderNumber, volta à
+  // parte em returnValue/returnPurchaseOrderNumber.
+  const jaSeparada = !vazio(atual.returnValue) || !vazio(atual.returnPurchaseOrderNumber);
+  const daIda = { loc: String(atual.purchaseOrderNumber ?? "").trim(), cents: toCents(atual.value) ?? 0 };
+  const daVolta = { loc: String(atual.returnPurchaseOrderNumber ?? "").trim(), cents: toCents(atual.returnValue) ?? 0 };
+  const doLado = lado === "ida" ? daIda : daVolta;
+  const locLido = locsDe(lido.campos.purchaseOrderNumber).join(" / ");
+  const mesmoBilhete = !!locLido && locsDe(doLado.loc).join(" / ") === locLido;
+  const centsLido = toCents(lido.campos.value);
+  const nova = { loc: locLido || doLado.loc, cents: centsLido ?? (mesmoBilhete ? doLado.cents : 0) };
+
+  let ida = daIda, volta = daVolta;
+  let aviso = "";
+  if (lado === "volta") {
+    volta = nova;
+    if (!jaSeparada && daIda.cents > 0) aviso = ` O valor que estava (${reais(daIda.cents)}) ficou como Valor da ida — se ele incluía a volta antiga, ajuste.`;
+  } else {
+    ida = nova;
+    // Passagem de uma compra só: o que sobra dela é a volta.
+    if (!jaSeparada) {
+      volta = daIda;
+      if (daIda.cents > 0) aviso = ` A compra que estava (${reais(daIda.cents)}) ficou como Valor da volta — se ela incluía a ida antiga, ajuste.`;
+    }
+  }
+  campos.purchaseOrderNumber = ida.loc;
+  campos.value = ida.cents > 0 ? formatarReais(ida.cents) : "";
+  campos.returnPurchaseOrderNumber = volta.loc;
+  campos.returnValue = volta.cents > 0 ? formatarReais(volta.cents) : "";
+
+  const total = ida.cents + volta.cents;
+  const conta = nova.cents > 0
+    ? ` Total: ida ${reais(ida.cents)} + volta ${reais(volta.cents)} = ${reais(total)}.`
+    : ` O bilhete não traz valor: informe o Valor da ${lado}.`;
+  const ficou = descreverTrecho({ ...atual }, outro);
+  const resumo = `Troquei só a ${lado} pelo bilhete (${descreverTrecho(campos, lado)}). A ${outro} ficou como estava${ficou ? ` (${ficou})` : ""}.${conta}${aviso}`;
+  return { campos, resumo };
 }
 
 /**

@@ -39,6 +39,7 @@ import {
 import type { ScalingMutations } from "./use-scaling-mutations";
 import { formatarMoeda } from "@/lib/format";
 import { Secao } from "./inclusion-details/details-shared";
+import { detalheDosValores, nomeDosTiposDaPassagem, rotuloDoNumeroDaCompra, tipoDaVolta, voltaComOutroTipo } from "@shared/tipo-por-trecho";
 
 type RenderAttachments = (ids: string[] | null | undefined, label: string) => ReactNode;
 
@@ -544,6 +545,11 @@ function TicketDetails({ ticket, renderAttachments }: {
   // O terminal só aparece quando é do tipo certo — a mesma regra de antes:
   // rodoviária no ônibus, aeroporto no avião.
   const terminal = (valor: string | null | undefined) => (isRodo || isAereo ? valor : null);
+  // Tipo da VOLTA (28/10, vaga #4618): ida aérea + volta de ônibus — a volta com rótulos e ícone dela.
+  const misto = voltaComOutroTipo(t);
+  const voltaRodo = tipoDaVolta(t) === "rodoviario";
+  const voltaAereo = misto ? tipoDaVolta(t) === "aereo" : isAereo;
+  const terminalVolta = (valor: string | null | undefined) => (voltaRodo || voltaAereo ? valor : null);
 
   return (
     <div className="space-y-4">
@@ -551,7 +557,7 @@ function TicketDetails({ ticket, renderAttachments }: {
         titulo={
           <span className="flex min-w-0 flex-col">
             <span className="text-2xs font-semibold uppercase tracking-[0.06em] text-primary">
-              {isVan ? "Van" : isRodo ? "Transporte rodoviário" : "Passagem aérea"}
+              {isVan ? "Van" : misto ? nomeDosTiposDaPassagem(t) : isRodo ? "Transporte rodoviário" : "Passagem aérea"}
             </span>
             {t.purchaseDate && <span className="mt-0.5 text-xs font-normal text-muted-foreground">Comprada em {formatDate(t.purchaseDate)}</span>}
           </span>
@@ -565,12 +571,13 @@ function TicketDetails({ ticket, renderAttachments }: {
       >
         {(t.purchaseOrderNumber || t.locator || t.ticketCompany || (typeof t.value === "number" && t.value > 0) || t.cardLastFourDigits) ? (
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3 lg:grid-cols-5">
-            {t.purchaseOrderNumber && <Dado rotulo={isVan ? "Empresa / OC" : isRodo ? "Bilhete" : "Ordem de compra"} mono>{t.purchaseOrderNumber}</Dado>}
+            {t.purchaseOrderNumber && <Dado rotulo={isVan ? "Empresa / OC" : misto ? rotuloDoNumeroDaCompra(t) : isRodo ? "Bilhete" : "Ordem de compra"} mono>{t.purchaseOrderNumber}</Dado>}
             {/* Localizador, companhia e valor estavam gravados e invisíveis nesta
                 tela: quem precisava deles tinha de abrir Passagens. */}
             {t.locator && <Dado rotulo="Localizador" mono>{t.locator}</Dado>}
             {t.ticketCompany && <Dado rotulo="Companhia">{t.ticketCompany}</Dado>}
-            {typeof t.value === "number" && t.value > 0 && <Dado rotulo="Valor">{brl(t.value)}</Dado>}
+            {t.returnPurchaseOrderNumber && <Dado rotulo={`${voltaRodo ? "Bilhete" : "LOC"} da volta`} mono>{t.returnPurchaseOrderNumber}</Dado>}
+            {typeof t.value === "number" && t.value > 0 && <Dado rotulo={detalheDosValores(t) ? "Valor (ida + volta)" : "Valor"}>{brl(t.value)}{detalheDosValores(t) && <span className="block text-2xs font-normal text-muted-foreground">{detalheDosValores(t)}</span>}</Dado>}
             {t.cardLastFourDigits && (
               <Dado rotulo="Cartão">
                 <span className="inline-flex items-center gap-1.5 font-mono"><CreditCard className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />•••• {t.cardLastFourDigits}</span>
@@ -609,25 +616,25 @@ function TicketDetails({ ticket, renderAttachments }: {
           {hasReturn ? (
             <Trecho
               rotulo="Volta"
-              Icone={isRodo ? Bus : PlaneLanding}
-              IconeMeio={isRodo ? Bus : Plane}
+              Icone={voltaRodo ? Bus : PlaneLanding}
+              IconeMeio={voltaRodo ? Bus : Plane}
               data={t.actualReturnDate ? formatDate(t.actualReturnDate) : null}
               partida={{
                 papel: "Partida", hora: t.actualReturnTime,
-                terminal: terminal(t.returnOriginAirport), rotuloTerminal: isRodo ? "Rodoviária de origem" : "Aeroporto de origem",
-                cidade: t.returnCityOrigin, rotuloCidade: "Cidade de origem", codigo: isAereo,
+                terminal: terminalVolta(t.returnOriginAirport), rotuloTerminal: voltaRodo ? "Rodoviária de origem" : "Aeroporto de origem",
+                cidade: t.returnCityOrigin, rotuloCidade: "Cidade de origem", codigo: voltaAereo,
               }}
               chegada={{
                 papel: "Chegada", hora: t.returnArrivalTime,
-                terminal: terminal(t.returnDestinationAirport), rotuloTerminal: isRodo ? "Rodoviária de destino" : "Aeroporto de destino",
-                cidade: t.returnCityDestination, rotuloCidade: "Cidade de destino", codigo: isAereo,
+                terminal: terminalVolta(t.returnDestinationAirport), rotuloTerminal: voltaRodo ? "Rodoviária de destino" : "Aeroporto de destino",
+                cidade: t.returnCityDestination, rotuloCidade: "Cidade de destino", codigo: voltaAereo,
               }}
             />
           ) : (
             <div className="flex items-center justify-center rounded-xl border border-dashed border-border bg-card p-4">
               <div className="text-center">
                 <p className="flex items-center justify-center gap-1.5 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                  {isRodo ? <Bus className="h-3.5 w-3.5" aria-hidden="true" /> : <PlaneLanding className="h-3.5 w-3.5" aria-hidden="true" />}Volta
+                  {voltaRodo ? <Bus className="h-3.5 w-3.5" aria-hidden="true" /> : <PlaneLanding className="h-3.5 w-3.5" aria-hidden="true" />}Volta
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">Sem informações de volta</p>
               </div>

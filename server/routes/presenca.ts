@@ -36,7 +36,7 @@ import {
 import { normalizeRole, type CanonicalRole } from "@shared/roles";
 import {
   CONFIGURACAO_PADRAO, ESTADO_DO_DIA_LABEL, OCORRENCIA_LABEL, RE_HORA, SITUACAO_DO_CNPJ_LABEL, TIPOS_DE_OCORRENCIA, VALIDADE_DO_CODIGO_HORAS,
-  ajusteEmPct, camposDoRealizadoNoCheckoutFinal, cpfDoCadastro, cpfMascarado, dentroDoLimite, diaEmBrasilia, diaSeguinte, diaValido,
+  ajusteEmPct, baseDoCheckoutFinal, camposDoRealizadoNoCheckoutFinal, cpfDoCadastro, erroDaOcorrencia, cpfMascarado, dentroDoLimite, diaEmBrasilia, diaSeguinte, diaValido,
   erroDoCnpjInformado, faixaDoAjuste, horaEmBrasilia, instanteEmBrasilia, reaisDaPresenca, situacaoDoCnpjInformado, validarConfiguracaoDaPresenca,
   type ConfiguracaoDaPresenca, type TipoDeOcorrencia,
 } from "@shared/presenca";
@@ -45,7 +45,7 @@ import { dataDeCorteLegivel, ehEventoLegado } from "@shared/legado-honorarios";
 import { digitosDoCnpj, mascararCnpj } from "@shared/cnpj";
 import { situacaoContratualDoColaborador } from "@shared/contratos";
 import { HttpError } from "../http";
-import { acessosDosColaboradores, obterOcorrencia, salvarAcesso } from "../storage/presenca";
+import { acessosDosColaboradores, colaboradorEscaladoNoFluxoNovo, obterOcorrencia, salvarAcesso } from "../storage/presenca";
 import { contratosDosColaboradores } from "../storage/contratos";
 import {
   estadosDosDias, funcoesDoResponsavel, lerConfiguracaoDoBanco, lerDataDeCorteDoBanco, montarPrestacao, montarPrestacoes,
@@ -69,6 +69,8 @@ const PAPEIS_DO_PRODUTOR: readonly CanonicalRole[] = ["admin", "financial", "pro
 const PAPEIS_DO_CODIGO: readonly CanonicalRole[] = ["admin", "financial", "production"];
 
 const ehDp = (u: User) => { const p = normalizeRole(u.role); return p === "admin" || p === "financial"; };
+/** Quem lança ocorrência que mexe em dinheiro (diária extra, horas extras) — 28/10, revisão S2. */
+const lancaOcorrenciaFinanceira = (u: User) => (PAPEIS_DO_PRODUTOR as readonly string[]).includes(normalizeRole(u.role) ?? "");
 const nomeDe = (u: User) => u.name || u.email || "Usuário";
 const diaCurto = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
@@ -145,6 +147,9 @@ async function prestacoesParaTela(montadas: PrestacaoMontada[], user: User, conf
   const nomeDoUsuario = new Map(usuarios.map((u) => [u.id, u.name || u.email]));
   const podeVerFotos = (PAPEIS_QUE_VEEM_SELFIES as readonly string[]).includes(normalizeRole(user.role) ?? "");
   const limitado = !ehDp(user);
+  // 28/10 (revisão S7): a Área de Função acompanha a presença, mas não recebe
+  // localização, valores, cálculo, OC nem NF (quem fecha é a produção/DP).
+  const semValores = normalizeRole(user.role) === "function_area";
   const agora = Date.now();
 
   const marcacao = (p: Presenca, lado: "checkin" | "checkout") => {
@@ -161,9 +166,9 @@ async function prestacoesParaTela(montadas: PrestacaoMontada[], user: User, conf
       fotoExpurgada: !!p.fotoExpurgadaEm,
       fotoId: podeVerFotos ? fotoId : null,
       fotoUrl: podeVerFotos && fotoId ? `/api/attachments/${fotoId}/view` : null,
-      lat: lado === "checkin" ? (p.checkinLat != null ? Number(p.checkinLat) : null) : (p.checkoutLat != null ? Number(p.checkoutLat) : null),
-      lng: lado === "checkin" ? (p.checkinLng != null ? Number(p.checkinLng) : null) : (p.checkoutLng != null ? Number(p.checkoutLng) : null),
-      precisaoM: lado === "checkin" ? p.checkinPrecisaoM : p.checkoutPrecisaoM,
+      lat: semValores ? null : lado === "checkin" ? (p.checkinLat != null ? Number(p.checkinLat) : null) : (p.checkoutLat != null ? Number(p.checkoutLat) : null),
+      lng: semValores ? null : lado === "checkin" ? (p.checkinLng != null ? Number(p.checkinLng) : null) : (p.checkoutLng != null ? Number(p.checkoutLng) : null),
+      precisaoM: semValores ? null : lado === "checkin" ? p.checkinPrecisaoM : p.checkoutPrecisaoM,
     };
   };
 
@@ -203,7 +208,7 @@ async function prestacoesParaTela(montadas: PrestacaoMontada[], user: User, conf
       confirmacao: m.confirmacao ? {
         por: m.confirmacao.confirmadoPor,
         porUsuario: m.confirmacao.userId ? { id: m.confirmacao.userId, nome: nomeDoUsuario.get(m.confirmacao.userId) ?? null } : null,
-        dias: m.confirmacao.diasConfirmados, valorVisto: m.confirmacao.valorVisto,
+        dias: m.confirmacao.diasConfirmados, valorVisto: semValores ? null : m.confirmacao.valorVisto,
         cnpj: m.confirmacao.cnpj ? mascararCnpj(m.confirmacao.cnpj) : null, razaoSocial: m.confirmacao.razaoSocial,
         contratoId: m.confirmacao.contratoId, contestacao: m.confirmacao.contestacao,
         confirmadoEm: new Date(m.confirmacao.confirmadoEm).toISOString(),
@@ -216,20 +221,24 @@ async function prestacoesParaTela(montadas: PrestacaoMontada[], user: User, conf
         pior: limitado ? null : prazo.pior,
       },
       podeConfirmar: confirmar.ok,
-      calculo: {
+      calculo: semValores ? {
+        valorBase: null, valorCalculado: null, linhas: [] as string[],
+        diasPagos: m.calculo.diasPagos, diasComFalta: m.calculo.diasComFalta, diasExtras: m.calculo.diasExtras,
+        horasExtras: m.calculo.horasExtras, valorDaHora: null, valorHorasExtras: null,
+      } : {
         valorBase: m.calculo.valorBase, valorCalculado: m.calculo.valorCalculado, linhas: m.calculo.linhas,
         diasPagos: m.calculo.diasPagos, diasComFalta: m.calculo.diasComFalta, diasExtras: m.calculo.diasExtras,
         horasExtras: m.calculo.horasExtras, valorDaHora: m.calculo.valorDaHora, valorHorasExtras: m.calculo.valorHorasExtras,
       },
-      limiteDoAjuste: limitado ? { pct: config.produtorAjusteMaxPct, ...faixaDoAjuste(m.calculo.valorCalculado, config.produtorAjusteMaxPct) } : null,
+      limiteDoAjuste: limitado && !semValores ? { pct: config.produtorAjusteMaxPct, ...faixaDoAjuste(m.calculo.valorCalculado, config.produtorAjusteMaxPct) } : null,
       diasPendentes: m.pendentes,
       checkoutFinal: {
         feito: m.checkoutFinalFeito,
         em: m.actual.checkoutFinalEm ? new Date(m.actual.checkoutFinalEm).toISOString() : null,
         por: m.actual.checkoutFinalPor ? { id: m.actual.checkoutFinalPor, nome: nomeDoUsuario.get(m.actual.checkoutFinalPor) ?? null } : null,
-        valorCalculado: m.actual.valorCalculado, valorFinal: m.checkoutFinalFeito ? m.actual.totalValue : null,
-        ajustePct: m.actual.ajusteProdutorPct != null ? Number(m.actual.ajusteProdutorPct) : null,
-        horasExtras: Number(m.actual.horasExtras ?? 0), valorHorasExtras: m.actual.valorHorasExtras,
+        valorCalculado: semValores ? null : m.actual.valorCalculado, valorFinal: !semValores && m.checkoutFinalFeito ? m.actual.totalValue : null,
+        ajustePct: !semValores && m.actual.ajusteProdutorPct != null ? Number(m.actual.ajusteProdutorPct) : null,
+        horasExtras: Number(m.actual.horasExtras ?? 0), valorHorasExtras: semValores ? null : m.actual.valorHorasExtras,
         podeFazer: podeEnviarParaRevisao(m.actual),
       },
       cnpj: {
@@ -246,9 +255,9 @@ async function prestacoesParaTela(montadas: PrestacaoMontada[], user: User, conf
         termoAceito: !!acesso?.termoVersaoAceita && acesso.termoVersaoAceita === config.termoVersao,
         ultimoAcessoEm: acesso?.ultimoAcessoEm ? new Date(acesso.ultimoAcessoEm).toISOString() : null,
       },
-      realizado: { rhStatus: m.actual.rhStatus, sentForReview: m.actual.sentForReview, totalValue: m.actual.totalValue, dailyValue: m.actual.dailyValue },
+      realizado: { rhStatus: m.actual.rhStatus, sentForReview: m.actual.sentForReview, totalValue: semValores ? null : m.actual.totalValue, dailyValue: semValores ? null : m.actual.dailyValue },
       // Etapas 4–7 (28/10): a OC, a nota e se dá para enviar a NF como representante.
-      notaFiscal: (() => {
+      notaFiscal: semValores ? undefined : (() => {
         const n = notas.get(m.actual.id) ?? null;
         const estado = estadoDoPagamento({ ocNumero: m.actual.ocNumero, pagoEm: m.actual.pagoEm, nota: n });
         return {
@@ -284,6 +293,11 @@ export function registrarPresenca(app: Express): void {
       const colab = await storage.getCollaborator(req.params.id);
       if (!colab) return res.status(404).json({ message: "Colaborador não encontrado." });
       if (colab.active === false || colab.status !== "aprovado") return res.status(409).json({ message: "Colaborador inativo ou não aprovado — não tem acesso ao portal." });
+      // 28/10 (revisão S4): a produção só gera para quem está escalado em
+      // evento do fluxo novo (vaga não cancelada); o DP/admin, para qualquer um.
+      if (!ehDp(user) && !(await colaboradorEscaladoNoFluxoNovo(colab.id, await lerDataDeCorteDoBanco()))) {
+        return res.status(403).json({ message: "A produção gera o código só para quem está escalado em um evento do fluxo novo. Fora disso, peça ao DP." });
+      }
       const cpf = cpfDoCadastro(colab);
       if (!cpf) return res.status(409).json({ message: "O cadastro não tem CPF — complete o cadastro antes de gerar o código." });
       const codigo = String(randomInt(0, 1_000_000)).padStart(6, "0");
@@ -291,7 +305,7 @@ export function registrarPresenca(app: Express): void {
       // Código novo destrava quem estava bloqueado (o DP/produção está ajudando).
       const acesso = await salvarAcesso(colab.id, {
         codigoHash: await bcrypt.hash(codigo, 10), codigoExpiraEm: validoAte, codigoGeradoPor: user.id,
-        tentativasFalhas: 0, bloqueadoAte: null,
+        tentativasFalhas: 0, falhasDesde: null, bloqueadoAte: null,
       });
       // Auditoria SEM o código e sem o CPF.
       await createAuditLog("create", "colaborador_acesso", colab.id, {
@@ -372,7 +386,7 @@ export function registrarPresenca(app: Express): void {
         hoje,
         configuracao: {
           selfieObrigatoria: config.selfieObrigatoria, localizacao: config.localizacao,
-          horaExtraDivisor: config.horaExtraDivisor, produtorAjusteMaxPct: config.produtorAjusteMaxPct, provisorio: true,
+          horaExtraDivisor: config.horaExtraDivisor, horaExtraMaxDia: config.horaExtraMaxDia, produtorAjusteMaxPct: config.produtorAjusteMaxPct, provisorio: true,
         },
         permissoes: {
           verFotos: (PAPEIS_QUE_VEEM_SELFIES as readonly string[]).includes(papel ?? ""),
@@ -381,6 +395,8 @@ export function registrarPresenca(app: Express): void {
           checkoutFinal: (PAPEIS_DO_PRODUTOR as readonly string[]).includes(papel ?? ""),
           gerarCodigo: (PAPEIS_DO_CODIGO as readonly string[]).includes(papel ?? ""),
           ajusteSemLimite: ehDp(user),
+          // 28/10 (revisão S2): diária extra e horas extras só para quem fecha.
+          ocorrenciasFinanceiras: lancaOcorrenciaFinanceira(user),
         },
         naArenaAgora,
         prestacoes,
@@ -460,24 +476,20 @@ export function registrarPresenca(app: Express): void {
     if (prestacaoEstaTravada(m.actual)) return res.status(409).json({ message: "Esta prestação já foi enviada ao DP — as ocorrências não mudam mais." });
     const { tipo, horas, substitutoCollaboratorId, observacao } = corpo.data;
     const dia = corpo.data.dia ?? null;
-    const ativosNoDia = (tipos: string[]) => m.ocorrencias.some((o) => o.dia && String(o.dia).slice(0, 10) === dia && tipos.includes(o.tipo));
-    if (tipo === "falta" || tipo === "substituicao") {
-      if (!dia || !m.dias.includes(dia)) return res.status(400).json({ message: "Escolha um dia de diária desta prestação." });
-      if (ativosNoDia(["falta", "substituicao"])) return res.status(409).json({ message: `Já há falta ou substituição em ${diaCurto(dia)}.` });
-    }
+    // 28/10 (revisão S2): a mesma régua para todos os tipos (shared/presenca →
+    // erroDaOcorrencia): Área de Função só falta/substituição; horas extras com
+    // dia e teto por dia; diária extra só no período da vaga ± 2 dias.
+    const erro = erroDaOcorrencia({
+      tipo, dia, horas: horas ?? null, dias: m.dias, diasExtras: m.calculo.diasExtras,
+      ocorrencias: m.ocorrencias.map((o) => ({ tipo: o.tipo, dia: o.dia ? String(o.dia).slice(0, 10) : null, horas: o.horas })),
+      periodoDaVaga: { inicio: m.inclusao?.scheduleStartDate ?? null, fim: m.inclusao?.scheduleEndDate ?? null },
+      horaExtraMaxDia: acesso.config.horaExtraMaxDia, financeiras: lancaOcorrenciaFinanceira(user),
+    });
+    if (erro) return res.status(erro.status).json({ message: erro.mensagem });
     if (tipo === "substituicao") {
       if (!substitutoCollaboratorId) return res.status(400).json({ message: "Informe quem substituiu." });
       if (substitutoCollaboratorId === m.actual.collaboratorId) return res.status(400).json({ message: "O substituto tem que ser outra pessoa." });
       if (!(await storage.getCollaborator(substitutoCollaboratorId))) return res.status(404).json({ message: "Substituto não encontrado." });
-    }
-    if (tipo === "diaria_extra") {
-      if (!dia) return res.status(400).json({ message: "Informe o dia da diária extra." });
-      if (m.dias.includes(dia)) return res.status(400).json({ message: "Este dia já é de diária — a diária extra é um dia a mais." });
-      if (ativosNoDia(["diaria_extra"])) return res.status(409).json({ message: `Já há diária extra em ${diaCurto(dia)}.` });
-    }
-    if (tipo === "horas_extras") {
-      if (!horas) return res.status(400).json({ message: "Informe as horas extras (até 24 por lançamento)." });
-      if (dia && !m.dias.includes(dia) && !m.calculo.diasExtras.includes(dia)) return res.status(400).json({ message: "Escolha um dia da prestação (ou deixe sem dia)." });
     }
     try {
       const [criada] = await db.insert(presencaOcorrencias).values({
@@ -567,7 +579,10 @@ export function registrarPresenca(app: Express): void {
     const cnpj = corpo.data.cnpj ? digitosDoCnpj(corpo.data.cnpj) : m.confirmacao?.cnpj ?? null;
     const razaoSocial = corpo.data.cnpj ? corpo.data.razaoSocial?.trim() || null : corpo.data.razaoSocial?.trim() || m.confirmacao?.razaoSocial || null;
     const pct = ajusteEmPct(calculado, valorFinal);
-    const campos = camposDoRealizadoNoCheckoutFinal(m.actual, m.calculo, valorFinal);
+    const campos = camposDoRealizadoNoCheckoutFinal(m.realizado, m.calculo, valorFinal);
+    // 28/10 (revisão R2): a base fica a do 1º check-out final — refeito depois
+    // da devolução, o recálculo parte dela (e não do total já ajustado).
+    const baseCheckoutFinal = m.actual.baseCheckoutFinal ?? baseDoCheckoutFinal(m.actual);
     const semConfirmacao = !m.confirmacao;
     // Motivo da mudança no Realizado (27/10): a Conferência DP cobra `changeReason`
     // quando o valor difere do planejado — o check-out final é esse motivo.
@@ -583,6 +598,7 @@ export function registrarPresenca(app: Express): void {
       const { depois, enviado } = await db.transaction(async (tx) => {
         const [depois] = await tx.update(budgetActualTable).set({
           ...campos,
+          baseCheckoutFinal,
           valorCalculado: calculado,
           ajusteProdutorPct: pct != null ? String(pct) : null,
           horasExtras: String(m.calculo.horasExtras),

@@ -20,7 +20,8 @@
  */
 import { FUSO_DA_OPERACAO, hojeISO } from "./hoje-sp";
 import { listarDiasDeTrabalho } from "./dias-de-trabalho";
-import { regraDiariaPorTipo } from "./calculation-rules";
+import { DEFLATION_FACTORS_DEFAULT, regraDiariaPorTipo, type DeflationFactors } from "./calculation-rules";
+import { valoresDosDiasDoSubtotal } from "./meia-diaria";
 import { cnpjValido, digitosDoCnpj } from "./cnpj";
 import { contratoVigenteEm, type ContratoParaVigencia } from "./contratos";
 
@@ -299,6 +300,46 @@ export interface RealizadoParaCalculo {
   mobility: number;
   transport: number;
   collaboratorType?: string | null;
+  /** Dias com 1,5 diária (28/10) — o ½ deles está no subtotal. */
+  diasMeiaExtra?: readonly (string | null)[] | null;
+}
+
+/**
+ * A BASE do check-out final (28/10, revisão R2): o Realizado como estava
+ * ANTES do 1º check-out final. O check-out grava por cima (horas extras e o
+ * ajuste entram no subtotal); refeito depois da devolução do DP, o recálculo
+ * parte daqui — senão as horas extras e o ±10% se acumulavam (4 × 100 + 8 h →
+ * 500; devolvido, 2º check-out → 625). Gravada em budget_actual.base_checkout_final.
+ */
+export interface BaseDoCheckoutFinal {
+  dailyQuantity: number;
+  dailyValue: number;
+  totalValue: number;
+  weekdayLunch: number;
+  weekdayDinner: number;
+  weekendLunch: number;
+  weekendDinner: number;
+  mobility: number;
+  transport: number;
+  workedDays: string[] | null;
+  diasMeiaExtra: string[] | null;
+}
+
+/** A fotografia do Realizado para guardar no 1º check-out final. */
+export function baseDoCheckoutFinal(a: RealizadoParaCalculo & { workedDays?: readonly (string | null)[] | null }): BaseDoCheckoutFinal {
+  const lista = (v: readonly (string | null)[] | null | undefined) => (v && v.length ? v.filter((d): d is string => !!d).map((d) => String(d).slice(0, 10)) : null);
+  return {
+    dailyQuantity: a.dailyQuantity, dailyValue: a.dailyValue, totalValue: a.totalValue,
+    weekdayLunch: a.weekdayLunch, weekdayDinner: a.weekdayDinner, weekendLunch: a.weekendLunch, weekendDinner: a.weekendDinner,
+    mobility: a.mobility, transport: a.transport, workedDays: lista(a.workedDays), diasMeiaExtra: lista(a.diasMeiaExtra),
+  };
+}
+
+/** O Realizado que o recálculo usa: a base do 1º check-out final, se houver; senão o Realizado de agora. */
+export function realizadoParaCalculo<T extends RealizadoParaCalculo & { workedDays?: readonly (string | null)[] | null; baseCheckoutFinal?: BaseDoCheckoutFinal | null }>(a: T): RealizadoParaCalculo & { workedDays: readonly (string | null)[] | null } {
+  const b = a.baseCheckoutFinal;
+  if (!b) return { ...a, workedDays: a.workedDays ?? null };
+  return { ...b, collaboratorType: a.collaboratorType ?? null };
 }
 
 export interface OcorrenciaParaCalculo extends OcorrenciaDoDia {
@@ -330,6 +371,8 @@ export interface CalculoDaPresenca {
   horasExtras: number;
   valorDaHora: number;
   valorHorasExtras: number;
+  /** Dias com 1,5 diária que continuam pagos (28/10, revisão R3). */
+  diasMeiaExtra: string[];
   /** Memória de cálculo em frases (pt-BR). */
   linhas: string[];
 }
@@ -347,14 +390,21 @@ const numero = (v: number | string | null | undefined): number => {
 
 /**
  * Recalcula o valor da prestação a partir do REALIZADO (o total que o
- * Realizado já calculou: diárias × valor da diária + alimentação + mobilidade
- * + translado) e das ocorrências (27/10):
+ * Realizado já calculou: diárias + alimentação + mobilidade + translado) e
+ * das ocorrências (27/10; por DIA desde a revisão de 28/10):
+ *  - cada dia de diária vale o que a regra do Planejado dá a ele
+ *    (shared/meia-diaria → `valoresDosDiasDoSubtotal`: diária × fator da
+ *    deflação daquela posição, + o ½ se o dia é de 1,5) — casa/CLT só tem
+ *    diária no fim de semana;
  *  - falta (e substituição — a falta do titular naquele dia; o substituto é
- *    pago pela "Dividir escalação" do Realizado) tira o DIA: a diária, se o
- *    dia tinha diária pela regra do tipo (casa/CLT só no fim de semana), e a
- *    alimentação média daquele tipo de dia (útil ou fim de semana);
- *  - diária extra põe um dia (diária pela mesma regra + alimentação média);
- *  - horas extras = horas × (diária ÷ `divisorHoraExtra`).
+ *    pago pela "Dividir escalação" do Realizado) tira o DIA: o valor DELE (não
+ *    a média — R3) e a alimentação média daquele tipo de dia;
+ *  - diária extra põe um dia (a diária cheia, sem deflação, pela mesma regra
+ *    do tipo + alimentação média);
+ *  - horas extras SÓ com dia (S2): horas do dia (até `horaExtraMaxDia`) ×
+ *    (diária do dia ÷ `divisorHoraExtra`); dia sem diária (casa em dia útil)
+ *    → 0, a hora extra da casa vai pela folha (R8 — decisão provisória, o
+ *    dono decide); dia com falta não conta.
  * Mobilidade e translado não mudam (a viagem aconteceu). Ocorrência repetida
  * no mesmo dia conta uma vez; dia fora da prestação é ignorado (falta) ou é
  * o próprio extra (diária extra).
@@ -365,13 +415,27 @@ export function recalcularValor(a: {
   ocorrencias: readonly OcorrenciaParaCalculo[];
   divisorHoraExtra: number;
   nomeDaFuncao?: string | null;
+  /** Teto de horas extras por dia (28/10, S2) — padrão `CONFIGURACAO_PADRAO.horaExtraMaxDia`. */
+  horaExtraMaxDia?: number;
+  /** Fatores da deflação (system_settings); null = valor fechado por dia (percurso/empreita). Padrão: os do slide. */
+  fatores?: DeflationFactors | null;
 }): CalculoDaPresenca {
   const r = a.realizado;
   const dias = Array.from(new Set(a.dias)).sort();
   const ativas = a.ocorrencias.filter(ocorrenciaAtiva);
   const regra = regraDiariaPorTipo(r.collaboratorType, a.nomeDaFuncao);
   const temDiaria = (d: string) => regra === "todos" || (regra === "fds" && ehFimDeSemana(d));
-  const valorDiaria = Math.max(0, Math.round(r.dailyValue || 0));
+  const maxDia = a.horaExtraMaxDia && a.horaExtraMaxDia > 0 ? a.horaExtraMaxDia : CONFIGURACAO_PADRAO.horaExtraMaxDia;
+
+  // O valor de cada dia (28/10, R3/R5): a mesma regra do Planejado.
+  const alimAntes = r.weekdayLunch + r.weekdayDinner + r.weekendLunch + r.weekendDinner;
+  const subtotal = Math.max(0, r.totalValue - alimAntes - r.mobility - r.transport);
+  const porDia = valoresDosDiasDoSubtotal({
+    subtotalCents: subtotal, diasComDiaria: dias.filter(temDiaria), diasMeiaExtra: r.diasMeiaExtra,
+    fatores: a.fatores === undefined ? DEFLATION_FACTORS_DEFAULT : a.fatores,
+  });
+  const valorDoDia = new Map(porDia.dias.map((d) => [d.dia, d]));
+  const diariaCheia = Math.round(porDia.diaria);
 
   const uteis = dias.filter((d) => !ehFimDeSemana(d)).length;
   const fds = dias.length - uteis;
@@ -382,11 +446,11 @@ export function recalcularValor(a: {
 
   const diasComFalta = Array.from(new Set(ativas.filter((o) => ocorrenciaTiraODia(o.tipo) && o.dia && dias.includes(o.dia)).map((o) => o.dia as string))).sort();
   const diasExtras = Array.from(new Set(ativas.filter((o) => o.tipo === "diaria_extra" && o.dia && !dias.includes(o.dia)).map((o) => o.dia as string))).sort();
-  const horasExtras = Math.round(ativas.filter((o) => o.tipo === "horas_extras").reduce((s, o) => s + Math.max(0, numero(o.horas)), 0) * 100) / 100;
 
   const linhas: string[] = [];
   const comDiaria = Math.max(0, r.dailyQuantity || 0);
-  linhas.push(`Realizado: ${plural(comDiaria, "diária", "diárias")} de ${reaisDaPresenca(valorDiaria)} + alimentação ${reaisDaPresenca(r.weekdayLunch + r.weekdayDinner + r.weekendLunch + r.weekendDinner)} + mobilidade ${reaisDaPresenca(r.mobility)}${r.transport ? ` + translado ${reaisDaPresenca(r.transport)}` : ""} = ${reaisDaPresenca(r.totalValue)}.`);
+  const meiasNoRealizado = porDia.dias.filter((d) => d.meiaCents > 0);
+  linhas.push(`Realizado: ${plural(comDiaria, "diária", "diárias")} (${reaisDaPresenca(subtotal)}${meiasNoRealizado.length ? `, com ${plural(meiasNoRealizado.length, "dia", "dias")} de 1,5` : ""}) + alimentação ${reaisDaPresenca(alimAntes)} + mobilidade ${reaisDaPresenca(r.mobility)}${r.transport ? ` + translado ${reaisDaPresenca(r.transport)}` : ""} = ${reaisDaPresenca(r.totalValue)}.`);
 
   // Arredonda a alimentação de cada campo UMA vez (soma das médias), para o total fechar.
   const delta = { weekdayLunch: 0, weekdayDinner: 0, weekendLunch: 0, weekendDinner: 0 };
@@ -396,20 +460,22 @@ export function recalcularValor(a: {
 
   for (const d of diasComFalta) {
     const m = mediaDoDia(d);
-    const tiraDiaria = temDiaria(d) && diariasRemovidas < comDiaria;
-    if (tiraDiaria) diariasRemovidas++;
+    const doDia = valorDoDia.get(d);
+    const tiraDiaria = !!doDia && doDia.valorCents > 0 && diariasRemovidas < comDiaria;
+    if (tiraDiaria) { diariasRemovidas++; total -= doDia.valorCents; }
     if (m.fds) { delta.weekendLunch -= m.lunch; delta.weekendDinner -= m.dinner; } else { delta.weekdayLunch -= m.lunch; delta.weekdayDinner -= m.dinner; }
     const alim = Math.round(m.lunch + m.dinner);
     const tipo = ativas.some((o) => o.tipo === "substituicao" && o.dia === d) ? "Substituição" : "Falta";
-    linhas.push(`${tipo} em ${diaCurto(d)}: −${tiraDiaria ? ` diária ${reaisDaPresenca(valorDiaria)}` : " sem diária no dia"}${alim ? ` e alimentação ${reaisDaPresenca(alim)}` : ""}.`);
+    const rotuloDaDiaria = tiraDiaria ? ` diária ${reaisDaPresenca(doDia.valorCents)}${doDia.meiaCents > 0 ? " (1,5)" : ""}` : " sem diária no dia";
+    linhas.push(`${tipo} em ${diaCurto(d)}: −${rotuloDaDiaria}${alim ? ` e alimentação ${reaisDaPresenca(alim)}` : ""}.`);
   }
   for (const d of diasExtras) {
     const m = mediaDoDia(d);
-    const poeDiaria = temDiaria(d) && valorDiaria > 0;
-    if (poeDiaria) diariasAcrescentadas++;
+    const poeDiaria = temDiaria(d) && diariaCheia > 0;
+    if (poeDiaria) { diariasAcrescentadas++; total += diariaCheia; }
     if (m.fds) { delta.weekendLunch += m.lunch; delta.weekendDinner += m.dinner; } else { delta.weekdayLunch += m.lunch; delta.weekdayDinner += m.dinner; }
     const alim = Math.round(m.lunch + m.dinner);
-    linhas.push(`Diária extra em ${diaCurto(d)}: +${poeDiaria ? ` diária ${reaisDaPresenca(valorDiaria)}` : " sem diária no dia"}${alim ? ` e alimentação ${reaisDaPresenca(alim)}` : ""}.`);
+    linhas.push(`Diária extra em ${diaCurto(d)}: +${poeDiaria ? ` diária ${reaisDaPresenca(diariaCheia)}` : " sem diária no dia"}${alim ? ` e alimentação ${reaisDaPresenca(alim)}` : ""}.`);
   }
 
   const refeicoes: Refeicoes = {
@@ -418,22 +484,43 @@ export function recalcularValor(a: {
     weekendLunch: Math.max(0, Math.round(r.weekendLunch + delta.weekendLunch)),
     weekendDinner: Math.max(0, Math.round(r.weekendDinner + delta.weekendDinner)),
   };
-  const alimAntes = r.weekdayLunch + r.weekdayDinner + r.weekendLunch + r.weekendDinner;
   const alimDepois = refeicoes.weekdayLunch + refeicoes.weekdayDinner + refeicoes.weekendLunch + refeicoes.weekendDinner;
-  total += (diariasAcrescentadas - diariasRemovidas) * valorDiaria + (alimDepois - alimAntes);
+  total += alimDepois - alimAntes;
 
+  // Horas extras (28/10, S2/R8): por dia, com teto, sobre a diária DAQUELE dia.
   const divisor = a.divisorHoraExtra > 0 ? a.divisorHoraExtra : CONFIGURACAO_PADRAO.horaExtraDivisor;
-  const valorDaHora = Math.round(valorDiaria / divisor);
-  const valorHorasExtras = Math.round((horasExtras * valorDiaria) / divisor);
-  if (horasExtras > 0) {
-    linhas.push(`Horas extras: ${horasExtras.toLocaleString("pt-BR")} h × ${reaisDaPresenca(valorDaHora)} (diária ÷ ${divisor.toLocaleString("pt-BR")}) = ${reaisDaPresenca(valorHorasExtras)}.`);
+  const lancadas = ativas.filter((o) => o.tipo === "horas_extras");
+  const semDia = lancadas.filter((o) => !o.dia).reduce((s, o) => s + Math.max(0, numero(o.horas)), 0);
+  if (semDia > 0) linhas.push(`Horas extras sem dia (${semDia.toLocaleString("pt-BR")} h) não contam — lance de novo com o dia.`);
+  const horasPorDia = new Map<string, number>();
+  for (const o of lancadas) if (o.dia) horasPorDia.set(o.dia, (horasPorDia.get(o.dia) ?? 0) + Math.max(0, numero(o.horas)));
+  let horasExtras = 0;
+  let valorHorasExtras = 0;
+  for (const [d, horasLancadas] of Array.from(horasPorDia.entries()).sort(([x], [y]) => x.localeCompare(y))) {
+    const horas = Math.round(Math.min(horasLancadas, maxDia) * 100) / 100;
+    const corte = horasLancadas > maxDia ? ` (lançadas ${horasLancadas.toLocaleString("pt-BR")} h; o teto é ${maxDia.toLocaleString("pt-BR")} h por dia)` : "";
+    if (diasComFalta.includes(d) || (!dias.includes(d) && !diasExtras.includes(d))) {
+      linhas.push(`Horas extras em ${diaCurto(d)}: não contam (o dia não é pago).`);
+      continue;
+    }
+    const diariaDoDia = diasExtras.includes(d) ? (temDiaria(d) ? diariaCheia : 0) : valorDoDia.get(d)?.baseCents ?? 0;
+    if (diariaDoDia <= 0) {
+      linhas.push(`Horas extras em ${diaCurto(d)}: ${horas.toLocaleString("pt-BR")} h sem diária no dia — casa: a hora extra vai pela folha.`);
+      continue;
+    }
+    const valor = Math.round((horas * diariaDoDia) / divisor);
+    horasExtras += horas;
+    valorHorasExtras += valor;
+    linhas.push(`Horas extras em ${diaCurto(d)}: ${horas.toLocaleString("pt-BR")} h × ${reaisDaPresenca(Math.round(diariaDoDia / divisor))} (diária do dia ÷ ${divisor.toLocaleString("pt-BR")}) = ${reaisDaPresenca(valor)}${corte}.`);
   }
+  horasExtras = Math.round(horasExtras * 100) / 100;
+  const valorDaHora = Math.round(diariaCheia / divisor);
   total += valorHorasExtras;
   const valorCalculado = Math.max(0, Math.round(total));
 
   const semFalta = dias.filter((d) => !diasComFalta.includes(d));
   const diasPagos = [...semFalta, ...diasExtras].sort();
-  if (diasComFalta.length === 0 && diasExtras.length === 0 && horasExtras === 0) linhas.push("Sem ocorrências: o valor é o do Realizado.");
+  if (diasComFalta.length === 0 && diasExtras.length === 0 && lancadas.length === 0) linhas.push("Sem ocorrências: o valor é o do Realizado.");
   linhas.push(`Valor calculado: ${reaisDaPresenca(valorCalculado)}.`);
 
   return {
@@ -449,6 +536,7 @@ export function recalcularValor(a: {
     horasExtras,
     valorDaHora,
     valorHorasExtras,
+    diasMeiaExtra: meiasNoRealizado.map((d) => d.dia).filter((d) => !diasComFalta.includes(d)),
     linhas,
   };
 }
@@ -460,22 +548,89 @@ export function recalcularValor(a: {
  * dailyValue = subtotal ÷ diárias. As horas extras e o ajuste do produtor
  * entram no subtotal das diárias (o Realizado não tem outra coluna que some
  * no total); o valor das horas fica registrado à parte em `valor_horas_extras`.
+ * 28/10 (R3): os dias de 1,5 são só os que continuam pagos.
  */
 export function camposDoRealizadoNoCheckoutFinal(
   realizado: RealizadoParaCalculo,
   calculo: CalculoDaPresenca,
   valorFinal: number,
-): { workedDays: string[]; dailyQuantity: number; dailyValue: number; totalValue: number } & Refeicoes {
+): { workedDays: string[]; diasMeiaExtra: string[]; dailyQuantity: number; dailyValue: number; totalValue: number } & Refeicoes {
   const ref = calculo.refeicoes;
   const subtotal = valorFinal - ref.weekdayLunch - ref.weekdayDinner - ref.weekendLunch - ref.weekendDinner - realizado.mobility - realizado.transport;
   const qtd = calculo.dailyQuantity;
   return {
     workedDays: calculo.diasPagos,
+    diasMeiaExtra: calculo.diasMeiaExtra.filter((d) => calculo.diasPagos.includes(d)),
     dailyQuantity: qtd,
-    dailyValue: qtd > 0 && subtotal > 0 ? Math.round(subtotal / qtd) : realizado.dailyValue,
+    dailyValue: qtd > 0 && subtotal > 0 ? Math.round(subtotal / qtd) : qtd > 0 ? realizado.dailyValue : 0,
     totalValue: valorFinal,
     ...ref,
   };
+}
+
+// ── Quem lança o quê (28/10, revisão S2) ─────────────────────────────────────
+
+/** A diária extra vale do início da vaga − 2 dias ao fim + 2 (carga/descarga). */
+export const FOLGA_DA_DIARIA_EXTRA_DIAS = 2;
+
+/** Ocorrências que mexem em dinheiro: só quem faz o check-out final (produção/DP/admin) lança. */
+export const OCORRENCIAS_FINANCEIRAS: readonly TipoDeOcorrencia[] = ["diaria_extra", "horas_extras"];
+
+const somarDias = (dia: string, n: number) => {
+  const [a, m, d] = dia.split("-").map(Number);
+  return new Date(Date.UTC(a, m - 1, d + n)).toISOString().slice(0, 10);
+};
+
+/**
+ * Confere a ocorrência ANTES de gravar (28/10, S2 — o limite de 10% do
+ * produtor era contornável por elas). Devolve o erro (status + mensagem) ou
+ * null. `ocorrencias`: as ATIVAS da prestação; `periodoDaVaga`: início/fim da
+ * escala (ou dos dias da prestação); `financeiras`: quem lança diária extra e
+ * horas extras (produção/DP/admin — a Área de Função só falta/substituição).
+ */
+export function erroDaOcorrencia(a: {
+  tipo: TipoDeOcorrencia;
+  dia: string | null;
+  horas?: number | null;
+  dias: readonly string[];
+  diasExtras: readonly string[];
+  ocorrencias: readonly { tipo: string; dia?: string | null; horas?: number | string | null }[];
+  periodoDaVaga: { inicio: string | null; fim: string | null };
+  horaExtraMaxDia: number;
+  financeiras: boolean;
+}): { status: 400 | 403 | 409; mensagem: string } | null {
+  const doDia = (o: { dia?: string | null }) => !!o.dia && String(o.dia).slice(0, 10) === a.dia;
+  if ((OCORRENCIAS_FINANCEIRAS as readonly string[]).includes(a.tipo) && !a.financeiras) {
+    return { status: 403, mensagem: "A Área de Função lança só falta e substituição — diária extra e horas extras ficam com a produção ou o DP." };
+  }
+  if (a.tipo === "falta" || a.tipo === "substituicao") {
+    if (!a.dia || !a.dias.includes(a.dia)) return { status: 400, mensagem: "Escolha um dia de diária desta prestação." };
+    if (a.ocorrencias.some((o) => doDia(o) && ocorrenciaTiraODia(o.tipo))) return { status: 409, mensagem: `Já há falta ou substituição em ${diaCurto(a.dia)}.` };
+    return null;
+  }
+  if (a.tipo === "diaria_extra") {
+    if (!a.dia) return { status: 400, mensagem: "Informe o dia da diária extra." };
+    if (a.dias.includes(a.dia)) return { status: 400, mensagem: "Este dia já é de diária — a diária extra é um dia a mais." };
+    const inicio = a.periodoDaVaga.inicio ?? a.dias[0] ?? null;
+    const fim = a.periodoDaVaga.fim ?? a.dias[a.dias.length - 1] ?? null;
+    if (!inicio || !fim || a.dia < somarDias(inicio, -FOLGA_DA_DIARIA_EXTRA_DIAS) || a.dia > somarDias(fim, FOLGA_DA_DIARIA_EXTRA_DIAS)) {
+      return { status: 400, mensagem: `A diária extra tem que ser até ${FOLGA_DA_DIARIA_EXTRA_DIAS} dias antes ou depois do período da vaga${inicio && fim ? ` (${diaCurto(somarDias(inicio, -FOLGA_DA_DIARIA_EXTRA_DIAS))} a ${diaCurto(somarDias(fim, FOLGA_DA_DIARIA_EXTRA_DIAS))})` : ""}.` };
+    }
+    if (a.ocorrencias.some((o) => doDia(o) && o.tipo === "diaria_extra")) return { status: 409, mensagem: `Já há diária extra em ${diaCurto(a.dia)}.` };
+    return null;
+  }
+  // horas extras
+  const horas = Number(a.horas ?? 0);
+  if (!a.dia) return { status: 400, mensagem: "Escolha o dia das horas extras." };
+  if (!a.dias.includes(a.dia) && !a.diasExtras.includes(a.dia)) return { status: 400, mensagem: "Escolha um dia da prestação (ou de uma diária extra)." };
+  if (a.ocorrencias.some((o) => doDia(o) && ocorrenciaTiraODia(o.tipo))) return { status: 409, mensagem: `${diaCurto(a.dia)} tem falta ou substituição — não há hora extra.` };
+  if (!Number.isFinite(horas) || horas <= 0) return { status: 400, mensagem: "Informe as horas extras." };
+  const jaLancadas = a.ocorrencias.filter((o) => doDia(o) && o.tipo === "horas_extras").reduce((s, o) => s + Math.max(0, numero(o.horas)), 0);
+  if (jaLancadas + horas > a.horaExtraMaxDia) {
+    const resta = Math.max(0, a.horaExtraMaxDia - jaLancadas);
+    return { status: 400, mensagem: `Passa de ${a.horaExtraMaxDia.toLocaleString("pt-BR")} h de hora extra em ${diaCurto(a.dia)}${jaLancadas > 0 ? ` (já há ${jaLancadas.toLocaleString("pt-BR")} h; cabem ${resta.toLocaleString("pt-BR")} h)` : ""}.` };
+  }
+  return null;
 }
 
 // ── Limite do ajuste do produtor ────────────────────────────────────────────
@@ -545,6 +700,8 @@ export const CHAVES_DA_PRESENCA = {
   selfieObrigatoria: "presenca_selfie_obrigatoria",
   localizacao: "presenca_localizacao",
   horaExtraDivisor: "hora_extra_divisor",
+  // 28/10 (revisão S2): teto de horas extras por dia, junto dos outros padrões.
+  horaExtraMaxDia: "presenca_hora_extra_max_dia",
   produtorAjusteMaxPct: "produtor_ajuste_max_pct",
   termoTexto: "presenca_termo_texto",
   termoVersao: "presenca_termo_versao",
@@ -561,6 +718,8 @@ export interface ConfiguracaoDaPresenca {
   selfieObrigatoria: boolean;
   localizacao: ModoDeLocalizacao;
   horaExtraDivisor: number;
+  /** Teto de horas extras por dia (28/10, S2). */
+  horaExtraMaxDia: number;
   produtorAjusteMaxPct: number;
   termoTexto: string;
   termoVersao: string;
@@ -583,6 +742,7 @@ export const CONFIGURACAO_PADRAO: ConfiguracaoDaPresenca = {
   selfieObrigatoria: true,
   localizacao: "registrar",
   horaExtraDivisor: 8,
+  horaExtraMaxDia: 12,
   produtorAjusteMaxPct: 10,
   termoTexto: TERMO_PADRAO,
   termoVersao: "2026-10-27-rascunho",
@@ -591,6 +751,7 @@ export const CONFIGURACAO_PADRAO: ConfiguracaoDaPresenca = {
 
 export const LIMITES_DA_CONFIGURACAO = {
   horaExtraDivisor: { min: 1, max: 24 },
+  horaExtraMaxDia: { min: 1, max: 24 },
   produtorAjusteMaxPct: { min: 0, max: 100 },
   retencaoDias: { min: 30, max: 3650 },
   termoTexto: { min: 20, max: 20_000 },
@@ -615,6 +776,7 @@ export function lerConfiguracaoDaPresenca(settings: readonly { key: string; valu
     selfieObrigatoria: selfie === "true" ? true : selfie === "false" ? false : CONFIGURACAO_PADRAO.selfieObrigatoria,
     localizacao: (MODOS_DE_LOCALIZACAO as readonly string[]).includes(loc ?? "") ? (loc as ModoDeLocalizacao) : CONFIGURACAO_PADRAO.localizacao,
     horaExtraDivisor: numeroEntre(v("horaExtraDivisor"), L.horaExtraDivisor.min, L.horaExtraDivisor.max) ?? CONFIGURACAO_PADRAO.horaExtraDivisor,
+    horaExtraMaxDia: numeroEntre(v("horaExtraMaxDia"), L.horaExtraMaxDia.min, L.horaExtraMaxDia.max) ?? CONFIGURACAO_PADRAO.horaExtraMaxDia,
     produtorAjusteMaxPct: numeroEntre(v("produtorAjusteMaxPct"), L.produtorAjusteMaxPct.min, L.produtorAjusteMaxPct.max) ?? CONFIGURACAO_PADRAO.produtorAjusteMaxPct,
     termoTexto: texto && texto.length >= L.termoTexto.min ? texto : CONFIGURACAO_PADRAO.termoTexto,
     termoVersao: versao ? versao : CONFIGURACAO_PADRAO.termoVersao,
@@ -634,7 +796,7 @@ export function validarConfiguracaoDaPresenca(
   const L = LIMITES_DA_CONFIGURACAO;
   const nova: ConfiguracaoDaPresenca = { ...atual };
   const gravar: Record<string, string> = {};
-  const inteiroOuNumero = (campo: "horaExtraDivisor" | "produtorAjusteMaxPct" | "retencaoDias", inteiro: boolean, rotulo: string): string | null => {
+  const inteiroOuNumero = (campo: "horaExtraDivisor" | "horaExtraMaxDia" | "produtorAjusteMaxPct" | "retencaoDias", inteiro: boolean, rotulo: string): string | null => {
     const bruto = corpo[campo];
     if (bruto === undefined) return null;
     const n = typeof bruto === "number" ? bruto : Number(String(bruto).replace(",", "."));
@@ -655,6 +817,7 @@ export function validarConfiguracaoDaPresenca(
     gravar[CHAVES_DA_PRESENCA.localizacao] = nova.localizacao;
   }
   const erroNumero = inteiroOuNumero("horaExtraDivisor", false, "Divisor da hora extra")
+    ?? inteiroOuNumero("horaExtraMaxDia", false, "Horas extras por dia (máximo)")
     ?? inteiroOuNumero("produtorAjusteMaxPct", false, "Ajuste máximo do produtor (%)")
     ?? inteiroOuNumero("retencaoDias", true, "Guarda das selfies (dias)");
   if (erroNumero) return { erro: erroNumero };

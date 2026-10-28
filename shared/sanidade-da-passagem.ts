@@ -51,7 +51,12 @@ function minutosDoDia(v: unknown): number | null {
 
 /** Van e transporte terrestre usam esses campos para outra coisa. */
 const ehTerrestre = (c: Campos) => c.transportType === "van";
-const ehAereo = (c: Campos) => !texto(c.transportType) || c.transportType === "aereo";
+// Por trecho (28/10): a volta de ônibus numa passagem aérea não é voo — o
+// ônibus noturno (23:45 → 06:25) chega "antes" da partida e é normal.
+const ehAereoNo = (c: Campos, trecho: PernaDaPassagem) => {
+  const tipo = trecho === "volta" && texto(c.returnTransportType) ? c.returnTransportType : c.transportType;
+  return !texto(tipo) || tipo === "aereo";
+};
 
 /** Perna com a mesma origem e destino (THE→THE). É a regra do levantamento. */
 export function pernasComOrigemIgualAoDestino(c: Campos | null | undefined): ProblemaNaPerna[] {
@@ -69,9 +74,10 @@ export function pernasComOrigemIgualAoDestino(c: Campos | null | undefined): Pro
 
 /** Chegada antes da partida sem virada de meia-noite plausível (só aéreo). */
 export function pernasComHorarioImpossivel(c: Campos | null | undefined): ProblemaNaPerna[] {
-  if (!c || !ehAereo(c)) return [];
+  if (!c) return [];
   const out: ProblemaNaPerna[] = [];
   for (const trecho of ["ida", "volta"] as const) {
+    if (!ehAereoNo(c, trecho)) continue;
     const p = PERNAS[trecho];
     const partida = minutosDoDia(c[p.partida]);
     const chegada = minutosDoDia(c[p.chegada]);

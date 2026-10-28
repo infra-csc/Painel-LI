@@ -17,7 +17,6 @@
 import {
   calcDeflatedDailies,
   deflationFactorsFromSettings,
-  fatorDeDeflacaoDoDia,
   freelaDailyCents,
   casaDailyCents,
   diasComDiaria as calcDiasComDiaria,
@@ -43,8 +42,9 @@ import { calcAlimentacao, dataDeChegadaDaIda, refeicaoCents, refeicaoCentsDia, r
 import { cenoEmpreitaTotalCents, isCenoFreelaTipo, usaEmpreitaCenotecnica, vagaComEmpreita, type CenoFreelaTipo, type CenoEmpreitaValor } from "./cenotecnica-empreita";
 import { listarDiasDeTrabalho } from "./dias-de-trabalho";
 import { valorDoHonorarioNaVaga, type HonorarioNaVaga } from "./honorarios-ceno";
-import { diasDeTrabalhoDaVaga, meiasDiariasDoPlanejado, normalizarDiasMeiaExtra, type MeiaDiariaDoDia } from "./meia-diaria";
+import { diariaDoDiaNaPosicao, diasDeTrabalhoDaVaga, meiasDiariasDoPlanejado, normalizarDiasMeiaExtra, type MeiaDiariaDoDia } from "./meia-diaria";
 import { mobilidadeCoerente } from "./comparativo";
+import { tipoDaIda, tipoDaVolta, trechoTerrestre } from "./tipo-por-trecho";
 
 /**
  * Empreita da TABELA sem mobilidade (28/10 — pedido do DP, caso Lucas: NR São
@@ -90,6 +90,8 @@ export interface PassagemParaPlanejado {
   actualReturnTime?: string | null;
   returnArrivalTime?: string | null;
   transportType?: string | null;
+  /** Tipo da volta quando diferente da ida (28/10, shared/tipo-por-trecho.ts). */
+  returnTransportType?: string | null;
 }
 
 /** Valores por função (function_values) — só os quatro que a diária consulta. */
@@ -371,7 +373,8 @@ export function calcularPlanejadoDaVaga(e: EntradaDoPlanejado): ResultadoDoPlane
     : valorFlatPorDia ? diasDeTrabalhoDaVaga(inclusion)
     : diasPeriodo.filter((d) => regraDiaria === "todos" || ehFds(d));
   const fatores = deflationFactorsFromSettings(ss as Record<string, number | string | undefined> | undefined);
-  const diariaDoDia = (p: number) => valorFlatPorDia ? valorDiaria : Math.round(valorDiaria * fatorDeDeflacaoDoDia(p + 1, fatores));
+  // A regra do dia é a mesma do Realizado e da presença (shared/meia-diaria, 28/10).
+  const diariaDoDia = (p: number) => diariaDoDiaNaPosicao(valorDiaria, p, valorFlatPorDia ? null : fatores);
   // O ½ que CADA dia de trabalho ganharia se marcado — a tela de ajuste mostra
   // o efeito antes de salvar (valor fechado: zero em todos).
   const meiaDiariaPossivel = !!maoDeObra || empreita
@@ -401,14 +404,16 @@ export function calcularPlanejadoDaVaga(e: EntradaDoPlanejado): ResultadoDoPlane
     : (vooPartidaIda || vooChegadaIda || vooPartidaVolta) ? "sugerido" : "nenhum";
 
   // Mobilidade por trecho (evento em SP = 0; terrestre = R$29; madrugada = R$58)
-  const terrestre =
-    ticket?.transportType === "rodoviario" || ticket?.transportType === "van" ||
-    (!ticket && (isTransporteTerrestre(vooPartidaIda) || isTransporteTerrestre(vooChegadaIda) || isTransporteTerrestre(vooPartidaVolta)));
+  // POR TRECHO (28/10, vaga #4618): ida aérea + volta de ônibus — a volta
+  // (mobilidade e jantar do retorno) usa o tipo da volta.
+  const terrestreSemPassagem = !ticket && (isTransporteTerrestre(vooPartidaIda) || isTransporteTerrestre(vooChegadaIda) || isTransporteTerrestre(vooPartidaVolta));
+  const terrestreIda = trechoTerrestre(tipoDaIda(ticket)) || terrestreSemPassagem;
+  const terrestre = trechoTerrestre(tipoDaVolta(ticket)) || terrestreSemPassagem;
   const semMobilidade = isPercurso || funcaoLocal || empreita;
   // Empreita da tabela (28/10): só a MOBILIDADE zera — a alimentação segue a
   // regra de sempre (o freela já não recebe; casa não usa a tabela).
   const empreitaSemMobilidade = !semMobilidade && usaEmpreitaCenotecnica(isCenotecnicaFunction(fnName), collabType) && isCenoFreelaTipo(cenoFreelaTipo);
-  const sysMobIda = semMobilidade || empreitaSemMobilidade ? 0 : mobilidadeTrechoComLocalCents(e.eventLocation, { voa, partida: vooPartidaIda, chegada: vooChegadaIda, trecho: "ida", terrestre });
+  const sysMobIda = semMobilidade || empreitaSemMobilidade ? 0 : mobilidadeTrechoComLocalCents(e.eventLocation, { voa, partida: vooPartidaIda, chegada: vooChegadaIda, trecho: "ida", terrestre: terrestreIda });
   const sysMobVolta = semMobilidade || empreitaSemMobilidade ? 0 : mobilidadeTrechoComLocalCents(e.eventLocation, { voa, partida: vooPartidaVolta, chegada: vooChegadaVolta, trecho: "volta", terrestre });
   const sysMob = sysMobIda + sysMobVolta;
   // Ajuste manual coerente (28/10 — caso Lucas): total = ida + volta, sempre;
@@ -520,7 +525,10 @@ export interface LinhaDoPlanejado {
  */
 export function linhaDoPlanejado(r: ResultadoDoPlanejado): LinhaDoPlanejado {
   const totalDias = r.diasComDiaria;
-  const dailyValue = totalDias > 0 ? Math.round(r.subtotalDiarias / totalDias) : r.valorDiaria;
+  // 28/10 (revisão R8): sem dia de diária (casa só em dias úteis) a diária
+  // gravada é 0 — a nominal virava base de hora extra na presença e o
+  // Realizado a espalhava como diária ao reabrir.
+  const dailyValue = totalDias > 0 ? Math.round(r.subtotalDiarias / totalDias) : 0;
   return {
     dailyQuantity: totalDias,
     dailyValue,
@@ -534,6 +542,8 @@ export function linhaDoPlanejado(r: ResultadoDoPlanejado): LinhaDoPlanejado {
     mobilityVolta: r.mobilidadeVolta,
     transport: 0,
     totalValue: r.totalFinal,
-    diasMeiaExtra: r.diasMeiaExtra,
+    // 28/10 (revisão R4): só os dias cujo ½ entrou no valor — ½ "sem efeito"
+    // (valor fechado, casa em dia útil) não vai para o Realizado como 1,5.
+    diasMeiaExtra: r.meiasDiarias.filter((m) => m.valorCents > 0).map((m) => m.dia),
   };
 }

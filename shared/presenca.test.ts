@@ -4,6 +4,7 @@ import {
   diasDaPrestacao, diasPendentes, erroDaSenha, estadoDoDia, faixaDoAjuste, horaEmBrasilia, inclusaoDaPrestacao, instanteEmBrasilia,
   lerConfiguracaoDaPresenca, periodoDaPrestacao, podeConfirmarPrestacao, podeRegistrarEntrada, podeRegistrarSaida, recalcularValor,
   situacaoDoCnpjInformado, validarConfiguracaoDaPresenca, type RealizadoParaCalculo,
+  baseDoCheckoutFinal, erroDaOcorrencia, realizadoParaCalculo,
 } from "./presenca";
 import { completarCnpj } from "./cnpj";
 
@@ -135,12 +136,13 @@ describe("recálculo do valor", () => {
     expect(c.diasPagos).toEqual([...dias, "2026-11-10"]);
     expect(c.dailyQuantity).toBe(5);
   });
-  it("horas extras = horas × (diária ÷ divisor)", () => {
-    const c = calc([{ tipo: "horas_extras", horas: "3" }, { tipo: "horas_extras", horas: 1.5, dia: "2026-11-06" }]);
+  it("horas extras = horas × (diária do dia ÷ divisor); sem dia não contam (28/10, revisão S2)", () => {
+    const c = calc([{ tipo: "horas_extras", horas: "3", dia: "2026-11-07" }, { tipo: "horas_extras", horas: 1.5, dia: "2026-11-06" }, { tipo: "horas_extras", horas: 2 }]);
     expect(c.horasExtras).toBe(4.5);
     expect(c.valorDaHora).toBe(2_500);
     expect(c.valorHorasExtras).toBe(11_250);
     expect(c.valorCalculado).toBe(realizado.totalValue + 11_250);
+    expect(c.linhas.some((l) => l.includes("sem dia"))).toBe(true);
   });
   it("falta repetida no mesmo dia conta uma vez; removida e fora da prestação não contam", () => {
     const c = calc([
@@ -158,7 +160,7 @@ describe("recálculo do valor", () => {
     expect(calc([{ tipo: "falta", dia: "2026-11-07" }], casa).diariasRemovidas).toBe(1);
   });
   it("os campos do Realizado fecham no valor final (subtotal ÷ diárias, como o salvar do modal)", () => {
-    const c = calc([{ tipo: "falta", dia: "2026-11-09" }, { tipo: "horas_extras", horas: 2 }]);
+    const c = calc([{ tipo: "falta", dia: "2026-11-09" }, { tipo: "horas_extras", horas: 2, dia: "2026-11-06" }]);
     const final = c.valorCalculado + 1_000;
     const campos = camposDoRealizadoNoCheckoutFinal(realizado, c, final);
     expect(campos.totalValue).toBe(final);
@@ -231,5 +233,80 @@ describe("acesso do colaborador", () => {
     expect(cpfDoCadastro({ officialDocument: "MG-12.345.678", documentType: "rg", secondaryDocument: "12345678909", secondaryDocumentType: "CPF" })).toBe("12345678909");
     expect(cpfDoCadastro({ officialDocument: "MG-12", documentType: "rg" })).toBeNull();
     expect(cpfMascarado("12345678909")).toBe("•••.456.789-••");
+  });
+});
+
+describe("revisão 28/10 — recálculo por DIA (R2, R3, R8, S2)", () => {
+  // Freela, seg 02/11 a qui 05/11/2026, diária R$ 100, 1,5 no 3º dia (subtotal R$ 450), sem alimentação.
+  const dias = ["2026-11-02", "2026-11-03", "2026-11-04", "2026-11-05"];
+  const comMeia: RealizadoParaCalculo = {
+    dailyQuantity: 4, dailyValue: 11_250, totalValue: 45_000, weekdayLunch: 0, weekdayDinner: 0, weekendLunch: 0, weekendDinner: 0,
+    mobility: 0, transport: 0, collaboratorType: "freela", diasMeiaExtra: ["2026-11-04"],
+  };
+  const calc = (ocorrencias: Parameters<typeof recalcularValor>[0]["ocorrencias"], r: RealizadoParaCalculo = comMeia, o: { horaExtraMaxDia?: number } = {}) =>
+    recalcularValor({ realizado: r, dias, ocorrencias, divisorHoraExtra: 8, nomeDaFuncao: "Montagem", ...o });
+
+  it("R3: falta no dia de 1,5 tira o valor DELE (R$ 150): fica R$ 300", () => {
+    expect(calc([{ tipo: "falta", dia: "2026-11-04" }]).valorCalculado).toBe(30_000);
+  });
+  it("R3: falta num dia normal tira R$ 100 (não a média de R$ 112,50): fica R$ 350", () => {
+    expect(calc([{ tipo: "falta", dia: "2026-11-02" }]).valorCalculado).toBe(35_000);
+  });
+  it("R3: o check-out final tira o dia que saiu da lista de 1,5", () => {
+    const fora = calc([{ tipo: "falta", dia: "2026-11-04" }]);
+    expect(camposDoRealizadoNoCheckoutFinal(comMeia, fora, fora.valorCalculado).diasMeiaExtra).toEqual([]);
+    const fica = calc([{ tipo: "falta", dia: "2026-11-02" }]);
+    expect(camposDoRealizadoNoCheckoutFinal(comMeia, fica, fica.valorCalculado).diasMeiaExtra).toEqual(["2026-11-04"]);
+  });
+  it("R8: casa em dia útil não tem diária — a hora extra vai pela folha (0, com o aviso)", () => {
+    const casa: RealizadoParaCalculo = { ...comMeia, collaboratorType: "casa", dailyQuantity: 0, dailyValue: 0, totalValue: 0, diasMeiaExtra: [] };
+    const c = calc([{ tipo: "horas_extras", horas: 4, dia: "2026-11-03" }], casa);
+    expect(c.valorHorasExtras).toBe(0);
+    expect(c.valorCalculado).toBe(0);
+    expect(c.linhas.some((l) => l.includes("folha"))).toBe(true);
+  });
+  it("S2: horas extras com teto por dia (12 h padrão, configurável)", () => {
+    const semMeia = { ...comMeia, totalValue: 40_000, dailyValue: 10_000, diasMeiaExtra: [] };
+    const c = calc([{ tipo: "horas_extras", horas: 8, dia: "2026-11-02" }, { tipo: "horas_extras", horas: 7, dia: "2026-11-02" }], semMeia);
+    expect(c.horasExtras).toBe(12);
+    expect(c.valorHorasExtras).toBe(15_000);
+    expect(calc([{ tipo: "horas_extras", horas: 8, dia: "2026-11-02" }], semMeia, { horaExtraMaxDia: 4 }).horasExtras).toBe(4);
+    expect(CONFIGURACAO_PADRAO.horaExtraMaxDia).toBe(12);
+  });
+  it("R2: o 2º check-out final (depois da devolução) recalcula da BASE — as horas extras não contam duas vezes", () => {
+    const base: RealizadoParaCalculo = { ...comMeia, totalValue: 40_000, dailyValue: 10_000, diasMeiaExtra: [] };
+    const ocorrencias = [{ tipo: "horas_extras", horas: 8, dia: "2026-11-02" }];
+    const primeiro = calc(ocorrencias, base);
+    expect(primeiro.valorCalculado).toBe(50_000);
+    const gravado = { ...base, ...camposDoRealizadoNoCheckoutFinal(base, primeiro, primeiro.valorCalculado), baseCheckoutFinal: baseDoCheckoutFinal({ ...base, workedDays: dias }) };
+    // Antes: recalculava do total já ajustado (R$ 500) → R$ 625.
+    const segundo = recalcularValor({ realizado: realizadoParaCalculo(gravado), dias, ocorrencias, divisorHoraExtra: 8, nomeDaFuncao: "Montagem" });
+    expect(segundo.valorCalculado).toBe(50_000);
+  });
+});
+
+describe("revisão 28/10 — quem lança o quê e quando (S2)", () => {
+  const base = {
+    dias: ["2026-11-02", "2026-11-03", "2026-11-04"], diasExtras: [] as string[], ocorrencias: [] as { tipo: string; dia: string | null; horas?: number | string | null }[],
+    periodoDaVaga: { inicio: "2026-11-02", fim: "2026-11-04" }, horaExtraMaxDia: 12, financeiras: true,
+  };
+  it("Área de Função só lança falta e substituição", () => {
+    expect(erroDaOcorrencia({ ...base, financeiras: false, tipo: "horas_extras", dia: "2026-11-02", horas: 2 })).toMatchObject({ status: 403 });
+    expect(erroDaOcorrencia({ ...base, financeiras: false, tipo: "diaria_extra", dia: "2026-11-05" })).toMatchObject({ status: 403 });
+    expect(erroDaOcorrencia({ ...base, financeiras: false, tipo: "falta", dia: "2026-11-02" })).toBeNull();
+  });
+  it("horas extras: dia obrigatório, dia da prestação e até o teto do dia (somando o que já foi lançado)", () => {
+    expect(erroDaOcorrencia({ ...base, tipo: "horas_extras", dia: null, horas: 2 })).toMatchObject({ status: 400 });
+    expect(erroDaOcorrencia({ ...base, tipo: "horas_extras", dia: "2026-11-09", horas: 2 })).toMatchObject({ status: 400 });
+    expect(erroDaOcorrencia({ ...base, tipo: "horas_extras", dia: "2026-11-02", horas: 13 })).toMatchObject({ status: 400 });
+    expect(erroDaOcorrencia({ ...base, ocorrencias: [{ tipo: "horas_extras", dia: "2026-11-02", horas: 10 }], tipo: "horas_extras", dia: "2026-11-02", horas: 3 })).toMatchObject({ status: 400 });
+    expect(erroDaOcorrencia({ ...base, tipo: "horas_extras", dia: "2026-11-02", horas: 12 })).toBeNull();
+  });
+  it("diária extra: só no período da vaga ± 2 dias e uma por data", () => {
+    expect(erroDaOcorrencia({ ...base, tipo: "diaria_extra", dia: "2026-11-06" })).toBeNull();
+    expect(erroDaOcorrencia({ ...base, tipo: "diaria_extra", dia: "2026-10-31" })).toBeNull();
+    expect(erroDaOcorrencia({ ...base, tipo: "diaria_extra", dia: "2026-11-07" })).toMatchObject({ status: 400 });
+    expect(erroDaOcorrencia({ ...base, tipo: "diaria_extra", dia: "2027-01-10" })).toMatchObject({ status: 400 });
+    expect(erroDaOcorrencia({ ...base, ocorrencias: [{ tipo: "diaria_extra", dia: "2026-11-06" }], tipo: "diaria_extra", dia: "2026-11-06" })).toMatchObject({ status: 409 });
   });
 });

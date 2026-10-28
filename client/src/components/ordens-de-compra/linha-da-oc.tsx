@@ -110,6 +110,12 @@ export const LinhaDaOc = memo(function LinhaDaOc({ l, selecionada, destacada, ac
           {l.funcao.centroDeCusto && <> · CC {l.funcao.centroDeCusto}</>}
           {l.colaborador?.numero ? <span className="tabular-nums"> · nº {l.colaborador.numero}</span> : null}
         </p>
+        {/* 28/10 (R7): a divisão da vaga — o substituto tem OC, NF e pagamento próprios. */}
+        {l.divisao && (
+          <p className="m-0 text-2xs leading-4 text-muted-foreground break-words" data-testid={`oc-divisao-${l.actualId}`}>
+            Substituto{l.divisao.titularNome ? <> · vaga de {toTitleCase(l.divisao.titularNome)}</> : " · divisão da vaga"}
+          </p>
+        )}
         <div className="mt-1 flex flex-wrap items-center gap-1">
           <Tooltip>
             <TooltipTrigger asChild><span tabIndex={0} className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><PilulaDoEstado linha={l} /></span></TooltipTrigger>
