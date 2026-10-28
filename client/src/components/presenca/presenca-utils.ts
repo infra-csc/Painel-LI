@@ -79,7 +79,9 @@ export function contarSelfies(p: Pick<PrestacaoDaPresenca, "dias">): number {
 
 // ── Situação da pessoa (fila e selo) ────────────────────────────────────────
 
-export type FiltroDaPresenca = "pendente_dia" | "sem_saida" | "nao_confirmou" | "confirmou" | "pronto" | "enviado";
+// 28/10 (Fase 3): "checkout_atrasado" — o prazo do check-out final (ou da
+// correção depois da devolução) venceu (shared/prazos-honorarios).
+export type FiltroDaPresenca = "pendente_dia" | "sem_saida" | "nao_confirmou" | "confirmou" | "pronto" | "enviado" | "checkout_atrasado";
 
 export const ROTULO_DO_FILTRO: Record<FiltroDaPresenca, string> = {
   pendente_dia: "Pendente de dia",
@@ -88,6 +90,7 @@ export const ROTULO_DO_FILTRO: Record<FiltroDaPresenca, string> = {
   confirmou: "Confirmou",
   pronto: "Pronto para fechar",
   enviado: "Enviado ao DP",
+  checkout_atrasado: "Check-out final atrasado",
 };
 
 /** Já foi para o DP (em análise ou aprovado) — o check-out final não abre. */
@@ -119,13 +122,14 @@ export function atendeAoFiltro(p: PrestacaoDaPresenca, f: FiltroDaPresenca): boo
     case "confirmou": return !!p.confirmacao;
     case "pronto": return prontoParaFechar(p);
     case "enviado": return foiParaODp(p);
+    case "checkout_atrasado": return !foiParaODp(p) && p.prazos?.checkoutFinal?.situacao === "atrasado";
   }
 }
 
-export const FILTROS: readonly FiltroDaPresenca[] = ["pendente_dia", "sem_saida", "nao_confirmou", "confirmou", "pronto", "enviado"];
+export const FILTROS: readonly FiltroDaPresenca[] = ["pendente_dia", "sem_saida", "nao_confirmou", "confirmou", "pronto", "enviado", "checkout_atrasado"];
 
 export function contarPorFiltro(prestacoes: readonly PrestacaoDaPresenca[]): Record<FiltroDaPresenca, number> {
-  const c = { pendente_dia: 0, sem_saida: 0, nao_confirmou: 0, confirmou: 0, pronto: 0, enviado: 0 } as Record<FiltroDaPresenca, number>;
+  const c = { pendente_dia: 0, sem_saida: 0, nao_confirmou: 0, confirmou: 0, pronto: 0, enviado: 0, checkout_atrasado: 0 } as Record<FiltroDaPresenca, number>;
   for (const p of prestacoes) for (const f of FILTROS) if (atendeAoFiltro(p, f)) c[f]++;
   return c;
 }

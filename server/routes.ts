@@ -51,6 +51,7 @@ import { registrarPagamentoColaborador } from "./routes/pagamento-colaborador";
 import { registrarColaboradorPortal } from "./routes/colaborador-portal";
 import { registrarPresenca } from "./routes/presenca";
 import { registrarHonorariosPagamento } from "./routes/honorarios-pagamento";
+import { registrarArquivosDeCompra } from "./routes/arquivos-de-compra";
 import { registrarVoltarAoPlanejado } from "./routes/voltar-ao-planejado";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -125,6 +126,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Fase 2 MANUAL (28/10): OC, NF pelo representante, conferência OC × NF × CNPJ,
   // pago e o expurgo das selfies.
   registrarHonorariosPagamento(app);
+  // Fase 3, arquivos (28/10): compra de créditos Flash em lote e o arquivo de OC
+  // do M4 (prestadores + Flash) — layout provisório até o oficial.
+  registrarArquivosDeCompra(app);
 
   // ── Trocas de colaborador ─────────────────────────────────────────────────
   registrarTrocas(app);

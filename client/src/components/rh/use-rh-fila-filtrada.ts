@@ -11,7 +11,8 @@ import { useMemo } from "react";
 import { ACTIONABLE_STATUSES, type EventGroup, type PrestacaoItem } from "./prestacao-types";
 import { getDiffDays } from "./prestacao-utils";
 import type { RhControlData } from "./use-rh-control-data";
-import type { RhFiltros } from "./use-rh-filtros";
+import type { FiltroDePrazo, RhFiltros } from "./use-rh-filtros";
+import { urgenciaDoPrazo } from "@shared/prazos-honorarios";
 
 export interface RhFilaFiltrada {
   filteredItems: PrestacaoItem[];
@@ -24,16 +25,31 @@ export const estaConcluida = (item: PrestacaoItem) =>
   !!item.conclusaoForaDoFluxo ||
   (item.status === "aprovada_faturamento" && item.invoice?.status === "aprovada" && !!item.invoice?.checkinAt);
 
+/** A linha passa no filtro de prazo (28/10)? Pelo PIOR prazo dela — o mesmo que conta no chip. */
+export function passaNoFiltroDePrazo(item: Pick<PrestacaoItem, "prazo" | "contestacao">, filtro: FiltroDePrazo): boolean {
+  if (filtro === "all") return true;
+  if (filtro === "contestacoes") return !!item.contestacao && !item.contestacao.respondida;
+  const s = item.prazo?.pior?.situacao;
+  return filtro === "atrasados" ? s === "atrasado" : s === "vence_hoje";
+}
+
+/** Urgência da linha para "mais atrasado primeiro" (sem prazo vai para o fim). */
+export const urgenciaDaLinha = (item: Pick<PrestacaoItem, "prazo">) => urgenciaDoPrazo(item.prazo?.pior);
+
 export function useRhFilaFiltrada(
   dados: Pick<RhControlData, "prestacaoItems">,
-  filtros: Pick<RhFiltros, "filterStatus" | "filterFunction" | "filterCollaborator" | "filterInvoiceStatus" | "buscaAplicada" | "showConcluded" | "filterCheckinOnly">,
+  filtros: Pick<RhFiltros, "filterStatus" | "filterFunction" | "filterCollaborator" | "filterInvoiceStatus" | "buscaAplicada" | "showConcluded" | "filterCheckinOnly">
+    & Partial<Pick<RhFiltros, "filtroPrazo" | "ordem">>,
 ): RhFilaFiltrada {
   const { prestacaoItems } = dados;
   const { filterStatus, filterFunction, filterCollaborator, filterInvoiceStatus, buscaAplicada, showConcluded, filterCheckinOnly } = filtros;
+  const filtroPrazo = filtros.filtroPrazo ?? "all";
+  // "Atrasados" já ordena pelo mais atrasado (é o que se quer cobrar primeiro).
+  const porAtraso = filtros.ordem === "atraso" || filtroPrazo === "atrasados";
 
   const filteredItems = useMemo(() => {
     const busca = buscaAplicada.trim().toLowerCase();
-    return prestacaoItems.filter(item => {
+    const lista = prestacaoItems.filter(item => {
       // Sem status escolhido, concluídos E recusados ficam ocultos por padrão
       // (manual); com o toggle ligado eles são ACRESCENTADOS à lista (mostra
       // tudo), não substituem. Com um status/card ativo o servidor já decidiu.
@@ -55,9 +71,12 @@ export function useRhFilaFiltrada(
         const isCheckinPending = item.status === "aprovada_faturamento" && inv?.status === "aprovada" && !inv?.checkinAt;
         if (!isCheckinPending) return false;
       }
+      if (!passaNoFiltroDePrazo(item, filtroPrazo)) return false;
       return true;
     });
-  }, [prestacaoItems, filterStatus, filterFunction, filterCollaborator, filterInvoiceStatus, buscaAplicada, showConcluded, filterCheckinOnly]);
+    // Mais atrasado primeiro (28/10): estável — empate mantém a ordem do servidor.
+    return porAtraso ? lista.map((item, i) => ({ item, i, u: urgenciaDaLinha(item) })).sort((a, b) => (b.u - a.u) || (a.i - b.i)).map((x) => x.item) : lista;
+  }, [prestacaoItems, filterStatus, filterFunction, filterCollaborator, filterInvoiceStatus, buscaAplicada, showConcluded, filterCheckinOnly, filtroPrazo, porAtraso]);
 
   const eventGroups = useMemo((): EventGroup[] => {
     const map = new Map<string, EventGroup>();
@@ -72,6 +91,10 @@ export function useRhFilaFiltrada(
       if (item.rhPrecisaAgir) g.rhNeeded++;
     }
     const groups = Array.from(map.values());
+    if (porAtraso) {
+      const maior = (g: EventGroup) => Math.max(...g.items.map(urgenciaDaLinha));
+      return groups.sort((a, b) => maior(b) - maior(a));
+    }
     groups.sort((a, b) => {
       if (b.actionNeeded !== a.actionNeeded) return b.actionNeeded - a.actionNeeded;
       const maxStalledA = Math.max(...a.items.map(i => getDiffDays(i.lastActivityDate)), 0);
@@ -79,7 +102,7 @@ export function useRhFilaFiltrada(
       return maxStalledB - maxStalledA;
     });
     return groups;
-  }, [filteredItems]);
+  }, [filteredItems, porAtraso]);
 
   return { filteredItems, eventGroups };
 }

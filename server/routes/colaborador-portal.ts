@@ -55,6 +55,9 @@ import {
   blocoDoPortal, contaDoPortal, enviarNotaDaPrestacao, lerCamposDaNota, notaDaPrestacao, notasDasPrestacoes, receberArquivoDaNota,
   type ContaDoPortal,
 } from "../honorarios-pagamento-servico";
+import { prazoDaMontada } from "../presenca-servico";
+import { DEFINICAO_DA_ETAPA, ROTULO_DE_QUEM, prazoDoColaborador, situacaoDoVencimento, somarDias, type PrazoDaEtapa, type PrazosDosHonorarios } from "@shared/prazos-honorarios";
+import { contestacaoParaTela, lerPrazosDoBanco } from "./honorarios-prazos";
 
 const MSG_CREDENCIAIS = "CPF ou senha incorretos.";
 const MSG_CODIGO = "CPF ou código inválido (ou vencido). Peça um código novo ao DP ou à produção.";
@@ -156,9 +159,27 @@ const marcacaoDoDia = (em: Date | null, fotoId: string | null, por: string | nul
  * A prestação como o COLABORADOR vê: valores só se o evento não os oculta —
  * ou depois da OC ("não exibir valores" vale ATÉ a OC, 28/10).
  */
-function prestacaoDoColaborador(m: PrestacaoMontada, hoje: string, pagamento: { nota: Invoice | null; conta: ContaDoPortal }) {
+/**
+ * O prazo que o COLABORADOR tem agora (28/10, Fase 3): confirmar a presença,
+ * enviar ou reenviar a nota — a mesma régua do Painel. No último dia, com o
+ * check-out feito, a confirmação já abre: o "confirme até" aparece desde ali.
+ */
+function prazoParaOColaborador(m: PrestacaoMontada, hoje: string, nota: Invoice | null, prazos: PrazosDosHonorarios, podeConfirmar: boolean): PrazoDaEtapa | null {
+  const doColaborador = prazoDoColaborador(prazoDaMontada(m, prazos, hoje, nota));
+  if (doColaborador) return doColaborador;
+  const ultimo = m.dias[m.dias.length - 1];
+  if (!podeConfirmar || m.confirmacao || !ultimo) return null;
+  const venceEm = somarDias(ultimo, prazos.confirmarPresenca);
+  return {
+    etapa: "confirmar_presenca", rotulo: DEFINICAO_DA_ETAPA.confirmar_presenca.rotulo, quem: "colaborador", rotuloDeQuem: ROTULO_DE_QUEM.colaborador,
+    desde: ultimo, venceEm, ...situacaoDoVencimento(venceEm, hoje),
+  };
+}
+
+function prestacaoDoColaborador(m: PrestacaoMontada, hoje: string, pagamento: { nota: Invoice | null; conta: ContaDoPortal; prazos: PrazosDosHonorarios }) {
   const ocultos = !valoresVisiveisAoColaborador(m.evento.ocultarValoresColaborador, m.actual.ocNumero);
   const confirmar = permissaoDeConfirmar(m, hoje);
+  const prazo = prazoParaOColaborador(m, hoje, pagamento.nota, pagamento.prazos, confirmar.ok);
   return {
     id: m.actual.id,
     evento: { id: m.evento.id, nome: m.evento.name, cidade: m.evento.location, inicio: m.evento.startDate, fim: m.evento.endDate },
@@ -184,7 +205,14 @@ function prestacaoDoColaborador(m: PrestacaoMontada, hoje: string, pagamento: { 
       razaoSocial: m.confirmacao.razaoSocial, contestacao: m.confirmacao.contestacao,
       confirmadoEm: new Date(m.confirmacao.confirmadoEm).toISOString(),
       valorVisto: ocultos ? null : m.confirmacao.valorVisto,
+      // 28/10 (Fase 3): a resposta do DP à contestação (sem o nome de quem respondeu: "o DP").
+      respostaDoDp: (() => {
+        const c = contestacaoParaTela(m.confirmacao);
+        return c?.respondida && c.resposta ? { texto: c.resposta, em: c.respondidaEm } : null;
+      })(),
     } : null,
+    // 28/10 (Fase 3): o prazo do que é dele agora ("Confirme até", "Envie a nota até").
+    prazo: prazo ? { etapa: prazo.etapa, venceEm: prazo.venceEm, situacao: prazo.situacao, dias: prazo.dias } : null,
     podeConfirmar: confirmar.ok,
     motivoNaoPodeConfirmar: confirmar.ok ? null : confirmar.motivo,
     checkoutFinalFeito: m.checkoutFinalFeito,
@@ -316,11 +344,11 @@ export function registrarColaboradorPortal(app: Express): void {
         .sort((a, b) => String(b.evento.startDate).localeCompare(String(a.evento.startDate)));
       // CNPJs ligados ao colaborador (para escolher na confirmação).
       const contratos = (await contratosDosColaboradores([colab.id])).get(colab.id) ?? [];
-      const [notas, conta] = await Promise.all([notasDasPrestacoes(montadas.map((m) => m.actual.id)), contaDoPortal(colab.id)]);
+      const [notas, conta, prazos] = await Promise.all([notasDasPrestacoes(montadas.map((m) => m.actual.id)), contaDoPortal(colab.id), lerPrazosDoBanco()]);
       res.set("Cache-Control", "no-store");
       res.json({
         hoje,
-        prestacoes: montadas.map((m) => prestacaoDoColaborador(m, hoje, { nota: notas.get(m.actual.id) ?? null, conta })),
+        prestacoes: montadas.map((m) => prestacaoDoColaborador(m, hoje, { nota: notas.get(m.actual.id) ?? null, conta, prazos })),
         cnpjs: contratos.map((c) => ({ cnpj: mascararCnpj(c.cnpj), razaoSocial: c.razaoSocial, ativo: contratoVigenteEm(c, hojeISO()) })),
       });
     } catch (error) {
@@ -451,7 +479,7 @@ export function registrarColaboradorPortal(app: Express): void {
       const gravada = await enviarNotaDaPrestacao({ req, res, actual: m.actual, nota, campos: campos.campos, ator: null, nomeDoAtor: nomeNaAuditoria(colab) });
       if (!gravada) return;
       const hoje = diaEmBrasilia();
-      res.status(nota ? 200 : 201).json({ prestacao: prestacaoDoColaborador(m, hoje, { nota: gravada, conta: await contaDoPortal(colab.id) }) });
+      res.status(nota ? 200 : 201).json({ prestacao: prestacaoDoColaborador(m, hoje, { nota: gravada, conta: await contaDoPortal(colab.id), prazos: await lerPrazosDoBanco() }) });
     } catch (error) {
       responderErroComStatus(res, error, "Não foi possível enviar a nota agora. Tente de novo.", 500);
     }

@@ -458,6 +458,9 @@ export function linhaRhFake(parcial: Partial<PrestacaoItem> = {}): PrestacaoItem
     rhPrecisaAgir: true,
     legado: false,
     conclusaoForaDoFluxo: null,
+    // 28/10 (Fase 3): sem prazo nem contestação por padrão.
+    prazo: null,
+    contestacao: null,
     ...parcial,
   } as PrestacaoItem;
   // A trilha única (26/10) segue o que a linha tem — a mesma regra do servidor.

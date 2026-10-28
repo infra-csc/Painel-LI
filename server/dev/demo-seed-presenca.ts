@@ -12,6 +12,12 @@
  *    e a CONFIRMAÇÃO com o CNPJ do contrato;
  *  - Fotografia: anteontem sem registro, ontem concluído com 2 h extras, hoje
  *    check-in feito pelo representante (produção).
+ * 28/10 (Fase 3 — prazos e cobranças), para a demo ter atrasos de verdade:
+ *  - a confirmação da Montagem traz uma CONTESTAÇÃO aberta ("Algo não bate?");
+ *  - Montagem 2 (senha conhecida): trabalhou de 6 a 4 dias atrás, sem
+ *    confirmar — confirmação atrasada 2 dias e check-out final atrasado 1;
+ *  - Fotografia 2: trabalhou de 6 a 4 dias atrás, confirmou e a produção fez o
+ *    check-out final há 4 dias — Conferência DP atrasada 1 dia.
  * As selfies são PNGs gerados aqui e gravados no armazenamento em memória da
  * demo (server/objectStorage.ts). Senha do portal: DEMO_SENHA_DO_COLABORADOR
  * (docs/demo.md) — o CPF de quem entra sai no log da demo.
@@ -112,7 +118,7 @@ export async function semearPresencaDemo(db: Db): Promise<ResumoDaPresencaDemo> 
 
   const evento = (await db.insert(schema.events).values({
     name: NOME_DO_EVENTO, location: "Beira-Mar Norte, Florianópolis - SC",
-    startDate: addDias(hoje, -2), endDate: [addDias(hoje, 2), DATA_DE_CORTE_PADRAO].sort()[1],
+    startDate: addDias(hoje, -6), endDate: [addDias(hoje, 2), DATA_DE_CORTE_PADRAO].sort()[1],
     status: "em_andamento", observations: "Evento de demonstração da presença no evento (check-in com selfie).",
   }).returning())[0];
 
@@ -140,6 +146,11 @@ export async function semearPresencaDemo(db: Db): Promise<ResumoDaPresencaDemo> 
     { colab: mei, funcao: "Montagem", dias: [anteontem, ontem], cor: [70, 160, 110] as [number, number, number], portal: true },
     { colab: freelas[2], funcao: "Fotografia", dias: [anteontem, ontem, hoje, amanha], cor: [150, 90, 180] as [number, number, number], portal: false },
   ];
+  // 28/10 (Fase 3): duas pessoas que já terminaram há dias (prazos vencidos). Os
+  // freelas 3 e 4 são do seed dos pagamentos; aqui, os seguintes (se houver).
+  const semanaPassada = [addDias(hoje, -6), addDias(hoje, -5), addDias(hoje, -4)];
+  const atrasada = freelas[5] ? pessoas.push({ colab: freelas[5], funcao: "Montagem", dias: semanaPassada, cor: [210, 160, 60], portal: true }) - 1 : -1;
+  const comODp = freelas[6] ? pessoas.push({ colab: freelas[6], funcao: "Fotografia", dias: semanaPassada, cor: [90, 150, 170], portal: false }) - 1 : -1;
 
   const prestacoes: schema.BudgetActual[] = [];
   for (const p of pessoas) {
@@ -209,7 +220,25 @@ export async function semearPresencaDemo(db: Db): Promise<ResumoDaPresencaDemo> 
     actualId: prestacoes[2].id, confirmadoPor: "colaborador", collaboratorId: mei.id, diasConfirmados: [anteontem, ontem],
     valorVisto: null, cnpj: contratoDoMei?.c.cnpj ?? "11222333000181", razaoSocial: contratoDoMei?.c.razaoSocial ?? null,
     contratoId: contratoDoMei?.c.id ?? null, confirmadoEm: instanteEmBrasilia(ontem, "17:20"),
+    // 28/10 (Fase 3): contestação ABERTA — o DP responde no Painel ou na Conferência DP.
+    contestacao: "No segundo dia fiquei até as 19h desmontando a tenda do patrocinador — o check-out saiu 17h05 porque o celular descarregou.",
   });
+  // Montagem 2: três dias concluídos, sem confirmar — confirmação e check-out final atrasados.
+  if (atrasada >= 0) for (const dia of semanaPassada) await marcar(atrasada, dia, { entrada: "07:00", saida: "17:30" });
+  // Fotografia 2: confirmou e a produção fez o check-out final há 4 dias — com o DP, atrasado.
+  if (comODp >= 0) {
+    for (const dia of semanaPassada) await marcar(comODp, dia, { entrada: "08:00", saida: "18:00" });
+    const p = pessoas[comODp];
+    await db.insert(schema.presencaConfirmacoes).values({
+      actualId: prestacoes[comODp].id, confirmadoPor: "colaborador", collaboratorId: p.colab.id, diasConfirmados: semanaPassada,
+      valorVisto: null, cnpj: "11222333000181", razaoSocial: `${p.colab.fullName.toUpperCase()} FOTOGRAFIA ME`, confirmadoEm: instanteEmBrasilia(semanaPassada[2], "18:30"),
+    });
+    const fechado = instanteEmBrasilia(semanaPassada[2], "20:10");
+    await db.update(schema.budgetActual).set({
+      sentForReview: true, rhStatus: "pendente", checkoutFinalEm: fechado, checkoutFinalPor: producao.id, updatedAt: fechado,
+      cnpjEmissor: "11222333000181", razaoSocialEmissor: `${p.colab.fullName.toUpperCase()} FOTOGRAFIA ME`, valorCalculado: prestacoes[comODp].totalValue,
+    }).where(eq(schema.budgetActual.id, prestacoes[comODp].id));
+  }
   // Fotografia: anteontem sem registro, ontem concluído com 2 h extras, hoje pelo representante.
   await marcar(3, ontem, { entrada: "08:10", saida: "21:30" });
   await marcar(3, hoje, { entrada: "08:05", representante: true });

@@ -23,6 +23,8 @@
 import { isNfEligible, nfIsentaPorEscalacao, type EscalacaoLike } from "./prestacao-rules";
 import { contarNaTrilha, posicaoNaTrilha, type ContagemDaTrilha, type PosicaoNaTrilha } from "./trilha-honorarios";
 import { DATA_DE_CORTE_PADRAO, ehEventoLegado, eventoNoRecorte, type RecorteDoLegado } from "./legado-honorarios";
+import { inclusaoDaPrestacao, periodoDaPrestacao } from "./presenca";
+import { contarPrazos, prazoDaPrestacao, type ContagemDosPrazos, type PrazoDaPrestacao, type PrazosDosHonorarios } from "./prazos-honorarios";
 
 // ── Tipos de entrada (o mínimo que o cruzamento lê de cada tabela) ──────────
 export interface EventoParaControle {
@@ -46,6 +48,9 @@ export interface VagaParaControle extends EscalacaoLike {
   phase: string;
   createdAt: Date | string | null;
   deletedAt: Date | string | null;
+  /** 28/10 (Fase 3): o período da escala — o último dia de trabalho conta os prazos. */
+  scheduleStartDate?: string | null;
+  scheduleEndDate?: string | null;
 }
 
 export interface PlanejadoParaControle {
@@ -106,6 +111,11 @@ export interface RealizadoParaControle {
   /** 28/10 (Fase 2): OC registrada e data do pagamento — a trilha marca OC emitida e Pago. */
   ocNumero?: string | null;
   pagoEm?: string | null;
+  /** 28/10 (Fase 3, prazos): os dias trabalhados, o check-out final e o registro da OC. */
+  workedDays?: (string | null)[] | null;
+  checkoutFinalEm?: Date | string | null;
+  ocRegistradaEm?: Date | string | null;
+  ocData?: string | null;
 }
 
 export interface NotaParaControle {
@@ -122,6 +132,18 @@ export interface NotaParaControle {
   checkinBy: string | null;
   createdAt: Date | string | null;
   updatedAt: Date | string | null;
+  /** 28/10 (Fase 3): o histórico (enviado/devolvido) conta o prazo da nota. */
+  history?: readonly { type?: string | null; at?: string | null }[] | null;
+}
+
+/** A confirmação do colaborador e a contestação dele (28/10, Fase 3). */
+export interface ConfirmacaoParaControle {
+  actualId: string;
+  confirmadoEm: Date | string;
+  contestacao: string | null;
+  contestacaoResposta: string | null;
+  contestacaoRespondidaEm: Date | string | null;
+  contestacaoRespondidaPorNome: string | null;
 }
 
 export interface EntradaDoControleRh {
@@ -143,6 +165,24 @@ export interface EntradaDoControleRh {
   recorte?: RecorteDoLegado;
   /** Linhas do legado concluídas fora do fluxo, pelo id da linha (`pl-…`/`ti-…`). */
   conclusoes?: ReadonlyMap<string, ConclusaoForaDoFluxo>;
+  /**
+   * 28/10 (Fase 3, prazos e cobranças): os dias de cada etapa, o "hoje" de
+   * Brasília e as confirmações dos colaboradores (pelo id da prestação). Sem
+   * `prazos`, as linhas saem sem prazo (o contrato de antes).
+   */
+  prazos?: PrazosDosHonorarios;
+  hoje?: string;
+  confirmacoes?: ReadonlyMap<string, ConfirmacaoParaControle>;
+}
+
+/** A contestação do colaborador na linha (28/10): aberta até o DP responder. */
+export interface ContestacaoDaLinha {
+  texto: string;
+  em: string | null;
+  respondida: boolean;
+  resposta: string | null;
+  respondidaEm: string | null;
+  respondidaPorNome: string | null;
 }
 
 /** "Concluir em lote" do legado: quem, quando e por quê (26/10). */
@@ -219,6 +259,13 @@ export interface LinhaDoControleRh {
   legado: boolean;
   /** Linha do legado concluída fora do fluxo ("Concluir em lote"), ou null. */
   conclusaoForaDoFluxo: ConclusaoForaDoFluxo | null;
+  /**
+   * 28/10 (Fase 3): o prazo da etapa atual — quem deve agir, quando vence e a
+   * situação (shared/prazos-honorarios). Null no legado e sem prestação.
+   */
+  prazo: PrazoDaPrestacao | null;
+  /** Contestação do colaborador (fluxo novo), aberta ou respondida. */
+  contestacao: ContestacaoDaLinha | null;
 }
 
 export interface ContadoresDoControleRh {
@@ -241,6 +288,10 @@ export interface ContadoresDoControleRh {
    * contagens das abas "Fluxo novo" × "Legado" do Painel de honorários.
    */
   recortes: { fluxoNovo: number; legado: number; legadoConcluido: number };
+  /** 28/10 (Fase 3): atrasados e "vence hoje" do recorte (pelo pior prazo de cada linha). */
+  prazos: ContagemDosPrazos;
+  /** Contestações dos colaboradores ainda sem resposta do DP. */
+  contestacoesAbertas: number;
 }
 
 export interface ControleRh {
@@ -306,9 +357,14 @@ function decidirPeloRealizado(
   return { status, responsavelAtual, lastActivityDate };
 }
 
-/** O DP precisa agir nesta linha? (status do DP, NF enviada a aprovar ou lançamento pendente.) Concluída fora do fluxo: não. */
-export function rhPrecisaAgirNaLinha(l: Pick<LinhaDoControleRh, "status" | "invoice"> & { conclusaoForaDoFluxo?: ConclusaoForaDoFluxo | null }): boolean {
+/**
+ * O DP precisa agir nesta linha? (status do DP, NF enviada a aprovar,
+ * lançamento pendente — e, 28/10, contestação do colaborador sem resposta.)
+ * Concluída fora do fluxo: não.
+ */
+export function rhPrecisaAgirNaLinha(l: Pick<LinhaDoControleRh, "status" | "invoice"> & { conclusaoForaDoFluxo?: ConclusaoForaDoFluxo | null; contestacao?: ContestacaoDaLinha | null }): boolean {
   if (l.conclusaoForaDoFluxo) return false;
+  if (l.contestacao && !l.contestacao.respondida) return true;
   const inv = l.invoice;
   const needsRhCheckin = l.status === "aprovada_faturamento" && inv?.status === "aprovada" && !inv?.checkinAt;
   const needsRhNfApproval = l.status === "aprovada_faturamento" && inv?.status === "enviada";
@@ -409,13 +465,37 @@ export function montarControleRh(entrada: EntradaDoControleRh, filtro?: FiltroDe
   const dataDeCorte = entrada.dataDeCorte ?? DATA_DE_CORTE_PADRAO;
   const recorte: RecorteDoLegado = entrada.recorte ?? "todos";
 
-  const montar = (base: Omit<LinhaDoControleRh, "collaboratorName" | "functionName" | "invoice" | "emiteNf" | "nfElegivel" | "rhActionByName" | "rhPrecisaAgir" | "trilha" | "legado" | "conclusaoForaDoFluxo">): LinhaDoControleRh => {
+  const hoje = entrada.hoje ?? null;
+  /** Último dia de trabalho da prestação: a MESMA fonte dos dias da presença (dias trabalhados → escala → evento). */
+  const ultimoDia = (actual: RealizadoParaControle, event: EventoParaControle): string | null => {
+    const vagas = actual.collaboratorId ? vagasPorEventoColab.get(`${actual.eventId}|${actual.collaboratorId}`) ?? [] : [];
+    return periodoDaPrestacao(actual, inclusaoDaPrestacao(actual, vagas) ?? null, event).fim;
+  };
+  const contestacaoDe = (actualId: string): ContestacaoDaLinha | null => {
+    const c = entrada.confirmacoes?.get(actualId);
+    if (!c?.contestacao) return null;
+    return {
+      texto: c.contestacao, em: iso(c.confirmadoEm), respondida: !!c.contestacaoRespondidaEm,
+      resposta: c.contestacaoResposta, respondidaEm: iso(c.contestacaoRespondidaEm), respondidaPorNome: c.contestacaoRespondidaPorNome,
+    };
+  };
+
+  const montar = (base: Omit<LinhaDoControleRh, "collaboratorName" | "functionName" | "invoice" | "emiteNf" | "nfElegivel" | "rhActionByName" | "rhPrecisaAgir" | "trilha" | "legado" | "conclusaoForaDoFluxo" | "prazo" | "contestacao">): LinhaDoControleRh => {
     const invoice = base.actual ? notaPorRealizado.get(base.actual.id) ?? null : null;
     const legado = ehEventoLegado(base.event.endDate, dataDeCorte);
     // Só o legado é concluído fora do fluxo: uma conclusão gravada para um
     // evento que voltou ao fluxo novo (a data de corte mudou) não vale.
     const conclusaoForaDoFluxo = legado ? entrada.conclusoes?.get(base.id) ?? null : null;
     const emite = emiteNf(base.event.id, base.collaboratorId, base.functionId);
+    // 28/10 (Fase 3): prazo e contestação só no fluxo novo, com a prestação.
+    const novoComPrestacao = !legado && !!base.actual;
+    const prazo = novoComPrestacao && entrada.prazos && hoje ? prazoDaPrestacao({
+      hoje, prazos: entrada.prazos, legado, emiteNf: emite,
+      ultimoDia: ultimoDia(base.actual!, base.event),
+      confirmado: entrada.confirmacoes?.has(base.actual!.id) ?? false,
+      realizado: base.actual, nota: invoice,
+    }) : null;
+    const contestacao = novoComPrestacao && !base.actual!.didNotAttend ? contestacaoDe(base.actual!.id) : null;
     const parcial = {
       ...base,
       collaboratorName: base.collaboratorId ? entrada.nomesDeColaboradores.get(base.collaboratorId) ?? null : null,
@@ -426,6 +506,8 @@ export function montarControleRh(entrada: EntradaDoControleRh, filtro?: FiltroDe
       rhActionByName: nomeUsuario(base.actual?.rhActionBy),
       legado,
       conclusaoForaDoFluxo,
+      prazo,
+      contestacao,
       trilha: posicaoNaTrilha({
         planejado: base.planned, realizado: base.actual, nota: invoice, emiteNf: emite,
         concluidoForaDoFluxo: !!conclusaoForaDoFluxo, legado,
@@ -520,6 +602,8 @@ export function montarControleRh(entrada: EntradaDoControleRh, filtro?: FiltroDe
       totalParaProgresso: linhas.filter(linhaContaNoProgresso).length,
       trilha: contarNaTrilha(linhas.map((l) => l.trilha)),
       recortes,
+      prazos: contarPrazos(linhas.map((l) => l.prazo)),
+      contestacoesAbertas: linhas.filter((l) => l.contestacao && !l.contestacao.respondida).length,
     },
     funcoes,
     dataDeCorte,

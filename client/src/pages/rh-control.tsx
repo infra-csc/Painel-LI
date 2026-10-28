@@ -19,6 +19,11 @@
  * (slide 11). Recorte Fluxo novo × Legado (eventos que terminam antes da data
  * de corte): o legado é só leitura, com "Concluir em lote" fora do fluxo; a
  * trilha de cada registro e a do resumo são a ÚNICA do slide 8.
+ *
+ * 28/10 (Fase 3 — prazos e cobranças): faixa "Atrasados · Vence hoje ·
+ * Contestações" (cada número = o tamanho da lista que ele mostra, contado com
+ * os outros filtros de agora), ordem "Mais atrasado primeiro" e o diálogo da
+ * contestação do colaborador (o DP responde; o colaborador vê no portal).
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
@@ -39,6 +44,9 @@ import { EsqueletoDoRh, ErroDoRh, VazioDoRh } from "@/components/rh/rh-estados";
 import { periodoDoEvento } from "@/components/rh/prestacao-utils";
 import { estaConcluida } from "@/components/rh/use-rh-fila-filtrada";
 import { AvisoDoLegado, ConcluirLegadoDialog, RecorteDoPainel } from "@/components/rh/legado";
+import { AbrirContestacao, FaixaDePrazos, type ContagemDaFaixa } from "@/components/rh/rh-prazos";
+import { passaNoFiltroDePrazo } from "@/components/rh/use-rh-fila-filtrada";
+import { DialogoDaContestacao, type ContestacaoParaTela } from "@/components/honorarios/contestacao";
 
 export default function RhControlPage() {
   usePageTitle("Painel de honorários");
@@ -71,6 +79,19 @@ export default function RhControlPage() {
   // Quantas sobram em cada função com os OUTROS filtros de agora — a mesma
   // regra da lista (o hook roda de novo com a função em "todas").
   const { filteredItems: semFuncao } = useRhFilaFiltrada(dados, { ...filtros, filterFunction: "all" });
+  // Faixa de prazos (28/10): contada com os OUTROS filtros de agora, sem o de prazo
+  // — o número do botão é o tamanho exato da lista que ele mostra.
+  const { filteredItems: semPrazo } = useRhFilaFiltrada(dados, { ...filtros, filtroPrazo: "all", ordem: "padrao" });
+  const contagemDosPrazos = useMemo((): ContagemDaFaixa => {
+    const c: ContagemDaFaixa = { atrasados: 0, venceHoje: 0, contestacoes: 0, porQuem: { dp: 0, producao: 0, colaborador: 0 } };
+    for (const i of semPrazo) {
+      if (passaNoFiltroDePrazo(i, "atrasados")) { c.atrasados += 1; c.porQuem[i.prazo!.pior!.quem] += 1; }
+      if (passaNoFiltroDePrazo(i, "vence_hoje")) c.venceHoje += 1;
+      if (passaNoFiltroDePrazo(i, "contestacoes")) c.contestacoes += 1;
+    }
+    return c;
+  }, [semPrazo]);
+  const [contestacaoAberta, setContestacaoAberta] = useState<{ actualId: string; nome: string; contestacao: ContestacaoParaTela } | null>(null);
   const opcoesDeFuncao = useMemo(() => {
     const n = new Map<string, number>();
     for (const i of semFuncao) if (i.functionId) n.set(i.functionId, (n.get(i.functionId) ?? 0) + 1);
@@ -124,6 +145,7 @@ export default function RhControlPage() {
     filtros.setFilterStatus("rh_action");
     filtros.setFilterCheckinOnly(false);
     filtros.setShowConcluded(false);
+    filtros.setFiltroPrazo("all");
     irParaLista();
   };
   // Reseta TODOS os filtros — incl. Nota Fiscal e os recortes da fila
@@ -131,6 +153,7 @@ export default function RhControlPage() {
   const limparFiltros = () => {
     filtros.setFilterEvent("all"); filtros.setFilterFunction("all"); filtros.setFilterCollaborator("all");
     filtros.setFilterStatus("all"); filtros.setFilterInvoiceStatus("all"); filtros.setSearchTerm(""); filtros.setFilterCheckinOnly(false);
+    filtros.setFiltroPrazo("all");
   };
 
   // ── Barra de contexto ──
@@ -255,6 +278,15 @@ export default function RhControlPage() {
           totalForProgress={totalForProgress}
           filtros={filtros}
         />
+        {!noLegado && (
+          <FaixaDePrazos
+            contagem={contagemDosPrazos}
+            filtro={filtros.filtroPrazo}
+            onFiltro={filtros.setFiltroPrazo}
+            ordem={filtros.ordem}
+            onOrdem={filtros.setOrdem}
+          />
+        )}
         <RhFilters
           filtros={filtros}
           opcoesDeFuncao={opcoesDeFuncao}
@@ -270,6 +302,7 @@ export default function RhControlPage() {
   return (
     // Margens pela variável do layout: a barra sangra até as bordas da página e
     // o conteúdo fica em até 1560px — a casca do Planejado e do Comparativo.
+    <AbrirContestacao.Provider value={setContestacaoAberta}>
     <div className="-mx-[var(--page-gutter)] -mt-[var(--page-gutter)]">
       {barra}
       <div className="px-[var(--page-gutter)] pt-5 pb-6">
@@ -281,6 +314,8 @@ export default function RhControlPage() {
         onClose={() => setConcluindoLegado(false)}
         recorteDescrito={eventoDaBarra ? eventoDaBarra.name : "Todos os eventos do legado"}
       />
+      <DialogoDaContestacao alvo={contestacaoAberta} onClose={() => setContestacaoAberta(null)} podeResponder={canRh} />
     </div>
+    </AbrirContestacao.Provider>
   );
 }

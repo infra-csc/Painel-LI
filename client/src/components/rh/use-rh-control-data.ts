@@ -59,6 +59,8 @@ const CONTADORES_VAZIOS: ControleRh["contadores"] = {
   totalParaProgresso: 0,
   trilha: contagemVazia(),
   recortes: { fluxoNovo: 0, legado: 0, legadoConcluido: 0 },
+  prazos: { atrasados: 0, venceHoje: 0, atrasadosPorQuem: { colaborador: 0, producao: 0, dp: 0 }, maiorAtraso: 0 },
+  contestacoesAbertas: 0,
 };
 
 const SEM_ITENS: PrestacaoItem[] = [];

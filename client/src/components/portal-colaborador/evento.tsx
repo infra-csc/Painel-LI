@@ -15,6 +15,7 @@ import {
 import { BotaoDeMarcacao } from "./marcacao";
 import { BlocoDaNotaEPagamento } from "./nota-fiscal";
 import { Aviso, BotaoPrincipal, BotaoSecundario, BotaoTexto, Pilula, TituloDaSecao } from "./pecas";
+import { PrazoDoColaborador } from "./prazo";
 import type { DiaDoPortal, MarcacaoDoPortal, OcorrenciaDoPortal, PrestacaoDoPortal } from "./tipos";
 
 export function VoltarPara({ texto, para }: { texto: string; para: string }) {
@@ -174,6 +175,17 @@ function Confirmacao({ p }: { p: PrestacaoDoPortal }) {
           <dd className="m-0 min-w-0 font-medium tabular-nums">{c.cnpj ?? "—"}{c.razaoSocial && <span className="block truncate font-normal text-muted-foreground">{c.razaoSocial}</span>}</dd>
           {c.contestacao && (<><dt className="text-muted-foreground">Seu recado</dt><dd className="m-0 whitespace-pre-line">{c.contestacao}</dd></>)}
         </dl>
+        {/* 28/10 (Fase 3): a contestação volta ao DP — a resposta dele aparece aqui. */}
+        {c.contestacao && (
+          c.respostaDoDp ? (
+            <div className="mt-3 rounded-lg border border-border bg-card px-3.5 py-3" data-testid="resposta-do-dp">
+              <p className="m-0 text-[13px] font-semibold text-muted-foreground">Resposta do DP{c.respostaDoDp.em ? ` · ${dataEHora(c.respostaDoDp.em)}` : ""}</p>
+              <p className="m-0 mt-1 text-sm leading-snug whitespace-pre-line text-foreground">{c.respostaDoDp.texto}</p>
+            </div>
+          ) : (
+            <p className="m-0 mt-3 text-[13px] text-muted-foreground" data-testid="aguardando-resposta-do-dp">O DP recebeu o seu recado e vai responder por aqui.</p>
+          )
+        )}
         {p.podeConfirmar ? (
           <>
             <p className="m-0 mt-3 text-[13px] text-muted-foreground">Mudou algo? Você pode refazer até o produtor fechar a prestação.</p>
@@ -190,6 +202,7 @@ function Confirmacao({ p }: { p: PrestacaoDoPortal }) {
       <div className="rounded-xl border border-primary/20 bg-brand-soft px-4 py-4">
         <p className="m-0 text-[15px] font-semibold">O trabalho terminou: confirme os seus dias</p>
         <p className="m-0 mt-1 text-sm leading-snug text-foreground/80">Revise os dias, escolha o CNPJ que emite a nota e, se algo não bater, conte para a gente.</p>
+        {p.prazo && <PrazoDoColaborador prazo={p.prazo} className="mt-3" />}
         <BotaoPrincipal type="button" className="mt-4" icone={ClipboardCheck} onClick={() => navegar(`/evento/${p.id}/confirmar`)}>Confirmar meus dias</BotaoPrincipal>
       </div>
     );

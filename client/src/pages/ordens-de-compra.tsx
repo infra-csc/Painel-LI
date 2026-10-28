@@ -17,6 +17,11 @@
  * evento como seletor e o filtro do legado; conteúdo até 1560px com o resumo
  * e a trilha, a fila por estado (conta e recorta), a busca e a lista.
  * Link direto: /ordens-de-compra?event=…&pessoa=… (id da prestação).
+ *
+ * 28/10 (Fase 3, arquivos): "Exportar" ganhou o arquivo de OC do M4
+ * (prestadores + lotes Flash, por evento ou período, layout provisório) ao
+ * lado da planilha das aprovadas sem OC — e abre também sem evento escolhido
+ * (só por período).
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearch } from "wouter";
@@ -40,6 +45,7 @@ import { toTitleCase } from "@/lib/format";
 import { useEventoEmFoco } from "@/lib/use-evento-em-foco";
 import { campo, useUrlState } from "@/lib/use-url-state";
 import { dataDeCorteLegivel } from "@shared/legado-honorarios";
+import { hojeISO } from "@shared/hoje-sp";
 import type { Event } from "@shared/schema";
 import { CabecalhoDaLista, LinhaDaOc, type AcoesDaLinhaDaOc } from "@/components/ordens-de-compra/linha-da-oc";
 import { DialogoRegistrarOc } from "@/components/ordens-de-compra/dialogo-registrar-oc";
@@ -200,7 +206,7 @@ export default function OrdensDeCompraPage() {
       actions={temDados && !vazio ? (
         <div className="flex items-center gap-1.5">
           <Button type="button" variant="outline" onClick={() => setExportarAberto(true)} className="pas-alvo h-[34px] rounded-lg px-3 text-sm gap-1.5" data-testid="oc-exportar">
-            <Download className="w-4 h-4" aria-hidden="true" /><span className="max-md:sr-only">Exportar sem OC</span>
+            <Download className="w-4 h-4" aria-hidden="true" /><span className="max-md:sr-only">Exportar</span>
           </Button>
           <Button type="button" onClick={() => setLoteAberto(true)} className="pas-alvo h-[34px] rounded-lg px-3 text-sm gap-1.5" data-testid="oc-abrir-lote">
             <Layers className="w-4 h-4" aria-hidden="true" /><span className="max-md:sr-only">Registrar em lote</span>
@@ -241,6 +247,9 @@ export default function OrdensDeCompraPage() {
             <EventSearchSelect value={eventId} onValueChange={trocarEvento} events={eventos} className="sm:w-full" legado={legado} />
           )}
         </div>
+        <Button type="button" variant="link" className="mt-3 h-auto gap-1.5 p-0 text-sm" onClick={() => setExportarAberto(true)} data-testid="oc-arquivo-por-periodo">
+          <Download className="h-4 w-4" aria-hidden="true" />Arquivo de OC do M4 por período (prestadores + Flash)
+        </Button>
       </div>
     );
   } else if (mostrarLegado) {
@@ -384,9 +393,10 @@ export default function OrdensDeCompraPage() {
           <DialogoMarcarPago itens={itensDoPago} hoje={hoje} marcarPago={acoes.marcarPago} onClose={() => setItensDoPago(null)}
             onPronto={(r) => setSelecionadas((s) => { const n = new Set(s); for (const l of r.linhas) n.delete(l.actualId); return n; })} />
           <DialogoLote aberto={loteAberto} nomeDoEvento={dados.evento.nome} previaDoLote={acoes.previaDoLote} confirmarLote={acoes.confirmarLote} onClose={() => setLoteAberto(false)} />
-          <DialogoExportar aberto={exportarAberto} eventId={eventId} semOc={c.sem_oc} onClose={() => setExportarAberto(false)} />
         </>
       )}
+      <DialogoExportar aberto={exportarAberto} eventId={temDados ? eventId : ""} nomeDoEvento={temDados ? dados?.evento.nome : null}
+        semOc={temDados ? c.sem_oc : 0} hoje={hoje || hojeISO()} onClose={() => setExportarAberto(false)} />
     </>
   );
 }

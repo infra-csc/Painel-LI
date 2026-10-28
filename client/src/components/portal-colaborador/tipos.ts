@@ -48,6 +48,20 @@ export interface ConfirmacaoDoPortal {
   contestacao: string | null;
   confirmadoEm: string;
   valorVisto: number | null;
+  /** 28/10 (Fase 3): a resposta do DP à contestação ("Algo não bate?"). Ausente num servidor antigo. */
+  respostaDoDp?: { texto: string; em: string | null } | null;
+}
+
+/**
+ * 28/10 (Fase 3): o prazo do que é do colaborador agora — confirmar a
+ * presença, enviar (ou reenviar) a nota. Datas em "AAAA-MM-DD" de Brasília.
+ */
+export interface PrazoDoPortal {
+  etapa: "confirmar_presenca" | "enviar_nf" | "reenviar_nf" | string;
+  venceEm: string;
+  situacao: "no_prazo" | "vence_hoje" | "atrasado";
+  /** Atrasado: dias de atraso; no prazo: dias que faltam. */
+  dias: number;
 }
 
 export interface ValoresDoPortal {
@@ -72,6 +86,8 @@ export interface PrestacaoDoPortal {
   valores: ValoresDoPortal | null;
   /** Etapas 4–7 (28/10): OC, nota fiscal, programado e pago. Ausente num servidor antigo. */
   notaEPagamento?: NotaEPagamentoDoPortal | null;
+  /** Fase 3 (28/10): o prazo do que é dele agora; null quando nada espera por ele. */
+  prazo?: PrazoDoPortal | null;
 }
 
 /** A nota fiscal da prestação, como o colaborador vê. */

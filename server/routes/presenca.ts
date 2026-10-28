@@ -49,8 +49,10 @@ import { acessosDosColaboradores, obterOcorrencia, salvarAcesso } from "../stora
 import { contratosDosColaboradores } from "../storage/contratos";
 import {
   estadosDosDias, funcoesDoResponsavel, lerConfiguracaoDoBanco, lerDataDeCorteDoBanco, montarPrestacao, montarPrestacoes,
-  permissaoDeConfirmar, prestacaoDoFluxoNovo, receberSelfie, registrarMarcacao, salvarConfirmacao, type PrestacaoMontada,
+  permissaoDeConfirmar, prazoDaMontada, prestacaoDoFluxoNovo, receberSelfie, registrarMarcacao, salvarConfirmacao, type PrestacaoMontada,
 } from "../presenca-servico";
+import { prazoDaProducao } from "@shared/prazos-honorarios";
+import { contestacaoParaTela, lerPrazosDoBanco, registrarPrazosDosHonorarios } from "./honorarios-prazos";
 import { marcarEnviadosParaRevisao } from "./orcamento-realizado";
 import { PAPEIS_QUE_VEEM_SELFIES } from "../objectAcl";
 import { notasDasPrestacoes } from "../honorarios-pagamento-servico";
@@ -129,12 +131,13 @@ async function prestacoesParaTela(montadas: PrestacaoMontada[], user: User, conf
     m.actual.checkoutFinalPor, m.confirmacao?.userId,
     ...Array.from(m.presencaPorDia.values()).flatMap((p) => [p.checkinUserId, p.checkoutUserId]),
   ]).filter((v): v is string => !!v)));
-  const [contratos, acessos, nomesSubst, usuarios, notas] = await Promise.all([
+  const [contratos, acessos, nomesSubst, usuarios, notas, prazos] = await Promise.all([
     contratosDosColaboradores(colabIds),
     acessosDosColaboradores(colabIds),
     substitutos.length ? db.select({ id: collaboratorsTable.id, nome: collaboratorsTable.fullName }).from(collaboratorsTable).where(inArray(collaboratorsTable.id, substitutos)) : Promise.resolve([]),
     userIds.length ? storage.getUsersByIds(userIds) : Promise.resolve([] as User[]),
     notasDasPrestacoes(montadas.map((m) => m.actual.id)),
+    lerPrazosDoBanco(),
   ]);
   // NF pelo representante (28/10): admin, DP e produção — POST /api/ordens-de-compra/:actualId/nota-fiscal.
   const enviaNf = (PAPEIS_DO_PRODUTOR as readonly string[]).includes(normalizeRole(user.role) ?? "");
@@ -181,6 +184,9 @@ async function prestacoesParaTela(montadas: PrestacaoMontada[], user: User, conf
       };
     });
     const confirmar = permissaoDeConfirmar(m, hoje);
+    // 28/10 (Fase 3): o prazo do check-out final (a produção cobra) e, só
+    // para o DP, o da etapa atual inteira (a mesma régua do Painel).
+    const prazo = prazoDaMontada(m, prazos, hoje, notas.get(m.actual.id) ?? null);
     return {
       actualId: m.actual.id,
       colaborador: m.colaborador ? { id: m.colaborador.id, nome: m.colaborador.fullName, numero: m.colaborador.collaboratorNumber, tipo: m.actual.collaboratorType } : null,
@@ -201,7 +207,14 @@ async function prestacoesParaTela(montadas: PrestacaoMontada[], user: User, conf
         cnpj: m.confirmacao.cnpj ? mascararCnpj(m.confirmacao.cnpj) : null, razaoSocial: m.confirmacao.razaoSocial,
         contratoId: m.confirmacao.contratoId, contestacao: m.confirmacao.contestacao,
         confirmadoEm: new Date(m.confirmacao.confirmadoEm).toISOString(),
+        // 28/10 (Fase 3): a contestação volta ao DP — aberta até ele responder.
+        contestacaoDoColaborador: contestacaoParaTela(m.confirmacao),
       } : null,
+      prazos: {
+        checkoutFinal: prazoDaProducao(prazo),
+        atual: limitado ? null : prazo.atual,
+        pior: limitado ? null : prazo.pior,
+      },
       podeConfirmar: confirmar.ok,
       calculo: {
         valorBase: m.calculo.valorBase, valorCalculado: m.calculo.valorCalculado, linhas: m.calculo.linhas,
@@ -260,6 +273,9 @@ async function responderPrestacao(res: Response, actualId: string, user: User, s
 }
 
 export function registrarPresenca(app: Express): void {
+  // 28/10 (Fase 3): prazos, contestação respondida pelo DP e o sino dos atrasos.
+  registrarPrazosDosHonorarios(app);
+
   // ── Código de primeiro acesso do colaborador ──────────────────────────────
   app.post("/api/colaboradores/:id/codigo-de-acesso", async (req, res) => {
     const user = await requireRoles(req, res, PAPEIS_DO_CODIGO);

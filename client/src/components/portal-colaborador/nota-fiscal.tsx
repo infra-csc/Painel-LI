@@ -35,6 +35,7 @@ import { prepararFotoDaNota } from "./captura";
 import { centavosDoTexto, dataCurta, dataEHora, mascararReais, tamanhoDoArquivo } from "./formatos";
 import { CabecalhoDoEvento, VoltarPara } from "./evento";
 import { Aviso, BotaoPrincipal, BotaoSecundario, CampoDoPortal, TituloDaSecao } from "./pecas";
+import { PrazoDoColaborador } from "./prazo";
 import type { ContaDoPortal, NotaEPagamentoDoPortal, PrestacaoDoPortal } from "./tipos";
 
 export const TAMANHO_MAXIMO_DA_NOTA = 10 * 1024 * 1024;
@@ -237,6 +238,8 @@ export function BlocoDaNotaEPagamento({ p }: { p: PrestacaoDoPortal }) {
         {(n.estado === "nf_devolvida" || n.estado === "nf_recusada") && nota?.comentarioDoDp && (
           <ComentarioDoDp texto={nota.comentarioDoDp} tom={n.estado === "nf_recusada" ? "erro" : "atencao"} />
         )}
+        {/* 28/10 (Fase 3): "Envie a nota até…" (ou o aviso calmo de prazo passado). */}
+        {n.podeEnviarNf && p.prazo && <PrazoDoColaborador prazo={p.prazo} className="mt-3" />}
         {n.podeEnviarNf ? (
           <BotaoPrincipal type="button" className="mt-4" icone={n.estado === "nf_devolvida" ? RefreshCw : Send} onClick={() => navegar(rotaDoEnvio(p))}>
             {n.estado === "nf_devolvida" ? "Enviar de novo" : "Enviar nota fiscal"}

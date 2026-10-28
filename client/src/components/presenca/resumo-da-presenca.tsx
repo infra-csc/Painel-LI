@@ -5,8 +5,16 @@
  * CNPJ informado com o selo de contrato. "Ver presença" leva à tela da
  * presença já na pessoa. Só leitura: aprovar, devolver e recusar continuam
  * onde sempre estiveram.
+ *
+ * 28/10 (Fase 3 — prazos e cobranças): o prazo da etapa do DP ("Conferência
+ * DP até 31/10" / atrasado) no topo e a contestação do colaborador como
+ * pendência: o DP responde aqui ("Responder") e o colaborador vê no portal.
  */
 import { useMemo, useState } from "react";
+import { useAuth } from "@/hooks/use-auth";
+import { isRhOrAdmin } from "@/lib/role-utils";
+import { SeloDoPrazo } from "@/components/honorarios/prazo";
+import { DialogoDaContestacao, SeloDaContestacao } from "@/components/honorarios/contestacao";
 import { Link } from "wouter";
 import { ArrowRight, Camera, CheckCheck, Fingerprint, TriangleAlert } from "lucide-react";
 import { SeloContratoAtivo } from "@/components/contratos/pecas";
@@ -17,6 +25,12 @@ import type { PrestacaoDaPresenca } from "./tipos";
 
 export function ResumoDaPresenca({ p, eventId, nome }: { p: PrestacaoDaPresenca; eventId: string; nome: string }) {
   const [indice, setIndice] = useState<number | null>(null);
+  const [respondendo, setRespondendo] = useState(false);
+  const { user } = useAuth();
+  const podeResponder = isRhOrAdmin(user);
+  const contestacao = p.confirmacao?.contestacaoDoColaborador ?? null;
+  // Só o prazo que é do DP aqui (a conferência, a OC, a nota) — o resto é de outra tela.
+  const prazoDoDp = p.prazos?.atual?.quem === "dp" ? p.prazos.atual : null;
   const selfies = useMemo(() => selfiesDaPrestacao(p), [p]);
   const comEntrada = p.dias.filter((d) => d.entrada).length;
   const comSaida = p.dias.filter((d) => d.saida).length;
@@ -36,6 +50,7 @@ export function ResumoDaPresenca({ p, eventId, nome }: { p: PrestacaoDaPresenca;
           {comEntrada} de {p.dias.length} {p.dias.length === 1 ? "dia" : "dias"} com entrada · {comSaida} com saída · {nSelfies} {nSelfies === 1 ? "selfie" : "selfies"}
           {p.ocorrencias.length > 0 && ` · ${p.ocorrencias.length} ${p.ocorrencias.length === 1 ? "ocorrência" : "ocorrências"}`}
         </p>
+        {prazoDoDp && <SeloDoPrazo p={prazoDoDp} nome={prazoDoDp.rotulo} testid={`cmp-prazo-${p.actualId}`} />}
         <Link href={`/presenca?event=${encodeURIComponent(eventId)}&pessoa=${encodeURIComponent(p.actualId)}`}
           className="pas-alvo ml-auto inline-flex items-center gap-1 h-7 px-2 rounded-md text-xs font-medium text-primary hover:bg-brand-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           data-testid={`cmp-ver-presenca-${p.actualId}`}>
@@ -94,8 +109,24 @@ export function ResumoDaPresenca({ p, eventId, nome }: { p: PrestacaoDaPresenca;
         </span>
       </div>
       {p.confirmacao?.contestacao && (
-        <blockquote className="m-0 mt-2 rounded-md border-l-[3px] border-warning-strong bg-warning-soft/50 px-2.5 py-1.5 text-xs italic text-slate-700">Contestação: “{p.confirmacao.contestacao}”</blockquote>
+        <div className={cn("mt-2 rounded-md border-l-[3px] px-2.5 py-1.5 text-xs", contestacao?.respondida ? "border-border bg-muted/50" : "border-warning-strong bg-warning-soft/50")} data-testid={`cmp-contestacao-${p.actualId}`}>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            {contestacao ? <SeloDaContestacao c={contestacao} /> : <span className="font-semibold text-warning">Contestação do colaborador</span>}
+            {podeResponder && contestacao && (
+              <button type="button" onClick={() => setRespondendo(true)}
+                className="pas-alvo ml-auto inline-flex items-center h-7 px-2 rounded-md text-xs font-medium text-primary hover:bg-brand-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                data-testid={`cmp-responder-${p.actualId}`}>
+                {contestacao.respondida ? "Ver / editar a resposta" : "Responder"}
+              </button>
+            )}
+          </div>
+          <p className="m-0 mt-1 italic text-slate-700">“{p.confirmacao.contestacao}”</p>
+          {contestacao?.respondida && contestacao.resposta && (
+            <p className="m-0 mt-1 text-slate-600"><span className="font-medium not-italic text-foreground">Resposta do DP{contestacao.respondidaPorNome ? ` (${contestacao.respondidaPorNome})` : ""}:</span> {contestacao.resposta}</p>
+          )}
+        </div>
       )}
+      <DialogoDaContestacao alvo={respondendo && contestacao ? { actualId: p.actualId, nome, contestacao } : null} onClose={() => setRespondendo(false)} podeResponder={podeResponder} />
 
       <LightboxDaSelfie nome={nome} selfies={selfies} indice={indice} onIndice={setIndice} onClose={() => setIndice(null)} />
     </section>

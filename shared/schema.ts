@@ -1024,6 +1024,46 @@ export const insertInvoiceSchema = createInsertSchema(invoices).omit({
 export type Invoice = typeof invoices.$inferSelect;
 export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
 
+// Lote de COMPRA de créditos Flash (28/10, Honorários — Fase 3, arquivos): o
+// DP gera o arquivo de compra de um período (e, opcional, de um evento) e o
+// lote amarra os lançamentos (flash_movements.compra_id) — o mesmo crédito não
+// entra em dois lotes. Cancelar (com motivo, só antes de "pago à Flash")
+// solta os lançamentos de novo. `itens` é a fotografia do lote (por
+// colaborador, SEM CPF — o arquivo relê o CPF do cadastro no download).
+// Regras em shared/flash-compras.ts; formato do arquivo em
+// shared/formatos-de-arquivo.ts. Migração: 2026-10-28-honorarios-fase-3-arquivos.sql.
+export const flashCompras = pgTable("flash_compras", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  numero: integer("numero").notNull(),
+  periodoInicio: date("periodo_inicio").notNull(),
+  periodoFim: date("periodo_fim").notNull(),
+  eventId: varchar("event_id").references(() => events.id, { onDelete: "set null" }),
+  incluiManuais: boolean("inclui_manuais").notNull().default(false),
+  status: text("status").notNull().default("gerado"), // gerado | pago | cancelado
+  formato: text("formato").notNull(), // id do formato do arquivo (ex.: flash-provisorio-v1)
+  colaboradores: integer("colaboradores").notNull(),
+  lancamentos: integer("lancamentos").notNull(),
+  totalAlimentacaoCents: integer("total_alimentacao_cents").notNull(),
+  totalMobilidadeCents: integer("total_mobilidade_cents").notNull(),
+  totalCents: integer("total_cents").notNull(),
+  itens: jsonb("itens").$type<Array<{ collaboratorId: string; nome: string; alimentacaoCents: number; mobilidadeCents: number; totalCents: number; lancamentos: string[]; inativo?: boolean }>>().notNull(),
+  geradoPor: varchar("gerado_por"),
+  geradoPorNome: text("gerado_por_nome"),
+  geradoEm: timestamp("gerado_em", { withTimezone: true }).notNull().defaultNow(),
+  pagoEm: date("pago_em"),
+  pagoRegistradoPor: varchar("pago_registrado_por"),
+  pagoRegistradoEm: timestamp("pago_registrado_em", { withTimezone: true }),
+  canceladoEm: timestamp("cancelado_em", { withTimezone: true }),
+  canceladoPor: varchar("cancelado_por"),
+  canceladoPorNome: text("cancelado_por_nome"),
+  motivoCancelamento: text("motivo_cancelamento"),
+}, (t) => [
+  uniqueIndex("flash_compras_numero_uq").on(t.numero),
+  index("flash_compras_gerado_em_idx").on(t.geradoEm),
+]);
+
+export type FlashCompra = typeof flashCompras.$inferSelect;
+
 // Conta Corrente Flash (slide 6 do deck de melhorias) — controle do saldo de
 // Flash Benefícios por colaborador. Crédito inicial na admissão (R$ 350
 // alimentação + R$ 150 mobilidade) e reembolsos por evento para manter o
@@ -1047,6 +1087,9 @@ export const flashMovements = pgTable("flash_movements", {
   // e torna a sincronização idempotente. Migração: 2026-08-17-flash-oc.ts.
   sourceType: text("source_type").notNull().default("manual"),
   sourceRef: text("source_ref"),
+  // 28/10 (Fase 3, arquivos): o lote de compra em que o crédito entrou; nulo =
+  // "a comprar". Só o servidor grava (nunca vem do corpo).
+  compraId: varchar("compra_id").references(() => flashCompras.id, { onDelete: "set null" }),
 }, (t) => [
   // Já existem (17/08 e 19/08)
   uniqueIndex("flash_movements_oc_uq").on(t.sourceRef, t.category).where(sql`${t.sourceType} = 'oc'`),
@@ -1054,6 +1097,7 @@ export const flashMovements = pgTable("flash_movements", {
   index("flash_movements_source_idx").on(t.sourceType, t.sourceRef),
   index("flash_movements_source_event_idx").on(t.sourceType, t.eventId),
   index("flash_movements_collaborator_idx").on(t.collaboratorId, t.movementDate),
+  index("flash_movements_compra_idx").on(t.compraId),
 ]);
 
 export const insertFlashMovementSchema = createInsertSchema(flashMovements).omit({
@@ -1063,6 +1107,8 @@ export const insertFlashMovementSchema = createInsertSchema(flashMovements).omit
   // nasce no servidor via syncFlashFromInvoice.
   sourceType: true,
   sourceRef: true,
+  // 28/10: o lote de compra só é gravado pela geração do lote.
+  compraId: true,
 }).extend({
   category: z.enum(["alimentacao", "mobilidade"]),
   type: z.enum(["credito", "debito"]),
@@ -2192,6 +2238,14 @@ export const presencaConfirmacoes = pgTable("presenca_confirmacoes", {
   contratoId: varchar("contrato_id").references(() => contratos.id, { onDelete: "set null" }),
   contestacao: text("contestacao"),
   confirmadoEm: timestamp("confirmado_em", { withTimezone: true }).notNull().defaultNow(),
+  // 28/10 (Fase 3, prazos e cobranças): a contestação volta ao DP, que responde
+  // ("respondida"); o colaborador vê a resposta no portal. Contestação nova
+  // (texto diferente numa confirmação refeita) zera a resposta.
+  // Migração: scripts/migrations/2026-10-28-honorarios-fase-3-prazos.sql (+ ensure-schema).
+  contestacaoResposta: text("contestacao_resposta"),
+  contestacaoRespondidaEm: timestamp("contestacao_respondida_em", { withTimezone: true }),
+  contestacaoRespondidaPor: varchar("contestacao_respondida_por"),
+  contestacaoRespondidaPorNome: text("contestacao_respondida_por_nome"),
 }, (t) => [
   uniqueIndex("presenca_confirmacoes_actual_uq").on(t.actualId),
 ]);

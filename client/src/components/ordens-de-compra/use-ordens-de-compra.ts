@@ -108,6 +108,42 @@ export async function baixarExportacao(eventId: string, formato: "csv" | "xlsx")
   return nome;
 }
 
+// ── Arquivo de OC do M4 — prestadores + Flash (28/10, Fase 3, arquivos) ─────
+
+export const CHAVE_ARQUIVO_DE_OC = "/api/ordens-de-compra/arquivo-m4";
+
+/** GET /api/ordens-de-compra/arquivo-m4/previa (server/routes/arquivos-de-compra.ts). */
+export interface PreviaDoArquivoDeOc {
+  escopo: { tipo: "evento"; eventId: string; nome: string } | { tipo: "periodo"; inicio: string; fim: string };
+  prestadores: { linhas: number; valorCents: number; semCnpj: number; eventos: number };
+  flash: { lotes: Array<{ id: string; numero: number; totalCents: number; status: string }>; valorCents: number };
+  totalCents: number;
+  linhas: number;
+  legadosIgnorados: number;
+  formato: { id: string; nome: string; provisorio: boolean; colunas: string[]; cnpjDaFlashConfigurado: boolean };
+}
+
+/** Baixa o arquivo de OC do M4 (`query` = "eventId=…" ou "inicio=…&fim=…"); o servidor audita. */
+export async function baixarArquivoDeOc(query: string, formato: "csv" | "xlsx"): Promise<string> {
+  let res: Response;
+  try {
+    res = await fetch(`${CHAVE_ARQUIVO_DE_OC}?${query}&formato=${formato}`, { credentials: "include" });
+  } catch {
+    throw new ApiError(0, null, NETWORK_ERROR_MESSAGE);
+  }
+  await throwIfResNotOk(res);
+  const nome = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? `oc-m4.${formato}`;
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nome;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  return nome;
+}
+
 export interface CorpoDaOc { actualId: string; numero: string; valor?: number | null; data?: string | null; justificativa?: string | null }
 
 /** As escritas da tela, presas ao evento aberto (o pago também serve à tela Notas fiscais). */

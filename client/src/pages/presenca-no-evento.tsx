@@ -21,12 +21,16 @@
  * 28/10 (Fase 2 manual): a situação da nota/pagamento na pessoa e, para a
  * produção e o DP, "Enviar nota fiscal" como representante (o mesmo envio do
  * portal: POST /api/ordens-de-compra/:actualId/nota-fiscal).
+ *
+ * 28/10 (Fase 3 — prazos e cobranças): o prazo do check-out final em cada
+ * pessoa e, acima da lista, um aviso calmo com quantos check-outs finais
+ * estão atrasados (e vencem hoje), que recorta a lista.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearch } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
-  AlertCircle, Archive, CheckCheck, CircleSlash, ClipboardCheck, Clock3, Fingerprint, LogOut, RotateCw, Send, UsersRound,
+  AlarmClock, AlertCircle, Archive, CheckCheck, CircleSlash, ClipboardCheck, Clock3, Fingerprint, LogOut, RotateCw, Send, UsersRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/common/page-header";
@@ -59,9 +63,10 @@ import { DialogoCheckoutFinal, type AlvoDoCheckout } from "@/components/presenca
 import { DialogoCodigoDeAcesso, type AlvoDoCodigo } from "@/components/presenca/codigo-de-acesso";
 import { usePresencaDoEvento, useAcoesDaPresenca } from "@/components/presenca/use-presenca";
 import {
-  ROTULO_DO_FILTRO, codigoDoErro, contarPorFiltro, filtrarPrestacoes, selfiesDaPrestacao, type FiltroDaPresenca,
+  ROTULO_DO_FILTRO, codigoDoErro, contarPorFiltro, filtrarPrestacoes, foiParaODp, selfiesDaPrestacao, type FiltroDaPresenca,
 } from "@/components/presenca/presenca-utils";
 import type { PrestacaoDaPresenca } from "@/components/presenca/tipos";
+import { PRAZOS_PADRAO, diasEntre } from "@shared/prazos-honorarios";
 import { DialogoEnviarNota, type AlvoDaNota } from "@/components/ordens-de-compra/dialogo-enviar-nota";
 import { useAcoesDaOc } from "@/components/ordens-de-compra/use-ordens-de-compra";
 
@@ -123,6 +128,12 @@ export default function PresencaNoEventoPage() {
 
   const prestacoes = useMemo(() => dados?.prestacoes ?? [], [dados]);
   const contagem = useMemo(() => contarPorFiltro(prestacoes), [prestacoes]);
+  // 28/10 (Fase 3): check-outs finais que vencem hoje (os atrasados estão em `contagem`).
+  const checkoutVenceHoje = useMemo(() => prestacoes.filter((p) => !foiParaODp(p) && p.prazos?.checkoutFinal?.situacao === "vence_hoje").length, [prestacoes]);
+  const prazoDoCheckoutDias = useMemo(() => {
+    const p = prestacoes.find((x) => x.prazos?.checkoutFinal?.etapa === "checkout_final")?.prazos?.checkoutFinal;
+    return p ? diasEntre(p.desde, p.venceEm) : PRAZOS_PADRAO.checkoutFinal;
+  }, [prestacoes]);
   const visiveis = useMemo(() => filtrarPrestacoes(prestacoes, texto, filtro), [prestacoes, texto, filtro]);
   const alternar = useCallback((id: string) => setAbertas((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; }), []);
 
@@ -307,6 +318,23 @@ export default function PresencaNoEventoPage() {
           </div>
         )}
         <FilaDeTrabalho blocos={blocos} ativa={filtro} onEscolher={setFiltro} rotulo="Situação das pessoas" testid={(k) => `prs-fila-${k}`} />
+        {(contagem.checkout_atrasado > 0 || checkoutVenceHoje > 0) && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-warning/25 bg-warning-soft/60 px-4 py-2.5 text-sm" role="status" data-testid="prs-aviso-prazo">
+            <AlarmClock className="w-4 h-4 shrink-0 text-warning" aria-hidden="true" />
+            <span className="min-w-0 text-slate-700">
+              {contagem.checkout_atrasado > 0 && <><strong className="font-semibold text-danger">{contagem.checkout_atrasado} {contagem.checkout_atrasado === 1 ? "check-out final atrasado" : "check-outs finais atrasados"}</strong>{checkoutVenceHoje > 0 ? " · " : ""}</>}
+              {checkoutVenceHoje > 0 && <strong className="font-semibold text-warning">{checkoutVenceHoje} {checkoutVenceHoje === 1 ? "vence hoje" : "vencem hoje"}</strong>}
+              <span className="text-muted-foreground"> — o check-out final vai ao DP até {prazoDoCheckoutDias} {prazoDoCheckoutDias === 1 ? "dia" : "dias"} depois do último dia de trabalho.</span>
+            </span>
+            {contagem.checkout_atrasado > 0 && (
+              <button type="button" onClick={() => setFiltro(filtro === "checkout_atrasado" ? null : "checkout_atrasado")}
+                className="pas-alvo ml-auto h-8 px-3 rounded-lg border border-border bg-card text-xs font-medium text-slate-700 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-pressed={filtro === "checkout_atrasado"} data-testid="prs-ver-atrasados">
+                {filtro === "checkout_atrasado" ? "Ver todas" : "Ver os atrasados"}
+              </button>
+            )}
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <BuscaDaLista valor={texto} onChange={setTexto} placeholder="Buscar pessoa ou função" rotulo="Buscar pessoa ou função" testid="prs-busca" />
           <p className="m-0 text-xs text-muted-foreground" aria-live="polite">

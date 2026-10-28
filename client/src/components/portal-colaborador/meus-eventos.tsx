@@ -14,6 +14,7 @@ import {
 } from "./formatos";
 import { BotaoDeMarcacao } from "./marcacao";
 import { BotaoPrincipal, Pilula, TituloDaSecao } from "./pecas";
+import { PrazoDoColaborador } from "./prazo";
 import type { EuDoPortal, PrestacoesDoPortal, PrestacaoDoPortal } from "./tipos";
 
 const TITULO_DA_ACAO: Record<AcaoDeHoje["tipo"], string> = {
@@ -52,6 +53,8 @@ function CartaoDeHoje({ acao, hoje }: { acao: AcaoDeHoje; hoje: string }) {
         )}
       </p>
       {p.funcao && <p className="m-0 mt-1 text-[13px] text-muted-foreground">{p.funcao}{p.evento.cidade ? ` · ${p.evento.cidade}` : ""}</p>}
+      {/* 28/10 (Fase 3): o prazo do que está em destaque ("Confirme até…", "Envie a nota até…"). */}
+      {acao.tipo !== "entrada" && acao.tipo !== "saida" && p.prazo && <PrazoDoColaborador prazo={p.prazo} className="mt-3" />}
       <div className="mt-4">
         {acao.tipo === "confirmar" ? (
           <BotaoPrincipal type="button" icone={ClipboardCheck} onClick={() => navegar(`/evento/${p.id}/confirmar`)}>Confirmar meus dias</BotaoPrincipal>

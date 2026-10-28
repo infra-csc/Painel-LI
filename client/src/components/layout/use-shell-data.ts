@@ -16,6 +16,10 @@
  *   • `/api/shell/precos-acompanhados` → preços acompanhados na Busca de passagens
  *     que mudaram (caiu X% ou a tendência virou "subir") e ninguém viu (09/10) —
  *     admin e Compras; o aviso é da equipe (a fila é compartilhada), não pessoal.
+ *   • `/api/shell/honorarios-prazos` → honorários do fluxo novo com prazo
+ *     atrasado e contestações de colaborador sem resposta (28/10) — só o DP
+ *     (admin + financial). DUAS linhas no sino, nunca uma por prestação; o
+ *     "vence hoje" fica no Painel (não vira aviso).
  * O que não existe de forma barata e confiável NÃO vira badge (nem zero):
  *   • "vagas aguardando aprovação" exige `eventId` no GET /api/scaling-suggestions;
  *   • pendências de Financeiro/Cadastros não têm endpoint de contagem.
@@ -39,7 +43,7 @@ import { buscarAvisos, podeVerAvisos, CHAVE_AVISOS_CASCA, type AvisoDeAlteracao 
 
 import { buscarPendencias, CHAVE_DO_SINO, type PendenciasHonorarios } from "@/components/honorarios-ceno/api";
 import { buscarContasAlteradas, CHAVE_DO_SINO_DE_CONTAS } from "@/components/contratos/api";
-import { FilePen, Undo2, ClipboardCheck, ArrowLeftRight, HardHat, Stamp, CalendarClock, PlaneTakeoff, Route, CalendarX2, BellRing, CircleDollarSign, HandCoins, ShieldAlert } from "lucide-react";
+import { FilePen, Undo2, ClipboardCheck, ArrowLeftRight, HardHat, Stamp, CalendarClock, PlaneTakeoff, Route, CalendarX2, BellRing, CircleDollarSign, HandCoins, ShieldAlert, AlarmClock, MessageSquareWarning } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 /** Só os campos que a casca lê de GET /api/scaling-change-requests (o contrato completo mora na tela de Aprovação). */
 interface PendingChangeRequest {
@@ -54,6 +58,16 @@ interface PendingChangeRequest {
   canDecide?: boolean;
   /** É aprovador da função ou o padrão (15/09) — o que vira aviso; `canDecide` inclui o admin. */
   eAprovador?: boolean;
+}
+
+/** GET /api/shell/honorarios-prazos (28/10) — contagens do fluxo novo. */
+interface PrazosDoSino {
+  atrasados: number;
+  atrasadosComODp: number;
+  atrasadosComAProducao: number;
+  atrasadosComOColaborador: number;
+  venceHoje: number;
+  contestacoesAbertas: number;
 }
 
 export interface ShellNotification {
@@ -341,6 +355,19 @@ export function useShellData() {
   const contasAlteradas = ehDp ? (contasData?.count ?? 0) : 0;
   const contasUltima = contasData?.ultima ?? "";
 
+  /**
+   * Prazos dos honorários (28/10, Fase 3) — só o DP: quantos estão
+   * atrasados (de quem é a vez vai no texto) e as contestações sem resposta.
+   */
+  const { data: prazosHon } = useQuery<PrazosDoSino>({
+    queryKey: ["shell", "honorarios-prazos"],
+    queryFn: ({ signal }) => fetchJson<PrazosDoSino>("/api/shell/honorarios-prazos", signal),
+    enabled: ehDp,
+    staleTime: 60_000,
+  });
+  const honAtrasados = ehDp ? (prazosHon?.atrasados ?? 0) : 0;
+  const honContestacoes = ehDp ? (prazosHon?.contestacoesAbertas ?? 0) : 0;
+
   // ── Vistos (só apagam o ponto de "novo"; nunca mudam a contagem real) ──
   const [seenIds, setSeenIds] = useState<string[]>(() => getSeenNotifications(user?.id));
   useEffect(() => {
@@ -409,6 +436,16 @@ export function useShellData() {
     entrada(honLiberar, "hon-liberar", `${honorario(honLiberar)} ${honLiberar === 1 ? "aprovado" : "aprovados"} a liberar`, "Registre a data, a OC/DP e o valor liberado", "Honorários da cenotécnica", "/honorarios-ceno", HandCoins, AMBAR);
     // Conta/PIX alterados (26/10): o id leva a data da última — mudança nova volta a ser "novo".
     entrada(contasAlteradas, `contas-alteradas:${contasUltima}`, `${contasAlteradas} ${contasAlteradas === 1 ? "conta bancária alterada" : "contas bancárias alteradas"} para conferir`, "Confira com o colaborador antes do próximo pagamento", "Contratos (CNPJ)", "/contratos?aba=contas", ShieldAlert, AMBAR);
+    // Prazos dos honorários (28/10): uma linha de atrasados (com de quem é a vez) e uma de contestações.
+    if (honAtrasados > 0 && prazosHon) {
+      const partes = [
+        prazosHon.atrasadosComODp ? `${prazosHon.atrasadosComODp} com o DP` : "",
+        prazosHon.atrasadosComAProducao ? `${prazosHon.atrasadosComAProducao} com a produção` : "",
+        prazosHon.atrasadosComOColaborador ? `${prazosHon.atrasadosComOColaborador} com ${prazosHon.atrasadosComOColaborador === 1 ? "o colaborador" : "colaboradores"}` : "",
+      ].filter(Boolean).join(" · ");
+      entrada(honAtrasados, "hon-prazos-atrasados", `${honAtrasados} ${honAtrasados === 1 ? "honorário com prazo atrasado" : "honorários com prazo atrasado"}`, partes || "Prazo da etapa vencido", "Painel de honorários", "/rh-control?prazo=atrasados", AlarmClock, AMBAR);
+    }
+    entrada(honContestacoes, "hon-contestacoes", `${honContestacoes} ${honContestacoes === 1 ? "contestação de colaborador" : "contestações de colaboradores"} sem resposta`, "“Algo não bate?” na confirmação — responda para o colaborador ver no app", "Painel de honorários", "/rh-control?prazo=contestacoes", MessageSquareWarning, AMBAR);
     entrada(datasImpossiveis, "datas-impossiveis", `${datasImpossiveis} ${datasImpossiveis === 1 ? "passagem com data impossível" : "passagens com data impossível"}`, "Volta antes da ida ou ano fora do esperado", "Passagens", "/tickets?conflito=data", CalendarX2, VERMELHO);
 
     if (isPurchasing) {
@@ -423,7 +460,7 @@ export function useShellData() {
     entrada(myAwaitingValidationCount, "validacao", `${vagas(myAwaitingValidationCount)} aguardando validação`, "Sugestões de escala para a área validar", "Validação de escala", "/scaling-validation", ClipboardCheck, "bg-brand-soft text-primary");
 
     return list;
-  }, [aguardandoGestorCount, avisoVagasAprovacao, myAwaitingValidationCount, myPendingRequests, seenIds, isPurchasing, ticketSwapCount, accommodationSwapCount, scalingSwapCount, myScalingSwapsCount, avisosPassagem, avisosSoHospedagem, semPassagem30d, viagensQueSeCruzam, datasImpossiveis, precosQueMudaram, honAprovar, honDevolvidos, honLiberar, contasAlteradas, contasUltima]);
+  }, [aguardandoGestorCount, avisoVagasAprovacao, myAwaitingValidationCount, myPendingRequests, seenIds, isPurchasing, ticketSwapCount, accommodationSwapCount, scalingSwapCount, myScalingSwapsCount, avisosPassagem, avisosSoHospedagem, semPassagem30d, viagensQueSeCruzam, datasImpossiveis, precosQueMudaram, honAprovar, honDevolvidos, honLiberar, contasAlteradas, contasUltima, honAtrasados, honContestacoes, prazosHon]);
 
   const markAllSeen = useCallback(() => {
     markNotificationsSeen(user?.id, notifications.map((n) => n.id));
@@ -432,7 +469,7 @@ export function useShellData() {
   /** Badge do sino: total de pendências REAIS (nunca "novidades não vistas"). */
   const pendingTotal = myPendingRequests.length + swapTotal + aguardandoGestorCount + avisoVagasAprovacao + myAwaitingValidationCount
     + avisosPassagem + avisosSoHospedagem + semPassagem30d + viagensQueSeCruzam + datasImpossiveis + precosQueMudaram
-    + honAprovar + honDevolvidos + honLiberar + contasAlteradas;
+    + honAprovar + honDevolvidos + honLiberar + contasAlteradas + honAtrasados + honContestacoes;
 
   /** id da tela → badge. Item sem contador confiável simplesmente não aparece aqui. */
   const tabBadgeCount: Record<string, number> = {

@@ -556,20 +556,24 @@ describe("perfil Honorários não vê nada da presença", () => {
 });
 
 describe("seed da demonstração (server/dev/demo-seed-presenca.ts)", () => {
-  it("cria o evento do fluxo novo com 4 pessoas, 2 na arena, ocorrências, uma confirmação e o acesso ao portal", async () => {
+  it("cria o evento do fluxo novo com 6 pessoas (2 já com prazo vencido — 28/10), 2 na arena, ocorrências, confirmações e o acesso ao portal", async () => {
     const [{ semearDemo }, { semearContratosDemo }, { semearPresencaDemo, DEMO_SENHA_DO_COLABORADOR }] = await Promise.all([
       import("../dev/demo-seed"), import("../dev/demo-seed-contratos"), import("../dev/demo-seed-presenca"),
     ]);
     await semearDemo(ctx.db);
     await semearContratosDemo(ctx.db);
     const resumo = await semearPresencaDemo(ctx.db);
-    expect(resumo.pessoas).toBe(4);
-    expect(resumo.portal).toHaveLength(2);
+    expect(resumo.pessoas).toBe(6);
+    expect(resumo.portal).toHaveLength(3);
     const [evento] = await ctx.db.select().from(ctx.schema.events).where(eq(ctx.schema.events.name, "Meia Maratona de Florianópolis"));
     const { agent } = await agenteLogado("financial");
     const tela = await agent.get(`/api/presenca/eventos/${evento.id}`);
     expect(tela.status, tela.text).toBe(200);
-    expect(tela.body.prestacoes).toHaveLength(4);
+    expect(tela.body.prestacoes).toHaveLength(6);
+    // 28/10 (Fase 3): uma confirmação atrasada (com o check-out final) e uma Conferência DP atrasada; uma contestação aberta.
+    const piores = tela.body.prestacoes.map((p: { prazos: { pior: { etapa: string; situacao: string } | null } }) => p.prazos.pior).filter(Boolean);
+    expect(piores).toEqual(expect.arrayContaining([expect.objectContaining({ etapa: "confirmar_presenca", situacao: "atrasado" }), expect.objectContaining({ etapa: "conferencia_dp", situacao: "atrasado" })]));
+    expect(tela.body.prestacoes.filter((p: { confirmacao: { contestacaoDoColaborador: { respondida: boolean } | null } | null }) => p.confirmacao?.contestacaoDoColaborador && !p.confirmacao.contestacaoDoColaborador.respondida)).toHaveLength(1);
     expect(tela.body.naArenaAgora).toHaveLength(2);
     expect(tela.body.prestacoes.some((p: { confirmacao: unknown }) => p.confirmacao)).toBe(true);
     expect(tela.body.prestacoes.flatMap((p: { ocorrencias: unknown[] }) => p.ocorrencias)).toHaveLength(2);

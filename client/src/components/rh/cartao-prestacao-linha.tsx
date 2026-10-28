@@ -12,6 +12,13 @@
 // (sem data — a data de pagamento entra no Check-in Financeiro), agora num
 // popover ancorado no botão em vez de empurrar a linha.
 // Regras, chamadas e textos de toast: os mesmos de antes.
+//
+// 28/10 (Fase 3 — prazos e cobranças): no fluxo novo a coluna Prazo mostra o
+// prazo da etapa atual (shared/prazos-honorarios: "Atrasado 2 dias", "Vence
+// hoje", "Vence 31/10" + de quem é a vez); "com quem está a bola" passa a
+// dizer colaborador/produção pela mesma régua; a contestação do colaborador
+// aparece como selo ao lado do nome (abre o diálogo de responder).
+import { useContext } from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { AlertTriangle, ChevronDown, CircleDot, Loader2, RotateCcw } from "lucide-react";
 import { apiErrorMessage } from "@/lib/api-error";
@@ -23,6 +30,26 @@ import { PopoverContent } from "@/components/ui/popover";
 import type { NotaParaControle, PrestacaoItem } from "./prestacao-types";
 import type { StatusConfigEntry } from "./status-config";
 import { CHAVE_CONTROLE_RH, prazoDaLinha, type NavigationTarget } from "./prestacao-utils";
+import { SeloDoPrazo } from "@/components/honorarios/prazo";
+import { SeloDaContestacao } from "@/components/honorarios/contestacao";
+import { AbrirContestacao } from "./rh-prazos";
+import { diaEMesCurto, type PrazoDaPrestacao } from "@shared/prazos-honorarios";
+
+/**
+ * Com quem está a bola pelo prazo do fluxo novo (28/10): colaborador e/ou
+ * produção (o DP tem botão de ação ou o "Com o DP" de antes). Null quando
+ * não há prazo aberto de outra pessoa.
+ */
+export function comQuemPeloPrazo(prazo: PrazoDaPrestacao | null | undefined): { texto: string; sub: string; tom: string } | null {
+  const a = prazo?.atual;
+  if (!a || a.quem === "dp") return null;
+  const tom = prazo!.pior?.situacao === "atrasado" ? "text-danger" : prazo!.pior?.situacao === "vence_hoje" ? "text-warning" : "text-slate-600";
+  const p = prazo!.paralelo;
+  const minuscula = (t: string) => t.charAt(0).toLowerCase() + t.slice(1);
+  // Confirmação e check-out correm juntos: a bola é do colaborador, a produção fecha em seguida.
+  if (p && p.quem !== a.quem) return { texto: "Com o colaborador", sub: `${minuscula(a.rotulo)} · depois a produção`, tom };
+  return { texto: a.quem === "colaborador" ? "Com o colaborador" : "Com a produção", sub: minuscula(a.rotulo), tom };
+}
 
 export type ToastFn = ReturnType<typeof useToast>["toast"];
 
@@ -174,7 +201,10 @@ export function CartaoPrestacaoLinha({
   navigate, toggleExpand,
 }: CartaoPrestacaoLinhaProps) {
   const selo = seloDaEtapa(item, config, nfStatus, hasCheckin, itemEmitsNf);
-  const prazo = prazoDaLinha(item);
+  // Fluxo novo com prazo aberto (28/10): o prazo da etapa; senão a régua de antes.
+  const prazoDaEtapa = item.prazo?.pior ?? null;
+  const prazo = prazoDaEtapa ? null : prazoDaLinha(item);
+  const abrirContestacao = useContext(AbrirContestacao);
 
   // Valor: o realizado quando existe; senão o planejado (é o que a prestação vale hoje).
   const valor = item.actual?.totalValue ?? item.planned?.totalValue ?? null;
@@ -196,13 +226,13 @@ export function CartaoPrestacaoLinha({
   const responsavel = item.responsavelAtual && !["DP", "Concluído"].includes(item.responsavelAtual) ? toTitleCase(item.responsavelAtual) : null;
   const comQuem: { texto: string; sub?: string; tom: string } | null =
     acao ? null
-    : item.status === "aguardando_prestacao" ? { texto: "Com o responsável", sub: responsavel ?? "preencher o realizado", tom: "text-slate-600" }
+    : comQuemPeloPrazo(item.prazo) ?? (item.status === "aguardando_prestacao" ? { texto: "Com o responsável", sub: responsavel ?? "preencher o realizado", tom: "text-slate-600" }
     : item.status === "devolvida_para_ajuste" ? { texto: "Devolvida ao responsável", sub: responsavel ?? "corrigir e reenviar", tom: "text-warning" }
     : comNota && aguardaOc(item, nfStatus, itemEmitsNf) ? { texto: "Com o DP", sub: "registrar a OC", tom: "text-slate-600" }
     : comNota && nfStatus === "pendente" && itemEmitsNf ? { texto: "Com o colaborador", sub: "enviar a nota fiscal", tom: "text-slate-600" }
     : comNota && nfStatus === "devolvida" ? { texto: "Com o colaborador", sub: "corrigir a nota", tom: "text-warning" }
     : comNota && nfStatus === "enviada" ? { texto: "Com o DP", sub: "nota em análise", tom: "text-slate-600" }
-    : null;
+    : null);
 
   const nfAprovadaEm = nfInvCard?.paymentDate ? dataCurta(nfInvCard.paymentDate) : nfInvCard?.approvedAt ? dataCurta(nfInvCard.approvedAt) : "";
 
@@ -220,6 +250,13 @@ export function CartaoPrestacaoLinha({
             </span>
           )}
         </h4>
+        {item.contestacao && item.actual && (
+          <SeloDaContestacao
+            c={item.contestacao}
+            className="mt-1"
+            onClick={abrirContestacao ? () => abrirContestacao({ actualId: item.actual!.id, nome: colName, contestacao: item.contestacao! }) : undefined}
+          />
+        )}
         <p className="m-0 mt-0.5 text-xs text-muted-foreground truncate">
           {item.functionName ?? "-"}
           {item.planned?.collaboratorType && (
@@ -240,7 +277,12 @@ export function CartaoPrestacaoLinha({
 
       {/* Prazo */}
       <div className="crh-c-prazo min-w-0" data-rotulo="Prazo">
-        {prazo ? (
+        {prazoDaEtapa ? (
+          <span className="flex flex-col leading-tight min-w-0" data-testid={`crh-prazo-${item.id}`}>
+            <SeloDoPrazo p={prazoDaEtapa} />
+            <span className="mt-0.5 pl-[18px] text-2xs text-muted-foreground break-words" title={prazoDaEtapa.rotulo}>{prazoDaEtapa.situacao === "atrasado" ? `venceu ${diaEMesCurto(prazoDaEtapa.venceEm)} · ` : ""}{prazoDaEtapa.rotuloDeQuem}</span>
+          </span>
+        ) : prazo ? (
           <span className={cn("inline-flex items-start gap-1 text-xs leading-4", prazo.tom === "perigo" ? "text-danger font-medium" : prazo.tom === "atencao" ? "text-warning font-medium" : "text-muted-foreground")}>
             {prazo.alerta && <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />}
             <span>{prazo.texto}</span>

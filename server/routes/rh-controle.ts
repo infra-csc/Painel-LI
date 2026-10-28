@@ -20,13 +20,90 @@
  * evento que termina antes da data de corte (system_settings.honorarios_data_corte)
  * é legado; as conclusões do legado fora do fluxo vêm de honorarios_legado_concluidos;
  * cada linha leva a posição na trilha única (shared/trilha-honorarios).
+ *
+ * 28/10 (Honorários, Fase 3 — prazos e cobranças): cada linha do fluxo novo
+ * leva o prazo da etapa atual (quem age, vence em, situação) e a contestação
+ * do colaborador; os contadores trazem atrasados/vence hoje e as contestações
+ * abertas. A montagem a partir do banco (`carregarControleRh`) também serve o
+ * sino do DP (GET /api/shell/honorarios-prazos).
  */
 import type { Express } from "express";
 import { storage } from "../storage";
-import { ehFiltroDeStatus, montarControleRh } from "@shared/controle-rh";
+import { ehFiltroDeStatus, montarControleRh, type ControleRh, type FiltroDeStatus } from "@shared/controle-rh";
 import { requireFinanceUser } from "./_compartilhado";
 import { conclusoesDoLegado, lerDataDeCorteDoBanco } from "./honorarios-fluxo";
-import { ehRecorteDoLegado } from "@shared/legado-honorarios";
+import { ehEventoLegado, ehRecorteDoLegado, type RecorteDoLegado } from "@shared/legado-honorarios";
+import { lerPrazosDosHonorarios } from "@shared/prazos-honorarios";
+import { hojeISO } from "@shared/hoje-sp";
+import { confirmacoesDasPrestacoes } from "../storage/presenca";
+
+/**
+ * Lê do banco e monta o Painel: um evento (`eventId`), alguns eventos
+ * (`eventIds` — o sino passa só os do fluxo novo) ou o sistema inteiro.
+ * Devolve null quando `eventId` não existe.
+ */
+export async function carregarControleRh(o: {
+  eventId?: string;
+  eventIds?: readonly string[];
+  recorte: RecorteDoLegado;
+  filtro?: FiltroDeStatus | null;
+}): Promise<ControleRh | null> {
+  const { eventId } = o;
+  const doEvento = (id: string) => Promise.all([
+    storage.getTeamInclusions(false, undefined, { eventId: id }),
+    storage.getBudgetPlanned(id),
+    storage.getBudgetActual(id),
+    storage.getInvoices(id),
+  ]);
+  type Tabelas = Awaited<ReturnType<typeof doEvento>>;
+  const tabelasDosEventos = async (ids: readonly string[]): Promise<Tabelas> => {
+    const porEvento = await Promise.all(ids.map(doEvento));
+    return [porEvento.flatMap((t) => t[0]), porEvento.flatMap((t) => t[1]), porEvento.flatMap((t) => t[2]), porEvento.flatMap((t) => t[3])];
+  };
+
+  const [eventos, tabelas, colaboradores, funcoes, usuarios, dataDeCorte, conclusoes, settings] = await Promise.all([
+    eventId ? storage.getEvent(eventId).then((e) => (e ? [e] : []))
+      : o.eventIds ? (o.eventIds.length ? storage.getEventsByIds([...o.eventIds]) : Promise.resolve([]))
+      : storage.getEvents(false),
+    eventId ? doEvento(eventId)
+      : o.eventIds ? tabelasDosEventos(o.eventIds)
+      : Promise.all([
+        // Mesmo recorte que a tela pedia em /api/team-inclusions: sem sugestões (phase padrão), sem excluídas.
+        storage.getTeamInclusions(false, undefined, {}),
+        storage.getAllBudgetPlanned(),
+        storage.getAllBudgetActual(),
+        storage.getInvoices(undefined),
+      ]),
+    storage.getCollaborators(),
+    storage.getFunctions(),
+    storage.getUsers(),
+    lerDataDeCorteDoBanco(),
+    conclusoesDoLegado(eventId),
+    storage.getSystemSettings(),
+  ]);
+  if (eventId && eventos.length === 0) return null;
+  const [vagas, planejados, realizados, notas] = tabelas;
+  // Confirmações (e contestações) só das prestações do fluxo novo — o legado não tem presença.
+  const novos = new Set(eventos.filter((e) => !ehEventoLegado(e.endDate, dataDeCorte)).map((e) => e.id));
+  const confirmacoes = await confirmacoesDasPrestacoes(realizados.filter((a) => novos.has(a.eventId) && !a.splitParentId).map((a) => a.id));
+
+  return montarControleRh({
+    eventos,
+    vagas,
+    planejados,
+    realizados,
+    notas,
+    nomesDeColaboradores: new Map(colaboradores.map((c) => [c.id, c.fullName])),
+    nomesDeFuncoes: new Map(funcoes.map((f) => [f.id, f.name])),
+    nomesDeUsuarios: new Map(usuarios.map((u) => [u.id, u.name])),
+    dataDeCorte,
+    recorte: o.recorte,
+    conclusoes,
+    prazos: lerPrazosDosHonorarios(settings),
+    hoje: hojeISO(),
+    confirmacoes: new Map(confirmacoes.map((c) => [c.actualId, c])),
+  }, o.filtro ?? null);
+}
 
 export function registrarControleRh(app: Express): void {
   app.get("/api/rh/controle", async (req, res) => {
@@ -43,36 +120,12 @@ export function registrarControleRh(app: Express): void {
     }
     const recorte = ehRecorteDoLegado(recorteBruto) ? recorteBruto : "todos";
 
-    const [eventos, vagas, planejados, realizados, notas, colaboradores, funcoes, usuarios, dataDeCorte, conclusoes] = await Promise.all([
-      eventId ? storage.getEvent(eventId).then((e) => (e ? [e] : [])) : storage.getEvents(false),
-      // Mesmo recorte que a tela pedia em /api/team-inclusions: sem sugestões (phase padrão), sem excluídas.
-      storage.getTeamInclusions(false, undefined, eventId ? { eventId } : {}),
-      eventId ? storage.getBudgetPlanned(eventId) : storage.getAllBudgetPlanned(),
-      eventId ? storage.getBudgetActual(eventId) : storage.getAllBudgetActual(),
-      storage.getInvoices(eventId),
-      storage.getCollaborators(),
-      storage.getFunctions(),
-      storage.getUsers(),
-      lerDataDeCorteDoBanco(),
-      conclusoesDoLegado(eventId),
-    ]);
-    if (eventId && eventos.length === 0) {
+    const controle = await carregarControleRh({ eventId, recorte, filtro });
+    if (!controle) {
       return res.status(404).json({ message: "Evento não encontrado" });
     }
 
     res.setHeader("Cache-Control", "no-store");
-    res.json(montarControleRh({
-      eventos,
-      vagas,
-      planejados,
-      realizados,
-      notas,
-      nomesDeColaboradores: new Map(colaboradores.map((c) => [c.id, c.fullName])),
-      nomesDeFuncoes: new Map(funcoes.map((f) => [f.id, f.name])),
-      nomesDeUsuarios: new Map(usuarios.map((u) => [u.id, u.name])),
-      dataDeCorte,
-      recorte,
-      conclusoes,
-    }, filtro));
+    res.json(controle);
   });
 }

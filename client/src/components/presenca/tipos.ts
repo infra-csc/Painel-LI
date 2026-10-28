@@ -7,6 +7,8 @@
 import type { EstadoDoDia, FonteDosDias, ModoDeLocalizacao, SituacaoDoCnpjInformado, TipoDeOcorrencia } from "@shared/presenca";
 import type { SituacaoContratualDoColaborador } from "@shared/contratos";
 import type { EstadoDoPagamento } from "@shared/honorarios-pagamento";
+import type { PrazoDaEtapa } from "@shared/prazos-honorarios";
+import type { ContestacaoParaTela } from "@/components/honorarios/contestacao";
 
 export type QuemRegistrou = "colaborador" | "representante" | "produtor_correcao";
 
@@ -58,6 +60,8 @@ export interface ConfirmacaoDaPresenca {
   contratoId: string | null;
   contestacao: string | null;
   confirmadoEm: string;
+  /** 28/10 (Fase 3): a contestação com a resposta do DP (aberta até ele responder). */
+  contestacaoDoColaborador?: ContestacaoParaTela | null;
 }
 
 export interface CalculoDaPrestacao {
@@ -116,6 +120,11 @@ export interface PrestacaoDaPresenca {
   realizado: { rhStatus: string | null; sentForReview: boolean | null; totalValue: number; dailyValue: number };
   /** Etapas 4–7 (28/10): a OC, a nota e se dá para enviar a NF como representante. */
   notaFiscal?: NotaFiscalDaPresenca;
+  /**
+   * 28/10 (Fase 3): o prazo do check-out final (ou da correção depois da
+   * devolução) para todos; a etapa atual e a mais urgente só para o DP.
+   */
+  prazos?: { checkoutFinal: PrazoDaEtapa | null; atual: PrazoDaEtapa | null; pior: PrazoDaEtapa | null };
 }
 
 export interface NotaFiscalDaPresenca {

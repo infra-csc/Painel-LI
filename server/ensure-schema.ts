@@ -885,6 +885,48 @@ const PASSOS: Passo[] = [
   // (scripts/migrations/2026-10-28-fornecedor-automatico.sql).
   { descricao: "contratos.origem (cadastro | automatico)", sql: `ALTER TABLE contratos ADD COLUMN IF NOT EXISTS origem text NOT NULL DEFAULT 'cadastro'` },
   { descricao: "contratos.origem_detalhe (frase da aprovação automática)", sql: `ALTER TABLE contratos ADD COLUMN IF NOT EXISTS origem_detalhe text` },
+  // 28/10 — Módulo de Honorários, Fase 3 (prazos e cobranças): a resposta do
+  // DP à contestação do colaborador (scripts/migrations/2026-10-28-honorarios-fase-3-prazos.sql).
+  // Os prazos em si são chaves de system_settings (honorarios_prazo_*), com o padrão no código.
+  { descricao: "presenca_confirmacoes.contestacao_resposta (resposta do DP)", sql: `ALTER TABLE presenca_confirmacoes ADD COLUMN IF NOT EXISTS contestacao_resposta text` },
+  { descricao: "presenca_confirmacoes.contestacao_respondida_em", sql: `ALTER TABLE presenca_confirmacoes ADD COLUMN IF NOT EXISTS contestacao_respondida_em timestamptz` },
+  { descricao: "presenca_confirmacoes.contestacao_respondida_por", sql: `ALTER TABLE presenca_confirmacoes ADD COLUMN IF NOT EXISTS contestacao_respondida_por varchar` },
+  { descricao: "presenca_confirmacoes.contestacao_respondida_por_nome", sql: `ALTER TABLE presenca_confirmacoes ADD COLUMN IF NOT EXISTS contestacao_respondida_por_nome text` },
+  // 28/10 — Honorários, Fase 3 (arquivos): lote de compra de créditos Flash e o
+  // vínculo do lançamento com o lote (scripts/migrations/2026-10-28-honorarios-fase-3-arquivos.sql).
+  {
+    descricao: "tabela flash_compras (lote de compra de créditos Flash)",
+    sql: `CREATE TABLE IF NOT EXISTS flash_compras (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      numero integer NOT NULL,
+      periodo_inicio date NOT NULL,
+      periodo_fim date NOT NULL,
+      event_id varchar REFERENCES events(id) ON DELETE SET NULL,
+      inclui_manuais boolean NOT NULL DEFAULT false,
+      status text NOT NULL DEFAULT 'gerado',
+      formato text NOT NULL,
+      colaboradores integer NOT NULL,
+      lancamentos integer NOT NULL,
+      total_alimentacao_cents integer NOT NULL,
+      total_mobilidade_cents integer NOT NULL,
+      total_cents integer NOT NULL,
+      itens jsonb NOT NULL,
+      gerado_por varchar,
+      gerado_por_nome text,
+      gerado_em timestamptz NOT NULL DEFAULT now(),
+      pago_em date,
+      pago_registrado_por varchar,
+      pago_registrado_em timestamptz,
+      cancelado_em timestamptz,
+      cancelado_por varchar,
+      cancelado_por_nome text,
+      motivo_cancelamento text
+    )`,
+  },
+  { descricao: "índice flash_compras_numero_uq (nº do lote único)", sql: `CREATE UNIQUE INDEX IF NOT EXISTS flash_compras_numero_uq ON flash_compras (numero)` },
+  { descricao: "índice flash_compras_gerado_em_idx", sql: `CREATE INDEX IF NOT EXISTS flash_compras_gerado_em_idx ON flash_compras (gerado_em)` },
+  { descricao: "flash_movements.compra_id (lote de compra do crédito)", sql: `ALTER TABLE flash_movements ADD COLUMN IF NOT EXISTS compra_id varchar REFERENCES flash_compras(id) ON DELETE SET NULL` },
+  { descricao: "índice flash_movements_compra_idx", sql: `CREATE INDEX IF NOT EXISTS flash_movements_compra_idx ON flash_movements (compra_id)` },
   // 25/09 — usuário fixo 'system' em users: team_inclusion_logs.user_id
   // aponta para ele quando a vaga muda sem ator humano. Sem a linha, a FK
   // (declarada no schema; criada NOT VALID pela migração de 25/09) recusa o

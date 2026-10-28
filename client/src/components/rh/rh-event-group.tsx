@@ -9,7 +9,10 @@
 // linha de leitura (ponto + número + etapa, só as que existem) e quanto ele
 // soma. Clicar recolhe/abre; as linhas ficam nas colunas da tabela.
 // Os números e as regras de cada etapa são os de antes.
+// 28/10 (Fase 3): prazos do evento — quantos atrasados (e o maior atraso) e
+// quantos vencem hoje, pelo pior prazo de cada linha (shared/prazos-honorarios).
 import { memo } from "react";
+import { contarPrazos } from "@shared/prazos-honorarios";
 import { ChevronRight } from "lucide-react";
 import { formatarMoeda } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -91,6 +94,8 @@ export const RhEventGroup = memo(function RhEventGroup({
   // agora o número em destaque é só o do RH, e o total vem à parte, discreto.
   const pendentesNoTotal = group.items.filter(i => ACTIONABLE_STATUSES.includes(i.status) || i.rhPrecisaAgir).length;
 
+  const prazos = contarPrazos(group.items.map(i => i.prazo));
+
   const periodo = periodoDoEvento(group.event);
   const temValor = group.items.some(i => (i.actual ?? i.planned) && !(i.planned?.didNotAttend || i.actual?.didNotAttend));
 
@@ -110,6 +115,16 @@ export const RhEventGroup = memo(function RhEventGroup({
             {group.rhNeeded > 0 && (
               <span className="text-warning font-medium" title="Esperam o DP: comparativo, planejamento, nota a aprovar ou lançar no M4" data-testid="crh-grupo-com-rh">
                 {" "}· {group.rhNeeded} com o DP
+              </span>
+            )}
+            {prazos.atrasados > 0 && (
+              <span className="text-danger font-medium" title={`Prazo vencido: ${prazos.atrasadosPorQuem.dp} com o DP · ${prazos.atrasadosPorQuem.producao} com a produção · ${prazos.atrasadosPorQuem.colaborador} com colaboradores`} data-testid="crh-grupo-atrasados">
+                {" "}· {plural(prazos.atrasados, "atrasado", "atrasados")}{prazos.maiorAtraso > 1 ? ` (até ${prazos.maiorAtraso} dias)` : ""}
+              </span>
+            )}
+            {prazos.venceHoje > 0 && (
+              <span className="text-warning font-medium" data-testid="crh-grupo-vence-hoje">
+                {" "}· {prazos.venceHoje} {prazos.venceHoje === 1 ? "vence" : "vencem"} hoje
               </span>
             )}
             {pendentesNoTotal > group.rhNeeded && (

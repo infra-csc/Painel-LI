@@ -5,7 +5,7 @@
  * aqui só se decide o que mostrar e como escrever.
  */
 import type { EstadoDoDia } from "@shared/presenca";
-import type { DiaDoPortal, PrestacaoDoPortal, TipoDeMarcacao } from "./tipos";
+import type { DiaDoPortal, PrazoDoPortal, PrestacaoDoPortal, TipoDeMarcacao } from "./tipos";
 
 export const soDigitos = (v: string | null | undefined) => String(v ?? "").replace(/\D/g, "");
 
@@ -112,10 +112,20 @@ export function acaoDaNota(p: PrestacaoDoPortal): "enviar_nf" | "reenviar_nf" | 
   return n.estado === "nf_devolvida" ? "reenviar_nf" : "enviar_nf";
 }
 
+/** Quanto mais alto, mais urgente (28/10): atrasado (pelos dias) > vence hoje > vence antes > sem prazo. */
+export function urgenciaDoPrazoDoPortal(prazo: PrazoDoPortal | null | undefined): number {
+  if (!prazo) return -1;
+  if (prazo.situacao === "atrasado") return 1_000_000 + prazo.dias;
+  if (prazo.situacao === "vence_hoje") return 500_000;
+  return 100_000 - prazo.dias;
+}
+
 /**
  * O destaque do topo de "Meus eventos": primeiro um check-in de hoje, depois
- * um check-out de hoje, depois uma nota devolvida pelo DP, uma nota a enviar
- * (OC emitida) e, por fim, uma confirmação ainda não feita.
+ * um check-out de hoje (são do momento). Entre o que tem prazo — nota
+ * devolvida, nota a enviar (OC emitida) e confirmação — 28/10: vence o PRAZO
+ * mais próximo (o mais atrasado primeiro); empate fica na ordem de antes
+ * (devolvida, enviar, confirmar).
  */
 export function acaoDeHoje(prestacoes: readonly PrestacaoDoPortal[], hoje: string): AcaoDeHoje | null {
   for (const p of prestacoes) {
@@ -126,12 +136,38 @@ export function acaoDeHoje(prestacoes: readonly PrestacaoDoPortal[], hoje: strin
     const d = p.dias.find((x) => x.dia === hoje && x.podeSair);
     if (d) return { tipo: "saida", prestacao: p, dia: d };
   }
-  const devolvida = prestacoes.find((p) => acaoDaNota(p) === "reenviar_nf");
-  if (devolvida) return { tipo: "reenviar_nf", prestacao: devolvida };
-  const aEnviar = prestacoes.find((p) => acaoDaNota(p) === "enviar_nf");
-  if (aEnviar) return { tipo: "enviar_nf", prestacao: aEnviar };
-  const aConfirmar = prestacoes.find((p) => p.podeConfirmar && !p.confirmacao);
-  return aConfirmar ? { tipo: "confirmar", prestacao: aConfirmar } : null;
+  const candidatas: { tipo: "confirmar" | "enviar_nf" | "reenviar_nf"; prestacao: PrestacaoDoPortal; ordem: number }[] = [];
+  prestacoes.forEach((p, i) => {
+    const nota = acaoDaNota(p);
+    if (nota) candidatas.push({ tipo: nota, prestacao: p, ordem: (nota === "reenviar_nf" ? 0 : 1) * 10_000 + i });
+    else if (p.podeConfirmar && !p.confirmacao) candidatas.push({ tipo: "confirmar", prestacao: p, ordem: 2 * 10_000 + i });
+  });
+  if (candidatas.length === 0) return null;
+  candidatas.sort((a, b) => (urgenciaDoPrazoDoPortal(b.prestacao.prazo) - urgenciaDoPrazoDoPortal(a.prestacao.prazo)) || (a.ordem - b.ordem));
+  const { tipo, prestacao } = candidatas[0];
+  return { tipo, prestacao };
+}
+
+// ── Prazo do colaborador (28/10) ────────────────────────────────────────────
+
+const VERBO_DO_PRAZO: Record<string, { faca: string; prazoPara: string; porque: string }> = {
+  confirmar_presenca: { faca: "Confirme", prazoPara: "confirmar os seus dias", porque: "Confirme assim que puder: o produtor fecha a prestação com o que você confirmar." },
+  enviar_nf: { faca: "Envie a nota", prazoPara: "enviar a nota fiscal", porque: "Envie assim que puder: o pagamento só é programado depois que o DP aprova a nota." },
+  reenviar_nf: { faca: "Envie a nota corrigida", prazoPara: "reenviar a nota", porque: "Envie a nota corrigida assim que puder: o pagamento só é programado depois que o DP aprova a nota." },
+};
+
+/**
+ * O prazo em frase, para o colaborador: "Confirme até sex, 31/10" ·
+ * "Envie a nota até hoje" · atrasado, um aviso calmo ("O prazo para enviar a
+ * nota fiscal era 31/10." + o porquê, sem bronca).
+ */
+export function fraseDoPrazo(prazo: PrazoDoPortal): { titulo: string; detalhe: string | null; atrasado: boolean; hoje: boolean } {
+  const v = VERBO_DO_PRAZO[prazo.etapa] ?? VERBO_DO_PRAZO.confirmar_presenca;
+  if (prazo.situacao === "atrasado") {
+    return { titulo: `O prazo para ${v.prazoPara} era ${dataCurta(prazo.venceEm)}.`, detalhe: v.porque, atrasado: true, hoje: false };
+  }
+  if (prazo.situacao === "vence_hoje") return { titulo: `${v.faca} até hoje`, detalhe: null, atrasado: false, hoje: true };
+  return { titulo: `${v.faca} até ${diaDaSemanaCurto(prazo.venceEm)}, ${dataCurta(prazo.venceEm)}`, detalhe: null, atrasado: false, hoje: false };
 }
 
 // ── Nota fiscal e pagamento ─────────────────────────────────────────────────
@@ -156,14 +192,21 @@ export function novidadesDoPagamento(prestacoes: readonly PrestacaoDoPortal[], h
   return lista.sort((a, b) => (a.tipo === b.tipo ? (a.tipo === "pago" ? (b.data ?? "").localeCompare(a.data ?? "") : (a.data ?? "").localeCompare(b.data ?? "")) : a.tipo === "pago" ? -1 : 1));
 }
 
+/** Complemento curto da pílula: " · até 31/10", " · até hoje", " · prazo passou". */
+export function textoCurtoDoPrazo(prazo: PrazoDoPortal): string {
+  if (prazo.situacao === "atrasado") return " · prazo passou";
+  if (prazo.situacao === "vence_hoje") return " · até hoje";
+  return ` · até ${dataCurta(prazo.venceEm)}`;
+}
+
 /** A situação da nota/pagamento em pílula (null = ainda sem OC: vale a situação dos dias). */
 export function situacaoDoPagamento(p: PrestacaoDoPortal): { texto: string; tom: TomDoEstado } | null {
   const n = p.notaEPagamento;
   if (!n || n.estado === "sem_oc") return null;
   switch (n.estado) {
-    case "com_oc": return n.podeEnviarNf ? { texto: "OC emitida · envie a nota fiscal", tom: "acao" } : { texto: "OC emitida", tom: "neutro" };
+    case "com_oc": return n.podeEnviarNf ? { texto: `OC emitida · envie a nota${p.prazo ? textoCurtoDoPrazo(p.prazo) : " fiscal"}`, tom: p.prazo?.situacao === "atrasado" ? "atencao" : "acao" } : { texto: "OC emitida", tom: "neutro" };
     case "nf_enviada": return { texto: "Nota fiscal em conferência no DP", tom: "andamento" };
-    case "nf_devolvida": return { texto: "Nota devolvida · envie de novo", tom: "atencao" };
+    case "nf_devolvida": return { texto: `Nota devolvida · envie de novo${p.prazo ? textoCurtoDoPrazo(p.prazo) : ""}`, tom: "atencao" };
     case "nf_recusada": return { texto: "Nota recusada · fale com o DP", tom: "falta" };
     case "nf_aprovada": return { texto: "Nota aprovada", tom: "ok" };
     case "programado": return { texto: n.programadoPara ? `Pagamento programado para ${dataCurta(n.programadoPara)}` : "Pagamento programado", tom: "ok" };
@@ -203,7 +246,7 @@ export function situacaoDaPrestacao(p: PrestacaoDoPortal, hoje: string): { texto
   if (deHoje?.podeEntrar) return { texto: "Hoje · falta o check-in", tom: "acao" };
   if (deHoje?.podeSair) return { texto: "Na arena · falta o check-out", tom: "andamento" };
   if (p.confirmacao) return { texto: "Você confirmou", tom: "ok" };
-  if (p.podeConfirmar) return { texto: "Falta confirmar os dias", tom: "acao" };
+  if (p.podeConfirmar) return { texto: `Falta confirmar os dias${p.prazo ? textoCurtoDoPrazo(p.prazo) : ""}`, tom: p.prazo?.situacao === "atrasado" ? "atencao" : "acao" };
   const inicio = p.dias[0]?.dia ?? p.evento.inicio;
   if (inicio > hoje) return { texto: `Começa em ${dataCurta(inicio)}`, tom: "neutro" };
   const feitos = p.dias.filter((d) => d.entrada).length;

@@ -31,6 +31,9 @@ import { prestacaoEstaTravada } from "@shared/prestacao-rules";
 import { digitosDoCnpj } from "@shared/cnpj";
 import { hojeISO } from "@shared/hoje-sp";
 import { lerDataDeCorteDoBanco } from "./routes/honorarios-fluxo";
+import { nfIsentaPorEscalacao } from "@shared/prestacao-rules";
+import { prazoDaPrestacao, type PrazoDaPrestacao, type PrazosDosHonorarios } from "@shared/prazos-honorarios";
+import type { Invoice } from "@shared/schema";
 import { confirmacoesDasPrestacoes, ocorrenciasDasPrestacoes, presencasDasPrestacoes } from "./storage/presenca";
 import { contratosDosColaboradores } from "./storage/contratos";
 import { createAuditLog } from "./routes/_compartilhado";
@@ -139,6 +142,22 @@ export async function montarPrestacao(actualId: string, config: ConfiguracaoDaPr
 export function estadosDosDias(m: PrestacaoMontada, hoje: string): { dia: string; estado: EstadoDoDia }[] {
   const ocorrencias = m.ocorrencias.map((o) => ({ tipo: o.tipo, dia: o.dia ? String(o.dia).slice(0, 10) : null }));
   return m.dias.map((dia) => ({ dia, estado: estadoDoDia({ dia, hoje, presenca: m.presencaPorDia.get(dia), ocorrencias }) }));
+}
+
+/**
+ * O prazo da etapa atual da prestação (28/10, Fase 3) — a MESMA regra do
+ * Painel de honorários (shared/prazos-honorarios): último dia pelos dias da
+ * presença, confirmação, Realizado, OC e a nota.
+ */
+export function prazoDaMontada(m: PrestacaoMontada, prazos: PrazosDosHonorarios, hoje: string, nota: Invoice | null): PrazoDaPrestacao {
+  const emiteNf = !nfIsentaPorEscalacao(m.inclusao ? [m.inclusao] : [], m.actual.collaboratorId, m.actual.functionId, m.actual.eventId);
+  return prazoDaPrestacao({
+    hoje, prazos, emiteNf,
+    ultimoDia: m.dias[m.dias.length - 1] ?? null,
+    confirmado: !!m.confirmacao,
+    realizado: m.actual,
+    nota,
+  });
 }
 
 /** A confirmação do colaborador abre? */
@@ -326,11 +345,16 @@ export async function salvarConfirmacao(a: {
   const cnpj = digitosDoCnpj(corpo.cnpj);
   const contratos = (await contratosDosColaboradores([m.actual.collaboratorId])).get(m.actual.collaboratorId) ?? [];
   const { contratoId } = situacaoDoCnpjInformado(cnpj, contratos, hojeISO());
+  const contestacao = corpo.contestacao?.trim() || null;
+  // 28/10 (Fase 3): contestação nova (texto diferente) volta a ficar ABERTA
+  // para o DP — a resposta anterior era para outra pergunta.
+  const mesmaContestacao = !!m.confirmacao && (m.confirmacao.contestacao ?? null) === contestacao;
   const valores = {
     confirmadoPor: por, userId: ator?.id ?? null, collaboratorId: m.actual.collaboratorId, diasConfirmados: dias,
     valorVisto: a.valoresVisiveis ? m.calculo.valorCalculado : null,
     cnpj, razaoSocial: corpo.razaoSocial?.trim() || null, contratoId,
-    contestacao: corpo.contestacao?.trim() || null, confirmadoEm: new Date(),
+    contestacao, confirmadoEm: new Date(),
+    ...(mesmaContestacao ? {} : { contestacaoResposta: null, contestacaoRespondidaEm: null, contestacaoRespondidaPor: null, contestacaoRespondidaPorNome: null }),
   };
   const [gravada] = await db.insert(presencaConfirmacoes)
     .values({ actualId: m.actual.id, ...valores })

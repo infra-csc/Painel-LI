@@ -67,7 +67,7 @@ export function RhFilters(p: RhFiltersProps) {
   const { filtros: f, opcoesDeFuncao, concludedCount, recusadaCount, filteredCount } = p;
   const itens = `${filteredCount} ite${filteredCount === 1 ? "m" : "ns"}`;
   // "Limpar filtros" zera tudo, inclusive o evento da barra (como antes).
-  const limparTudo = () => { f.setFilterEvent("all"); f.setFilterFunction("all"); f.setFilterCollaborator("all"); f.setFilterStatus("all"); f.setFilterInvoiceStatus("all"); f.setSearchTerm(""); f.setFilterCheckinOnly(false); };
+  const limparTudo = () => { f.setFilterEvent("all"); f.setFilterFunction("all"); f.setFilterCollaborator("all"); f.setFilterStatus("all"); f.setFilterInvoiceStatus("all"); f.setSearchTerm(""); f.setFilterCheckinOnly(false); f.setFiltroPrazo("all"); };
   const limparRecorte = () => { f.setFilterStatus("all"); f.setFilterCheckinOnly(false); };
 
   const valorDe = (chave: string) => (chave === "status" ? (statusReal(f.filterStatus) ? f.filterStatus : "all") : chave === "nf" ? f.filterInvoiceStatus : f.filterCollaborator);
@@ -75,7 +75,9 @@ export function RhFilters(p: RhFiltersProps) {
   const ocultos = concludedCount + recusadaCount;
 
   // Linha do recorte: algo além da busca e do evento está ligado.
-  const temLinha = f.filterStatus !== "all" || f.filterCheckinOnly || f.filterFunction !== "all" || f.filterInvoiceStatus !== "all" || f.filterCollaborator !== "all";
+  const temLinha = f.filterStatus !== "all" || f.filterCheckinOnly || f.filterFunction !== "all" || f.filterInvoiceStatus !== "all" || f.filterCollaborator !== "all" || f.filtroPrazo !== "all";
+  // 28/10 (Fase 3): o recorte de prazo por extenso.
+  const nomeDoPrazo = f.filtroPrazo === "atrasados" ? "os atrasados (do mais atrasado ao menos)" : f.filtroPrazo === "vence_hoje" ? "o que vence hoje" : f.filtroPrazo === "contestacoes" ? "as contestações sem resposta" : "";
   const nomeDoRecorte = f.filterStatus === "rh_action" ? "pendências do DP"
     : f.filterStatus !== "all" ? statusConfig[f.filterStatus].label.toLowerCase()
     : "";
@@ -141,6 +143,13 @@ export function RhFilters(p: RhFiltersProps) {
               <ListFilter className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
               Mostrando apenas {nomeDoRecorte} ({itens})
               <button type="button" className="crh-recorte-limpar" onClick={limparRecorte}>Limpar</button>
+            </div>
+          )}
+          {nomeDoPrazo && (
+            <div className="crh-recorte" data-testid="rh-recorte-prazo">
+              <ListFilter className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              Mostrando apenas {nomeDoPrazo} ({itens})
+              <button type="button" className="crh-recorte-limpar" onClick={() => f.setFiltroPrazo("all")}>Limpar</button>
             </div>
           )}
           {f.filterCheckinOnly && (

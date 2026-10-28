@@ -15,9 +15,14 @@
  * se revezam ("Contas" volta). Estados: esqueleto no formato real, erro com
  * "Tentar novamente", conta vazia com saída, sem resultado com "Limpar
  * filtros", lançamento novo/alterado acendendo no extrato.
+ *
+ * 28/10 (Honorários, Fase 3 — arquivos): a aba "Compras" (admin e DP) — a
+ * prévia do que está "a comprar", o lote de compra com o arquivo para a Flash
+ * (layout provisório) e os lotes gerados (baixar, pago, cancelar).
+ * components/flash/compras-flash.tsx.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AlertCircle, Info, Plus, RotateCw, Wallet } from "lucide-react";
+import { AlertCircle, Info, Plus, RotateCw, ShoppingCart, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PageHeader } from "@/components/common/page-header";
@@ -30,7 +35,36 @@ import { useFlashData } from "@/components/flash/use-flash-data";
 import { AccountsList, AdmittedWithoutCreditPanel, DeleteMovementDialog, ResumoDoFlash, type SituacaoDaConta } from "@/components/flash/flash-cards";
 import { ExtratoDaConta } from "@/components/flash/extrato-da-conta";
 import { NewMovementDialog } from "@/components/flash/new-movement-dialog";
-import { TARGET_FOOD_CENTS, TARGET_MOBILITY_CENTS, formatCurrency, type FlashMovement, type SourceFilter } from "@/components/flash/flash-types";
+import { ComprasFlash } from "@/components/flash/compras-flash";
+import { TARGET_FOOD_CENTS, TARGET_MOBILITY_CENTS, formatCurrency, todayISO, type FlashMovement, type SourceFilter } from "@/components/flash/flash-types";
+
+type AbaDoFlash = "contas" | "compras";
+
+/** Contas × Compras (28/10): as duas abas do Cartão Flash; Compras é só do admin/DP. */
+function AbasDoFlash({ aba, onAba }: { aba: AbaDoFlash; onAba: (a: AbaDoFlash) => void }) {
+  const opcoes = [
+    { id: "contas" as const, rotulo: "Contas", Icone: Wallet },
+    { id: "compras" as const, rotulo: "Compras", Icone: ShoppingCart },
+  ];
+  return (
+    <div role="tablist" aria-label="Visões do Cartão Flash" className="inline-flex shrink-0 h-[34px] p-0.5 rounded-lg bg-muted max-sm:w-full">
+      {opcoes.map(({ id, rotulo, Icone }) => {
+        const on = aba === id;
+        return (
+          <button key={id} type="button" role="tab" aria-selected={on} onClick={() => onAba(id)}
+            className={cn(
+              "inline-flex items-center justify-center gap-1.5 h-full px-3 rounded-md text-sm font-medium transition-colors max-sm:flex-1",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              on ? "bg-card text-foreground shadow-1" : "text-muted-foreground hover:text-foreground",
+            )}
+            data-testid={`flash-aba-${id}`}>
+            <Icone className={cn("w-4 h-4 shrink-0", on && "text-primary")} aria-hidden="true" />{rotulo}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 /** Esqueleto no formato real: painel de resumo, lista de contas e extrato. */
 function EsqueletoDoFlash() {
@@ -86,7 +120,10 @@ export default function FlashAccountPage() {
     colaborador: campo.texto(""),
     origem: campo.opcao<SourceFilter>("todos"),
     situacao: campo.opcao<SituacaoDaConta>("todas"),
+    aba: campo.opcao<AbaDoFlash>("contas"),
   });
+  // Compras é só do admin/DP; um link com ?aba=compras para outro papel cai em Contas.
+  const aba: AbaDoFlash = canManage && urlState.aba === "compras" ? "compras" : "contas";
   const search = urlState.q;
   const setSearch = (v: string) => setUrlState({ q: v });
   const selectedCollabId = urlState.colaborador;
@@ -168,12 +205,15 @@ export default function FlashAccountPage() {
       variant="bar"
       title={<span className="inline-flex items-center gap-1">Cartão Flash{regra}</span>}
       className="mx-0 mt-0 gap-x-3 max-sm:static"
+      tabs={canManage ? <AbasDoFlash aba={aba} onAba={(a) => setUrlState({ aba: a })} /> : undefined}
       subtitle={
-        carregado && totals.accounts > 0
+        aba === "compras"
+          ? <>lotes de compra de créditos para a Flash · alimentação e mobilidade</>
+          : carregado && totals.accounts > 0
           ? <>{totals.accounts} {totals.accounts === 1 ? "conta" : "contas"} · alvo {formatCurrency(TARGET_FOOD_CENTS)} alimentação e {formatCurrency(TARGET_MOBILITY_CENTS)} mobilidade</>
           : <>saldo por colaborador · alvo {formatCurrency(TARGET_FOOD_CENTS)} alimentação e {formatCurrency(TARGET_MOBILITY_CENTS)} mobilidade</>
       }
-      actions={canManage ? (
+      actions={canManage && aba === "contas" ? (
         <Button
           type="button"
           onClick={() => novoLancamento("")}
@@ -199,7 +239,9 @@ export default function FlashAccountPage() {
   ) : null;
 
   let conteudo: ReactNode;
-  if (estado.isError) {
+  if (aba === "compras") {
+    conteudo = <ComprasFlash hoje={todayISO()} />;
+  } else if (estado.isError) {
     conteudo = (
       <div role="alert" className="pas-entra flex flex-col items-center text-center rounded-xl border border-danger/25 bg-card px-6 py-14" data-testid="flash-erro">
         <span className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-danger-soft text-danger mb-3" aria-hidden="true">

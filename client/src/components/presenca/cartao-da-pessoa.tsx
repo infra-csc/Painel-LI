@@ -14,6 +14,10 @@
  * 28/10 (Fase 2 manual): a situação da nota/pagamento (OC emitida, NF
  * enviada, devolvida, programado, pago) num selo e no bloco "Nota fiscal e
  * pagamento"; produção e DP enviam a NF como representante.
+ *
+ * 28/10 (Fase 3 — prazos): o prazo do check-out final ("Check-out final até
+ * 31/10", "… atrasado 2 dias") ao lado da situação, enquanto a prestação não
+ * foi ao DP; a contestação mostra se o DP já respondeu (e a resposta).
  */
 import { memo, type ReactNode } from "react";
 import {
@@ -34,6 +38,7 @@ import {
 import type { NotaFiscalDaPresenca, PermissoesDaPresenca, PrestacaoDaPresenca } from "./tipos";
 import type { EstadoDoPagamento } from "@shared/honorarios-pagamento";
 import type { Tom } from "@/components/budget/budget-card";
+import { SeloDoPrazo } from "@/components/honorarios/prazo";
 
 export interface AcoesDaPessoa extends AcoesDoDia {
   lancarOcorrencia: () => void;
@@ -108,6 +113,9 @@ export const CartaoDaPessoa = memo(function CartaoDaPessoa({ p, hoje, permissoes
   const podeConfirmar = p.podeConfirmar && !travada;
   const ultimoDia = p.dias[p.dias.length - 1]?.dia;
   const tipo = p.colaborador?.tipo === "freela" ? "Freela" : p.colaborador?.tipo ? "Casa" : null;
+  // O prazo da produção só enquanto a bola está com ela (antes do envio ao DP, ou depois da devolução).
+  const prazoDoCheckout = !travada ? p.prazos?.checkoutFinal ?? null : null;
+  const contestacao = p.confirmacao?.contestacaoDoColaborador ?? null;
 
   return (
     <article
@@ -126,6 +134,10 @@ export const CartaoDaPessoa = memo(function CartaoDaPessoa({ p, hoje, permissoes
           </p>
           <div className="mt-1.5 flex flex-wrap items-center gap-1">
             <Chip tom={selo.tom} title={selo.dica}>{selo.rotulo}</Chip>
+            {prazoDoCheckout && (
+              <SeloDoPrazo p={prazoDoCheckout} nome={prazoDoCheckout.etapa === "corrigir_prestacao" ? "Reenvio ao DP" : "Check-out final"}
+                className="px-1" testid={`prs-prazo-${p.actualId}`} />
+            )}
             {p.confirmacao ? (
               <Chip tom="ok" title={`Confirmou em ${dataHoraBr(p.confirmacao.confirmadoEm)}${p.confirmacao.por === "representante" ? " (pelo representante)" : ""}`}>
                 <CheckCheck className="w-3 h-3" aria-hidden="true" />Confirmou{p.confirmacao.por === "representante" ? " (rep.)" : ""}
@@ -133,7 +145,12 @@ export const CartaoDaPessoa = memo(function CartaoDaPessoa({ p, hoje, permissoes
             ) : ultimoDia && hoje > ultimoDia && !travada ? (
               <Chip tom="alerta" title="O último dia passou e o colaborador ainda não confirmou os dias e o CNPJ">Não confirmou</Chip>
             ) : null}
-            {p.confirmacao?.contestacao && <Chip tom="alerta" title={p.confirmacao.contestacao}><TriangleAlert className="w-3 h-3" aria-hidden="true" />Contestou</Chip>}
+            {p.confirmacao?.contestacao && (
+              <Chip tom={contestacao?.respondida ? "neutro" : "alerta"} title={`${p.confirmacao.contestacao}${contestacao?.respondida ? " — o DP respondeu" : ""}`}>
+                {contestacao?.respondida ? <CheckCheck className="w-3 h-3" aria-hidden="true" /> : <TriangleAlert className="w-3 h-3" aria-hidden="true" />}
+                {contestacao?.respondida ? "Contestação respondida" : "Contestou"}
+              </Chip>
+            )}
             {p.cnpj.informado && <span className="text-2xs tabular-nums text-muted-foreground" title={`CNPJ ${p.cnpj.origem === "checkout_final" ? "do check-out final" : "confirmado"}: ${p.cnpj.rotulo}`}>{p.cnpj.informado}</span>}
             <SeloContratoAtivo situacao={p.cnpj.informado ? seloDoCnpj(p.cnpj.situacao) : p.situacaoContratual} mostrarQuandoAtivo={!!p.cnpj.informado} />
             {p.notaFiscal && p.notaFiscal.estado !== "sem_oc" && (
@@ -260,6 +277,10 @@ export const CartaoDaPessoa = memo(function CartaoDaPessoa({ p, hoje, permissoes
                 </p>
                 <p className="m-0 text-slate-600">{p.confirmacao.por === "representante" ? `Pelo representante${p.confirmacao.porUsuario?.nome ? ` (${p.confirmacao.porUsuario.nome})` : ""}` : "Pelo próprio colaborador, no app"}</p>
                 {p.confirmacao.contestacao && <blockquote className="m-0 mt-1 rounded-md border-l-[3px] border-warning-strong bg-warning-soft/50 px-2.5 py-1.5 italic">“{p.confirmacao.contestacao}”</blockquote>}
+                {contestacao?.respondida && contestacao.resposta && (
+                  <p className="m-0 text-slate-600 break-words"><span className="font-medium text-foreground">Resposta do DP{contestacao.respondidaPorNome ? ` (${contestacao.respondidaPorNome})` : ""}:</span> {contestacao.resposta}</p>
+                )}
+                {p.confirmacao.contestacao && !contestacao?.respondida && <p className="m-0 text-2xs text-muted-foreground">Aguardando a resposta do DP.</p>}
                 {podeConfirmar && <button type="button" className={cn(ACAO_PEQUENA, "-ml-2")} onClick={acoes.confirmar}>Refazer a confirmação</button>}
               </div>
             ) : (

@@ -1,7 +1,8 @@
 /**
  * Conta Corrente Flash (flash_movements): lançamentos manuais, crédito
  * inicial da admissão, edição e exclusão (lançamentos automáticos do
- * comparativo são intocáveis por aqui).
+ * comparativo são intocáveis por aqui). 28/10: lançamento que já entrou num
+ * lote de compra (não cancelado) também não muda nem sai por aqui.
  * Papéis: financeiro (admin/RH).
  */
 import type { Express } from "express";
@@ -12,6 +13,13 @@ import { eq } from "drizzle-orm";
 import { HttpError } from "../http";
 import { isAutomaticFlashMovement } from "@shared/flash-rules";
 import { createAuditLog, responderErroComStatus, requireFinanceUser, requireFinSession } from "./_compartilhado";
+import { loteVivoDoLancamento } from "../arquivos-de-compra-servico";
+
+/** 28/10 (Fase 3, arquivos): crédito já comprado num lote vivo não muda por aqui. */
+async function bloqueioDoLote(compraId: string | null | undefined): Promise<string | null> {
+  const lote = await loteVivoDoLancamento(compraId);
+  return lote ? `Este crédito já entrou no lote de compra Flash nº ${lote.numero}. Para mudar, cancele o lote antes (Cartão Flash → Compras).` : null;
+}
 
 export function registrarFlash(app: Express): void {
   // ─── Conta Corrente Flash (slide 6 do deck de melhorias) ────────────────────
@@ -93,6 +101,8 @@ export function registrarFlash(app: Express): void {
         // comparativo", ação que nenhum botão do client executava.
         return res.status(409).json({ message: "Este lançamento é automático (gerado pela aprovação do comparativo) e não pode ser editado. Ele acompanha o Realizado: para atualizá-lo, use \"Ressincronizar Flash\" na tela Comparativo; para estorná-lo, use \"Reabrir comparativo (estorna o Flash)\"." });
       }
+      const emLote = await bloqueioDoLote(prev.compraId);
+      if (emLote) return res.status(409).json({ message: emLote, codigo: "em_lote" });
       const data = insertFlashMovementSchema
         .omit({ createdBy: true, createdByName: true })
         .parse(req.body);
@@ -116,6 +126,8 @@ export function registrarFlash(app: Express): void {
       if (isAutomaticFlashMovement(prev)) {
         return res.status(409).json({ message: "Este lançamento é automático (gerado pela aprovação do comparativo) e não pode ser excluído. O estorno acontece no botão \"Reabrir comparativo (estorna o Flash)\", na tela Comparativo." });
       }
+      const emLote = await bloqueioDoLote(prev.compraId);
+      if (emLote) return res.status(409).json({ message: emLote, codigo: "em_lote" });
       await storage.deleteFlashMovement(req.params.id);
       // Trilha: exclusão de lançamento financeiro fica no audit log com o registro apagado
       await createAuditLog('delete', 'financial', req.params.id, prev, user.id, user.name, undefined, req);

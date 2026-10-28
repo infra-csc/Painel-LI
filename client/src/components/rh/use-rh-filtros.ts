@@ -30,7 +30,17 @@ export interface RhFiltros {
   /** Fluxo novo × Legado (26/10) — padrão: o fluxo novo. */
   recorte: RecorteDoLegado;
   setRecorte: (v: RecorteDoLegado) => void;
+  /** 28/10 (Fase 3): atrasados, vence hoje ou contestações abertas (sobre a lista já filtrada). */
+  filtroPrazo: FiltroDePrazo;
+  setFiltroPrazo: (v: FiltroDePrazo) => void;
+  /** "atraso": o mais atrasado primeiro (eventos e linhas). */
+  ordem: OrdemDaFila;
+  setOrdem: (v: OrdemDaFila) => void;
 }
+
+export type FiltroDePrazo = "all" | "atrasados" | "vence_hoje" | "contestacoes";
+export type OrdemDaFila = "padrao" | "atraso";
+const FILTROS_DE_PRAZO: readonly FiltroDePrazo[] = ["all", "atrasados", "vence_hoje", "contestacoes"];
 
 export function useRhFiltros(userId: string | undefined): RhFiltros {
   // Filtros na URL (23/09): ir ao Planejado/Notas e voltar devolvia a fila
@@ -48,6 +58,8 @@ export function useRhFiltros(userId: string | undefined): RhFiltros {
     q: campo.texto(""),
     concluidos: campo.booleano(false),
     recorte: campo.opcao<RecorteDoLegado>(RECORTE_PADRAO),
+    prazo: campo.opcao<FiltroDePrazo>("all"),
+    ordem: campo.opcao<OrdemDaFila>("padrao"),
   });
   const filterEvent = f.event || "all";
   const setFilterEvent = (v: string) => {
@@ -78,9 +90,15 @@ export function useRhFiltros(userId: string | undefined): RhFiltros {
   // Trocar de recorte zera o filtro de status (os números de um não valem no outro).
   const setRecorte = (v: RecorteDoLegado) => setF({ recorte: v, status: "all" });
 
+  // 28/10 (Fase 3): prazo e ordem. Valor de fora da lista (link antigo) cai no padrão.
+  const filtroPrazo: FiltroDePrazo = FILTROS_DE_PRAZO.includes(f.prazo) ? f.prazo : "all";
+  const setFiltroPrazo = (v: FiltroDePrazo) => setF({ prazo: v });
+  const ordem: OrdemDaFila = f.ordem === "atraso" ? "atraso" : "padrao";
+  const setOrdem = (v: OrdemDaFila) => setF({ ordem: v });
+
   // Os 4 card-filtros (rh_action, col_action, nf_andamento, concluidos) contam
   // como filtro ativo — consistente com o badge "Filtros (N)".
-  const hasActiveFilters = filterEvent !== "all" || filterFunction !== "all" || filterCollaborator !== "all" || filterStatus !== "all" || filterInvoiceStatus !== "all" || searchTerm !== "" || filterCheckinOnly;
+  const hasActiveFilters = filterEvent !== "all" || filterFunction !== "all" || filterCollaborator !== "all" || filterStatus !== "all" || filterInvoiceStatus !== "all" || searchTerm !== "" || filterCheckinOnly || filtroPrazo !== "all";
 
   return {
     filterEvent, setFilterEvent,
@@ -93,5 +111,7 @@ export function useRhFiltros(userId: string | undefined): RhFiltros {
     showConcluded, setShowConcluded,
     hasActiveFilters,
     recorte, setRecorte,
+    filtroPrazo, setFiltroPrazo,
+    ordem, setOrdem,
   };
 }
