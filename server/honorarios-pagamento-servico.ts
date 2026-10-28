@@ -24,7 +24,7 @@ import {
 import {
   ROTULO_DO_ESTADO_DO_PAGAMENTO, conferirNotaComOc, descricaoSugeridaDaNota, estadoDoPagamento, fraseDoPagamentoAoColaborador,
   notaProgramada, ocExigeJustificativa, podeDesfazerOc, podeDesfazerPago, podeEnviarNotaDaOc, podeMarcarPago, podeRegistrarOc,
-  type ConferenciaDaNota, type EstadoDoPagamento, type PrestacaoDoLote,
+  type ConferenciaDaNota, type EstadoDoPagamento, type OrigemDaOc, type PrestacaoDoLote,
 } from "@shared/honorarios-pagamento";
 import { SITUACAO_DO_CNPJ_LABEL, cpfDoCadastro, situacaoDoCnpjInformado, type SituacaoDoCnpjInformado } from "@shared/presenca";
 import { nfIsentaPorEscalacao } from "@shared/prestacao-rules";
@@ -135,6 +135,75 @@ export function paraOLote(m: PrestacaoDoPagamentoMontada): PrestacaoDoLote {
     rhStatus: m.actual.rhStatus, splitParentId: m.actual.splitParentId, collaboratorId: m.actual.collaboratorId, didNotAttend: m.actual.didNotAttend, ocNumero: m.actual.ocNumero,
     pagoEm: m.actual.pagoEm, situacaoDoCnpj: m.cnpj.situacao, emiteNf: m.emiteNf,
   };
+}
+
+// ── Gravações das etapas 4 e 7 (manual, lote e retorno do M4) ───────────────
+//
+// Um caminho só para cada gravação, com a GUARDA no banco (o UPDATE só pega
+// se o estado ainda é o esperado): as rotas manuais, o lote de OC e a
+// importação do retorno do M4 (server/routes/retorno-m4.ts) chamam estas.
+// `exec` é o `db` ou uma transação.
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type Gravador = Pick<Tx, "update">;
+
+/** Campos gravados ao registrar a OC. */
+export const camposDaOc = (u: Pick<User, "id">, origem: OrigemDaOc, numero: string, valor: number, data: string, justificativa: string | null) => ({
+  ocNumero: numero, ocValor: valor, ocData: data, ocRegistradaEm: new Date(), ocRegistradaPor: u.id, ocOrigem: origem,
+  ocJustificativa: justificativa, updatedAt: new Date(), updatedBy: u.id,
+});
+
+/** O que a auditoria guarda da OC (sem CPF). */
+export const resumoDaOc = (a: BudgetActual, extra: Record<string, unknown> = {}) => ({
+  ocNumero: a.ocNumero, ocValor: a.ocValor, ocData: a.ocData, ocOrigem: a.ocOrigem, ocJustificativa: a.ocJustificativa, ...extra,
+});
+
+/** Etapa 4: grava a OC (só prestação aprovada e ainda sem OC). null = a prestação mudou. */
+export async function gravarOc(exec: Gravador, u: Pick<User, "id">, d: {
+  actualId: string; origem: OrigemDaOc; numero: string; valor: number; data: string; justificativa: string | null;
+}): Promise<BudgetActual | null> {
+  const [depois] = await exec.update(budgetActualTable)
+    .set(camposDaOc(u, d.origem, d.numero, d.valor, d.data, d.justificativa))
+    .where(and(eq(budgetActualTable.id, d.actualId), isNull(budgetActualTable.ocNumero), eq(budgetActualTable.rhStatus, "aprovado")))
+    .returning();
+  return depois ?? null;
+}
+
+/**
+ * Etapa 7, PROGRAMADO: o "Lançar no M4" da nota — check-in único da NF
+ * aprovada (checkin_at ainda nulo; dois cliques não dobram), com a data de
+ * pagamento e a entrada no histórico. null = já lançada ou mudou de status.
+ */
+export async function lancarNotaNoM4(exec: Gravador, invoiceId: string, userId: string, paymentDate: string, historico: Record<string, unknown> = {}): Promise<Invoice | null> {
+  const [invoice] = await exec.update(invoicesTable)
+    .set({
+      checkinAt: new Date(), checkinBy: userId, paymentDate, updatedAt: new Date(),
+      history: anexarAoHistorico({ ...historico, type: "checkin", paymentDate }),
+    })
+    .where(and(eq(invoicesTable.id, invoiceId), eq(invoicesTable.status, "aprovada"), isNull(invoicesTable.checkinAt)))
+    .returning();
+  return invoice ?? null;
+}
+
+/**
+ * Etapa 7, PAGO: marca as prestações como pagas — só as ainda não pagas e
+ * com a NF aprovada e lançada no M4 (programado), conferido no banco.
+ * Devolve as que foram gravadas.
+ */
+export async function gravarPagos(exec: Gravador, u: Pick<User, "id">, ids: readonly string[], d: {
+  pagoEm: string; observacao: string | null; comprovanteId: string | null;
+}): Promise<BudgetActual[]> {
+  if (ids.length === 0) return [];
+  const agora = new Date();
+  return exec.update(budgetActualTable).set({
+    pagoEm: d.pagoEm, pagoRegistradoPor: u.id, pagoRegistradoEm: agora,
+    pagamentoObs: d.observacao, pagamentoComprovanteId: d.comprovanteId,
+    updatedAt: agora, updatedBy: u.id,
+  }).where(and(
+    inArray(budgetActualTable.id, [...ids]), isNull(budgetActualTable.pagoEm),
+    // Guarda no banco: a NF continua aprovada e lançada no M4 (programado).
+    drizzleSql`EXISTS (SELECT 1 FROM invoices nf WHERE nf.budget_actual_id = "budget_actual"."id" AND nf.status = 'aprovada' AND nf.checkin_at IS NOT NULL)`,
+  )).returning();
 }
 
 // ── A linha da tela "Ordens de compra" (e da conferência em Notas fiscais) ──

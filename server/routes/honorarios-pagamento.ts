@@ -33,7 +33,7 @@
  */
 import type { Express, Response } from "express";
 import { z } from "zod";
-import { and, eq, inArray, isNotNull, isNull, sql as drizzleSql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, sql as drizzleSql } from "drizzle-orm";
 import { db } from "../db";
 import { storage } from "../storage";
 import { budgetActual as budgetActualTable, type BudgetActual, type Event, type User } from "@shared/schema";
@@ -42,7 +42,7 @@ import {
   CHAVE_DO_EXPURGO_AUTOMATICO, COLUNAS_DA_EXPORTACAO, JUSTIFICATIVA_MAX, JUSTIFICATIVA_MIN, LOTE_DE_PAGO_MAX, MOTIVO_DO_DESFAZER_MIN,
   MSG_NAO_EMITE_NF, OBS_DO_PAGAMENTO_MAX, ESTADOS_DO_PAGAMENTO, erroDaDataPassada, erroDoNumeroDaOc, erroDoValorEmCentavos, lerLoteDeOc,
   montarCsv, normalizarNumeroDaOc, ocExigeJustificativa, podeDesfazerOc, podeDesfazerPago, podeMarcarPago, podeRegistrarOc, reaisParaCsv,
-  type EstadoDoPagamento, type OrigemDaOc,
+  type EstadoDoPagamento,
 } from "@shared/honorarios-pagamento";
 import { SITUACAO_DO_CNPJ_LABEL, cpfDoCadastro } from "@shared/presenca";
 import { dataDeCorteLegivel, ehEventoLegado } from "@shared/legado-honorarios";
@@ -50,8 +50,8 @@ import { mascararCnpj } from "@shared/cnpj";
 import { hojeISO } from "@shared/hoje-sp";
 import { lerDataDeCorteDoBanco } from "./honorarios-fluxo";
 import {
-  enviarNotaDaPrestacao, lerCamposDaNota, linhasDaOc, montar, montarDoEvento, paraOLote, receberArquivoDaNota,
-  type PrestacaoDoPagamentoMontada,
+  enviarNotaDaPrestacao, gravarOc, gravarPagos, lerCamposDaNota, linhasDaOc, montar, montarDoEvento, paraOLote, receberArquivoDaNota,
+  resumoDaOc, type PrestacaoDoPagamentoMontada,
 } from "../honorarios-pagamento-servico";
 import { expurgarSelfies, expurgoAutomaticoEstaLigado, temStorageReal } from "../expurgo-selfies";
 import { reconhecerFornecedores } from "../fornecedor-automatico";
@@ -110,17 +110,6 @@ const corpoDoPago = z.object({
   pagoEm: z.string().max(20),
   observacao: z.string().trim().max(OBS_DO_PAGAMENTO_MAX).nullish(),
   comprovanteId: z.string().regex(RE_ANEXO).nullish(),
-});
-
-/** Campos gravados ao registrar a OC. */
-const camposDaOc = (u: User, origem: OrigemDaOc, numero: string, valor: number, data: string, justificativa: string | null) => ({
-  ocNumero: numero, ocValor: valor, ocData: data, ocRegistradaEm: new Date(), ocRegistradaPor: u.id, ocOrigem: origem,
-  ocJustificativa: justificativa, updatedAt: new Date(), updatedBy: u.id,
-});
-
-/** O que a auditoria guarda da OC (sem CPF). */
-const resumoDaOc = (a: BudgetActual, extra: Record<string, unknown> = {}) => ({
-  ocNumero: a.ocNumero, ocValor: a.ocValor, ocData: a.ocData, ocOrigem: a.ocOrigem, ocJustificativa: a.ocJustificativa, ...extra,
 });
 
 export function registrarHonorariosPagamento(app: Express): void {
@@ -190,10 +179,7 @@ export function registrarHonorariosPagamento(app: Express): void {
         });
       }
       const numero = normalizarNumeroDaOc(corpo.data.numero);
-      const [depois] = await db.update(budgetActualTable)
-        .set(camposDaOc(user, "manual", numero, valor, data, exige ? justificativa! : null))
-        .where(and(eq(budgetActualTable.id, actualId), isNull(budgetActualTable.ocNumero), eq(budgetActualTable.rhStatus, "aprovado")))
-        .returning();
+      const depois = await gravarOc(db, user, { actualId, origem: "manual", numero, valor, data, justificativa: exige ? justificativa! : null });
       if (!depois) return res.status(409).json({ message: "A prestação mudou enquanto a OC era registrada — recarregue.", codigo: "mudou" });
       await createAuditLog("update", "budget_actual", depois.id, resumoDaOc(depois, {
         acao: "OC registrada", situacaoDoCnpj: m.cnpj.situacao, valorAprovado: m.actual.totalValue,
@@ -246,10 +232,9 @@ export function registrarHonorariosPagamento(app: Express): void {
       const gravadas = await db.transaction(async (tx) => {
         const feitas: BudgetActual[] = [];
         for (const l of gravar) {
-          const [depois] = await tx.update(budgetActualTable)
-            .set(camposDaOc(user, "lote", l.numero!, l.valor!, l.data!, l.exigeJustificativa ? justificativa : null))
-            .where(and(eq(budgetActualTable.id, l.actualId!), isNull(budgetActualTable.ocNumero), eq(budgetActualTable.rhStatus, "aprovado")))
-            .returning();
+          const depois = await gravarOc(tx, user, {
+            actualId: l.actualId!, origem: "lote", numero: l.numero!, valor: l.valor!, data: l.data!, justificativa: l.exigeJustificativa ? justificativa : null,
+          });
           if (depois) feitas.push(depois);
           else recusadas.push({ linha: l.linha, referencia: l.referencia, motivos: ["A prestação mudou enquanto o lote era gravado."] });
         }
@@ -440,16 +425,9 @@ export function registrarHonorariosPagamento(app: Express): void {
         const r = recusadas[0];
         return res.status(r.codigo === "nao_encontrada" ? 404 : 409).json({ message: r.motivo, codigo: r.codigo });
       }
-      const agora = new Date();
-      const pagas = aptas.length === 0 ? [] : await db.update(budgetActualTable).set({
-        pagoEm: corpo.data.pagoEm, pagoRegistradoPor: user.id, pagoRegistradoEm: agora,
-        pagamentoObs: corpo.data.observacao || null, pagamentoComprovanteId: corpo.data.comprovanteId ?? null,
-        updatedAt: agora, updatedBy: user.id,
-      }).where(and(
-        inArray(budgetActualTable.id, aptas), isNull(budgetActualTable.pagoEm),
-        // Guarda no banco: a NF continua aprovada e lançada no M4 (programado).
-        drizzleSql`EXISTS (SELECT 1 FROM invoices nf WHERE nf.budget_actual_id = "budget_actual"."id" AND nf.status = 'aprovada' AND nf.checkin_at IS NOT NULL)`,
-      )).returning();
+      const pagas = await gravarPagos(db, user, aptas, {
+        pagoEm: corpo.data.pagoEm, observacao: corpo.data.observacao || null, comprovanteId: corpo.data.comprovanteId ?? null,
+      });
       const feitas = new Set(pagas.map((p) => p.id));
       for (const id of aptas) if (!feitas.has(id)) recusadas.push({ actualId: id, motivo: "A prestação mudou enquanto o pagamento era registrado — recarregue.", codigo: "mudou" });
       await createAuditLogsBatch(pagas.map((p) => montarLogDeAuditoria("update", "budget_actual", p.id, {

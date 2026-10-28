@@ -22,13 +22,18 @@
  * (prestadores + lotes Flash, por evento ou período, layout provisório) ao
  * lado da planilha das aprovadas sem OC — e abre também sem evento escolhido
  * (só por período).
+ *
+ * 28/10 (retorno do M4): "Importar retorno do M4" lê a planilha que o M4
+ * devolve (nº da OC, programado, liquidado — layout provisório) e, depois da
+ * prévia, registra as OCs, programa as notas e marca como pago (também os
+ * lotes Flash) pelas mesmas regras das ações manuais. Abre com ou sem evento.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearch } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertCircle, AlertTriangle, Archive, BadgeCheck, Building2, CalendarClock, CircleDashed, Download, FileCheck2, FileClock, FileSearch, FileWarning,
-  Layers, Receipt, RotateCw, X,
+  FileInput, Layers, Receipt, RotateCw, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/common/page-header";
@@ -52,6 +57,7 @@ import { DialogoRegistrarOc } from "@/components/ordens-de-compra/dialogo-regist
 import { DialogoDesfazer, alvoDoDesfazer, type AlvoDoDesfazer } from "@/components/ordens-de-compra/dialogo-desfazer";
 import { DialogoLote } from "@/components/ordens-de-compra/dialogo-lote";
 import { DialogoExportar } from "@/components/ordens-de-compra/dialogo-exportar";
+import { DialogoRetornoM4 } from "@/components/ordens-de-compra/dialogo-retorno-m4";
 import { DialogoMarcarPago, type ItemDoPago } from "@/components/ordens-de-compra/dialogo-marcar-pago";
 import { DialogoEnviarNota, type AlvoDaNota } from "@/components/ordens-de-compra/dialogo-enviar-nota";
 import { useAcoesDaOc, useOrdensDeCompra } from "@/components/ordens-de-compra/use-ordens-de-compra";
@@ -161,6 +167,7 @@ export default function OrdensDeCompraPage() {
   const [itensDoPago, setItensDoPago] = useState<ItemDoPago[] | null>(null);
   const [loteAberto, setLoteAberto] = useState(false);
   const [exportarAberto, setExportarAberto] = useState(false);
+  const [retornoAberto, setRetornoAberto] = useState(false);
 
   const acoesDaLinha: AcoesDaLinhaDaOc = useMemo(() => ({
     registrarOc: (l) => setAlvoOc(l),
@@ -193,6 +200,13 @@ export default function OrdensDeCompraPage() {
     ? [periodoDoEvento(evento), temDados && !vazio ? `${linhas.length} ${linhas.length === 1 ? "aprovada" : "aprovadas"}` : null, evento.location].filter(Boolean).join(" · ")
     : undefined;
 
+  // 28/10: o retorno do M4 não é de um evento (o arquivo pode ter vários e os lotes Flash).
+  const botaoDoRetorno = (
+    <Button type="button" variant="outline" onClick={() => setRetornoAberto(true)} className="pas-alvo h-[34px] rounded-lg px-3 text-sm gap-1.5" title="Importar a planilha que o M4 devolveu: nº da OC, programado e liquidado" data-testid="oc-importar-retorno">
+      <FileInput className="w-4 h-4" aria-hidden="true" /><span className="max-md:sr-only">Importar retorno do M4</span>
+    </Button>
+  );
+
   const barra = (
     <PageHeader
       variant="bar"
@@ -205,6 +219,7 @@ export default function OrdensDeCompraPage() {
       </> : undefined}
       actions={temDados && !vazio ? (
         <div className="flex items-center gap-1.5">
+          {botaoDoRetorno}
           <Button type="button" variant="outline" onClick={() => setExportarAberto(true)} className="pas-alvo h-[34px] rounded-lg px-3 text-sm gap-1.5" data-testid="oc-exportar">
             <Download className="w-4 h-4" aria-hidden="true" /><span className="max-md:sr-only">Exportar</span>
           </Button>
@@ -215,7 +230,7 @@ export default function OrdensDeCompraPage() {
             <RotateCw className={`w-4 h-4 ${q.isFetching ? "animate-spin motion-reduce:animate-none" : ""}`} aria-hidden="true" />
           </Button>
         </div>
-      ) : undefined}
+      ) : eventId && !mostrarLegado ? botaoDoRetorno : undefined}
     />
   );
 
@@ -249,6 +264,9 @@ export default function OrdensDeCompraPage() {
         </div>
         <Button type="button" variant="link" className="mt-3 h-auto gap-1.5 p-0 text-sm" onClick={() => setExportarAberto(true)} data-testid="oc-arquivo-por-periodo">
           <Download className="h-4 w-4" aria-hidden="true" />Arquivo de OC do M4 por período (prestadores + Flash)
+        </Button>
+        <Button type="button" variant="link" className="mt-2 h-auto gap-1.5 p-0 text-sm" onClick={() => setRetornoAberto(true)} data-testid="oc-importar-retorno-sem-evento">
+          <FileInput className="h-4 w-4" aria-hidden="true" />Importar retorno do M4 (OC, programado e liquidado)
         </Button>
       </div>
     );
@@ -338,7 +356,7 @@ export default function OrdensDeCompraPage() {
               <span className="inline-flex items-center gap-1 text-warning"><FileWarning className="w-3 h-3" aria-hidden="true" />{contagem.semOcExigemJustificativa} sem contrato ativo (OC com justificativa)</span>
             )}
             {contagem.naoEmiteNf > 0 && <span>{contagem.naoEmiteNf} não {contagem.naoEmiteNf === 1 ? "emite" : "emitem"} NF</span>}
-            <span title="O layout do arquivo de OC do M4 ainda não existe: tudo é digitado ou colado; o importador grava depois nos mesmos campos.">Modo manual (sem arquivo do M4)</span>
+            <span title="Os layouts do M4 ainda não chegaram: o arquivo de OC e o retorno do M4 estão num formato provisório; também dá para digitar ou colar.">Arquivos do M4 em layout provisório</span>
           </div>
         </div>
 
@@ -397,6 +415,7 @@ export default function OrdensDeCompraPage() {
       )}
       <DialogoExportar aberto={exportarAberto} eventId={temDados ? eventId : ""} nomeDoEvento={temDados ? dados?.evento.nome : null}
         semOc={temDados ? c.sem_oc : 0} hoje={hoje || hojeISO()} onClose={() => setExportarAberto(false)} />
+      <DialogoRetornoM4 aberto={retornoAberto} onClose={() => setRetornoAberto(false)} />
     </>
   );
 }

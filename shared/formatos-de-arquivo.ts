@@ -5,7 +5,10 @@
  *  - o arquivo de COMPRA da Flash (créditos de alimentação e mobilidade por
  *    colaborador — tela Cartão Flash);
  *  - o arquivo de OC do M4 (prestadores aprovados sem OC + uma linha por lote
- *    de compra da Flash — tela Ordens de compra).
+ *    de compra da Flash — tela Ordens de compra);
+ *  - e, no caminho de VOLTA, o retorno do M4 (`FORMATO_RETORNO_M4`, um
+ *    formato de LEITURA — nº da OC, programação e liquidação por linha do
+ *    arquivo de OC; leitor em shared/retorno-m4.ts).
  *
  * Os layouts oficiais (o da Flash e o do importador de OC do M4) ainda não
  * chegaram. Os dois formatos abaixo são PROVISÓRIOS e dizem isso no topo do
@@ -280,3 +283,104 @@ export function descricaoDaOcDoLoteFlash(d: { numero: number; inicio?: string | 
   const periodo = d.inicio && d.fim ? ` (${d.inicio === d.fim ? dataBr(d.inicio) : `${diaMes(d.inicio)} a ${dataBr(d.fim)}`})` : "";
   return `Crédito Flash alimentação/mobilidade — lote ${d.numero}${d.evento ? ` · ${d.evento}` : ""}${periodo}`;
 }
+
+// ── LEITURA: o retorno do M4 ────────────────────────────────────────────────
+//
+// O caminho de volta do "Plano B" (sem API, tudo por arquivo): o M4 devolve,
+// por linha do arquivo de OC que o app exportou, o nº da OC, a situação
+// (programado/liquidado), as datas e o valor. Um formato de LEITURA também é
+// só dado — os títulos aceitos de cada coluna, os textos de cada situação e
+// os separadores —; o leitor (shared/retorno-m4.ts) não muda quando o layout
+// mudar.
+//
+// A CHAVE da linha é a coluna "Referência" que o NOSSO arquivo de OC já leva
+// (`FORMATO_OC_M4`, campo `referencia`): o id da prestação (prestador) ou
+// "Lote N" (lote de compra Flash). O M4 devolve a mesma linha com a mesma
+// referência. Não há chave substituta (CPF/CNPJ + evento) de propósito: o
+// mesmo CNPJ pode ter mais de uma prestação no evento e todas as linhas da
+// Flash têm o mesmo CNPJ — achar "a mais provável" pagaria a linha errada.
+// Linha sem referência volta como problema ("OC sem identificador").
+//
+// TODO(layout oficial do retorno, 28/10): quando o M4 mandar o layout do
+// retorno, troque SÓ `FORMATO_RETORNO_M4` aqui embaixo — títulos, situações,
+// separadores — e ponha `provisorio: false`. Se o M4 não devolver a nossa
+// "Referência", a chave tem que vir de outra coluna que o arquivo de OC leve
+// para lá e o M4 devolva (nunca CPF/CNPJ + evento — ver acima).
+
+/** Como uma célula lida vira dado. */
+export type TipoDaColunaDeLeitura =
+  /** texto livre (aparado) */
+  | "texto"
+  /** reais ("1.234,56", "1234.56", número da planilha) → centavos */
+  | "centavos"
+  /** "dd/mm/aaaa", "aaaa-mm-dd" ou série do Excel → "AAAA-MM-DD" */
+  | "data"
+  /** texto da situação → uma das `situacoes` do formato */
+  | "situacao";
+
+export interface ColunaDeLeitura<L> {
+  campo: Extract<keyof L, string>;
+  /** Títulos aceitos no cabeçalho (o 1º é o do layout); comparados sem acento, caixa e pontuação. */
+  titulos: readonly string[];
+  tipo: TipoDaColunaDeLeitura;
+  /** Sem esta coluna o arquivo não é lido. */
+  obrigatoria: boolean;
+}
+
+export interface FormatoDeLeitura<L, S extends string> {
+  id: string;
+  nome: string;
+  provisorio: boolean;
+  /** Separadores aceitos no CSV (o que mais aparece no topo do arquivo vale). */
+  separadores: readonly ("," | ";" | "\t" | "|")[];
+  /** Quantas linhas podem vir antes do cabeçalho (a marca "layout provisório", um título). */
+  linhasAntesDoCabecalho: number;
+  /** Linhas de dados por arquivo (acima disso: divida). */
+  maxLinhas: number;
+  colunas: readonly ColunaDeLeitura<L>[];
+  /** Os textos aceitos para cada situação (comparados sem acento, caixa e pontuação). */
+  situacoes: Record<S, readonly string[]>;
+}
+
+/**
+ * Situação da OC no M4:
+ *  - `emitida`: só a OC (sem programação ainda);
+ *  - `programado`: pagamento programado (= "Lançar no M4" da NF, com a data);
+ *  - `liquidado`: pago (= "Marcar como pago", com a data de liquidação).
+ * Vazia vale como `emitida`.
+ */
+export type SituacaoDoRetornoM4 = "emitida" | "programado" | "liquidado";
+
+/** Uma linha do retorno do M4, já lida. */
+export interface LinhaDoRetornoM4 {
+  /** A "Referência" do arquivo de OC: id da prestação ou "Lote N". */
+  referencia: string;
+  numeroOc: string;
+  situacao: SituacaoDoRetornoM4 | null;
+  dataProgramada: string | null;
+  dataLiquidacao: string | null;
+  /** centavos — só para conferir (valor divergente não aplica). */
+  valorCents: number | null;
+}
+
+export const FORMATO_RETORNO_M4: FormatoDeLeitura<LinhaDoRetornoM4, SituacaoDoRetornoM4> = {
+  id: "retorno-m4-provisorio-v1",
+  nome: "Retorno do M4 (OC, programação e liquidação)",
+  provisorio: true,
+  separadores: [";", ",", "\t"],
+  linhasAntesDoCabecalho: 5,
+  maxLinhas: 5000,
+  colunas: [
+    { campo: "referencia", titulos: ["Referência", "Ref", "Identificador", "Chave", "Referência do app"], tipo: "texto", obrigatoria: true },
+    { campo: "numeroOc", titulos: ["Nº da OC", "Número da OC", "OC", "Nº OC", "Ordem de compra", "Nº da ordem de compra"], tipo: "texto", obrigatoria: true },
+    { campo: "situacao", titulos: ["Situação", "Status", "Situação da OC", "Situação do pagamento"], tipo: "situacao", obrigatoria: false },
+    { campo: "dataProgramada", titulos: ["Data programada", "Programado para", "Data da programação", "Data prevista", "Vencimento"], tipo: "data", obrigatoria: false },
+    { campo: "dataLiquidacao", titulos: ["Data de liquidação", "Data da liquidação", "Liquidado em", "Data do pagamento", "Pago em"], tipo: "data", obrigatoria: false },
+    { campo: "valorCents", titulos: ["Valor (R$)", "Valor", "Valor da OC", "Valor da OC (R$)", "Valor liquidado"], tipo: "centavos", obrigatoria: true },
+  ],
+  situacoes: {
+    emitida: ["emitida", "emitido", "oc emitida", "aberta", "aberto", "em aberto", "gerada", "gerado", "pendente"],
+    programado: ["programado", "programada", "pagamento programado", "agendado", "agendada", "a pagar"],
+    liquidado: ["liquidado", "liquidada", "pago", "paga", "quitado", "quitada", "baixado", "baixada"],
+  },
+};

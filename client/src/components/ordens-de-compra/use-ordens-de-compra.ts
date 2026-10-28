@@ -11,6 +11,8 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tansta
 import { apiRequest, fetchJson, throwIfResNotOk, ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/queryClient";
 import { CHAVE_CONTROLE_RH } from "@/components/rh/prestacao-utils";
 import { CHAVE_PRESENCA } from "@/components/presenca/use-presenca";
+import { CHAVE_COMPRAS_FLASH } from "@/components/flash/use-compras-flash";
+import type { CelulaDoRetorno, PreviaDoRetorno } from "@shared/retorno-m4";
 import type { ConferenciaDaNotaApi, LinhaDaOc, PreviaDoLote, RespostaDasOcs, ResultadoDoLote, ResultadoDoPago } from "./tipos";
 
 export const CHAVE_OCS = "/api/ordens-de-compra";
@@ -194,4 +196,42 @@ export function useAcoesDaOc(eventId: string) {
   });
 
   return { registrar, desfazerOc, previaDoLote, confirmarLote, marcarPago, desfazerPago, enviarNota };
+}
+
+// ── Retorno do M4 por planilha (28/10) — server/routes/retorno-m4.ts ────────
+
+export const CHAVE_RETORNO_M4 = `${CHAVE_OCS}/retorno-m4`;
+
+/** POST /api/ordens-de-compra/retorno-m4 — o que foi gravado e o que ficou de fora. */
+export interface ResultadoDoRetorno {
+  aplicadas: number;
+  ocsRegistradas: number;
+  programadas: number;
+  pagas: number;
+  lotesFlashPagos: number;
+  semMudanca: number;
+  comProblema: number;
+  recusadas: { linha: number; referencia: string; motivos: string[] }[];
+}
+
+/**
+ * Prévia (não grava) e aplicar do retorno do M4. Não é preso a um evento: o
+ * arquivo pode ter linhas de vários eventos e lotes Flash — depois de aplicar,
+ * invalida tudo que muda com a OC, a nota, o pago e os lotes Flash.
+ */
+export function useRetornoDoM4() {
+  const qc = useQueryClient();
+  const previa = useMutation({
+    mutationFn: async (matriz: CelulaDoRetorno[][]) =>
+      (await (await apiRequest("POST", `${CHAVE_RETORNO_M4}/previa`, { matriz })).json()) as PreviaDoRetorno,
+  });
+  const aplicar = useMutation({
+    mutationFn: async (v: { matriz: CelulaDoRetorno[][]; justificativa?: string | null }) =>
+      (await (await apiRequest("POST", CHAVE_RETORNO_M4, { matriz: v.matriz, justificativa: v.justificativa || null })).json()) as ResultadoDoRetorno,
+    onSuccess: () => {
+      invalidarDepoisDoPagamento(qc);
+      qc.invalidateQueries({ queryKey: [CHAVE_COMPRAS_FLASH] });
+    },
+  });
+  return { previa, aplicar };
 }

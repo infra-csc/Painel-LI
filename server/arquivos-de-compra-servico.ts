@@ -250,12 +250,16 @@ export async function cancelarLote(id: string, motivo: string, user: User): Prom
   });
 }
 
-/** Marca como pago à Flash (data do pagamento). */
-export async function marcarLotePago(id: string, pagoEm: string, user: User): Promise<{ antes: FlashCompra; depois: FlashCompra }> {
-  const antes = await lerLote(id);
+/**
+ * Marca como pago à Flash (data do pagamento). `exec`: o `db` ou a transação
+ * de quem chama (o retorno do M4 — server/routes/retorno-m4.ts — paga os
+ * lotes dentro da transação da importação).
+ */
+export async function marcarLotePago(id: string, pagoEm: string, user: User, exec: Pick<Tx, "select" | "update"> = db): Promise<{ antes: FlashCompra; depois: FlashCompra }> {
+  const [antes] = await exec.select().from(flashCompras).where(eq(flashCompras.id, id));
   const pode = podeMarcarLotePago(antes, pagoEm, hojeISO());
   if (!pode.ok) throw new HttpError(pode.codigo === "nao_encontrado" ? 404 : pode.codigo.startsWith("data") ? 400 : 409, pode.motivo, { codigo: pode.codigo });
-  const [depois] = await db.update(flashCompras).set({ status: "pago", pagoEm, pagoRegistradoPor: user.id, pagoRegistradoEm: new Date() })
+  const [depois] = await exec.update(flashCompras).set({ status: "pago", pagoEm, pagoRegistradoPor: user.id, pagoRegistradoEm: new Date() })
     .where(and(eq(flashCompras.id, id), eq(flashCompras.status, "gerado"))).returning();
   if (!depois) throw new HttpError(409, "O lote mudou enquanto você marcava. Atualize a lista.", { codigo: "mudou" });
   return { antes: antes!, depois };

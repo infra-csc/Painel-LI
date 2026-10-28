@@ -52,6 +52,7 @@ import { registrarColaboradorPortal } from "./routes/colaborador-portal";
 import { registrarPresenca } from "./routes/presenca";
 import { registrarHonorariosPagamento } from "./routes/honorarios-pagamento";
 import { registrarArquivosDeCompra } from "./routes/arquivos-de-compra";
+import { registrarRetornoM4 } from "./routes/retorno-m4";
 import { registrarVoltarAoPlanejado } from "./routes/voltar-ao-planejado";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -129,6 +130,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Fase 3, arquivos (28/10): compra de créditos Flash em lote e o arquivo de OC
   // do M4 (prestadores + Flash) — layout provisório até o oficial.
   registrarArquivosDeCompra(app);
+  // Retorno do M4 por planilha (28/10): nº da OC, programado e liquidado — layout provisório.
+  registrarRetornoM4(app);
 
   // ── Trocas de colaborador ─────────────────────────────────────────────────
   registrarTrocas(app);

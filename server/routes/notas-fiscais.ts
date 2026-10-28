@@ -7,13 +7,14 @@ import type { Express } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
 import { invoices as invoicesTable, insertInvoiceSchema, type Invoice, type HistoricoNfEntrada } from "@shared/schema";
-import { eq, and, isNull, sql as drizzleSql } from "drizzle-orm";
+import { eq, and, sql as drizzleSql } from "drizzle-orm";
 import { ZodError } from "zod";
 import { isNfEligible, podeAprovarNota, podeDevolverNota, podeFazerCheckin } from "@shared/prestacao-rules";
 import { ocDaNota } from "@shared/honorarios-pagamento";
 import { cnpjValido, digitosDoCnpj } from "@shared/cnpj";
 import { createAuditLog, ehViolacaoDeUnicidade, requireRoles, FINANCE_ROLES, requireFinanceUser } from "./_compartilhado";
 import { reconhecerFornecedores } from "../fornecedor-automatico";
+import { lancarNotaNoM4 } from "../honorarios-pagamento-servico";
 
 export function registrarNotasFiscais(app: Express): void {
   // ── Invoices (Notas Fiscais) ──────────────────────────────────────────────
@@ -319,16 +320,8 @@ export function registrarNotasFiscais(app: Express): void {
       const permissao = podeFazerCheckin(inv, paymentDate);
       if (!permissao.ok) return res.status(inv ? 400 : 404).json({ message: permissao.motivo });
       // Guarda extra: check-in único (checkin_at ainda nulo) — dois cliques não dobram.
-      const [invoice] = await db.update(invoicesTable)
-        .set({
-          checkinAt: new Date(),
-          checkinBy: user.id,
-          paymentDate,
-          updatedAt: new Date(),
-          history: anexarAoHistorico({ type: "checkin", paymentDate }),
-        })
-        .where(and(eq(invoicesTable.id, req.params.id), eq(invoicesTable.status, "aprovada"), isNull(invoicesTable.checkinAt)))
-        .returning();
+      // O mesmo caminho do retorno do M4 (server/honorarios-pagamento-servico.ts).
+      const invoice = await lancarNotaNoM4(db, req.params.id, user.id, paymentDate);
       if (!invoice) return res.status(409).json({ message: "Esta nota já foi lançada no M4 ou mudou de status — recarregue a lista." });
       await createAuditLog("checkin", "invoice", req.params.id, invoice, user.id, user.name, inv, req);
       res.json(invoice);

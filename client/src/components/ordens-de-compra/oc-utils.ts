@@ -6,6 +6,7 @@
  */
 import { ROTULO_DA_ORIGEM_DA_OC, type EstadoDoPagamento, type OrigemDaOc } from "@shared/honorarios-pagamento";
 import { normalizarBusca } from "@shared/contratos";
+import { RETORNO_MAX_COLUNAS, enxugarMatrizDoRetorno, matrizDoCsv, type CelulaDoRetorno } from "@shared/retorno-m4";
 import type { LinhaDaOc } from "./tipos";
 
 // ── Datas e valores ─────────────────────────────────────────────────────────
@@ -153,3 +154,42 @@ export async function lerArquivoDoLote(arquivo: File): Promise<string> {
 
 /** Linhas não vazias do texto colado (o que o lote vai ler). */
 export const linhasDoTexto = (texto: string) => texto.split(/\r?\n/).filter((l) => l.trim()).length;
+
+// ── Retorno do M4: a planilha vira células NO NAVEGADOR (28/10) ─────────────
+
+/**
+ * O retorno do M4 (CSV ou XLSX) → as células que a prévia lê
+ * (shared/retorno-m4.ts). CSV/TXT em UTF-8 ou Windows-1252, lido como TEXTO
+ * (";", "," ou tabulação; BOM tirado); XLSX: a primeira aba com os valores
+ * CRUS (data como série do Excel, valor como número — sem depender do formato
+ * de exibição). O arquivo não sobe: só as células, e a prévia não grava.
+ */
+export async function lerArquivoDoRetorno(arquivo: File): Promise<CelulaDoRetorno[][]> {
+  if (arquivo.size > TAMANHO_MAXIMO_DO_LOTE) throw new ErroDoArquivoDoLote("Arquivo grande demais (máx. 5 MB). Divida o retorno.");
+  const ext = (arquivo.name.split(".").pop() ?? "").toLowerCase();
+  const bytes = await arquivo.arrayBuffer();
+  let matriz: CelulaDoRetorno[][];
+  if (ext === "csv" || ext === "txt" || ext === "tsv") matriz = matrizDoCsv(decodificar(bytes));
+  else if (ext === "xlsx" || ext === "xls") {
+    const XLSX = await import("xlsx");
+    let livro;
+    try {
+      livro = XLSX.read(bytes, { type: "array" });
+    } catch {
+      throw new ErroDoArquivoDoLote("Não consegui abrir esta planilha. Salve como .csv ou .xlsx e tente de novo.");
+    }
+    const aba = livro.Sheets[livro.SheetNames[0]];
+    if (!aba) throw new ErroDoArquivoDoLote("A planilha está vazia.");
+    // Linhas em branco ficam: o nº da linha na prévia é o do Excel.
+    const cru = XLSX.utils.sheet_to_json<unknown[]>(aba, { header: 1, raw: true, defval: "", blankrows: true });
+    matriz = cru.map((l) => (Array.isArray(l) ? l.slice(0, RETORNO_MAX_COLUNAS).map((v): CelulaDoRetorno => (
+      v == null ? "" : typeof v === "number" ? v : v instanceof Date ? v.toISOString().slice(0, 10) : String(v).trim()
+    )) : []));
+  } else throw new ErroDoArquivoDoLote("Use a planilha do retorno do M4 (.xlsx ou .csv).");
+  matriz = matriz.map((l) => l.slice(0, RETORNO_MAX_COLUNAS));
+  // Só as linhas vazias do FIM saem (as do meio contam no nº da linha).
+  while (matriz.length > 0 && matriz[matriz.length - 1].every((c) => c === "" || c == null)) matriz.pop();
+  if (matriz.length === 0) throw new ErroDoArquivoDoLote("A planilha está vazia.");
+  // Só as colunas do retorno vão para o servidor (a descrição e o resto do arquivo de OC ficam aqui).
+  return enxugarMatrizDoRetorno(matriz);
+}
