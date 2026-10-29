@@ -14,6 +14,7 @@
 // Nada saiu: os mesmos textos, os mesmos destinos e as mesmas condições.
 import { formatarMoeda } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { resumoDasDobras } from "@shared/dobra-de-turno";
 import { ArrowRight, Ban, Check, CheckCircle, ChevronDown, CircleDot, FileCheck, FileText, MessageSquare } from "lucide-react";
 import type { NotaParaControle, PrestacaoItem } from "./prestacao-types";
 import { formatDateTime, type NavigationTarget } from "./prestacao-utils";
@@ -121,7 +122,11 @@ export function CartaoPrestacaoCorpo({
             <div className="crh-detalhe-linha">
               <span>Diárias</span>
               <span>{planned.dailyQuantity}× {fmt(planned.dailyValue)}</span>
-              <span>{actual.dailyQuantity}× {fmt(actual.dailyValue)}</span>
+              <span>
+                {actual.dailyQuantity}× {fmt(actual.dailyValue)}
+                {/* Dobra de turno (29/10): o dia paga 2 diárias. */}
+                {(actual.diasDobra?.length ?? 0) > 0 && <span className="block text-2xs font-medium text-primary" data-testid="crh-dobra">{resumoDasDobras(actual.diasDobra)}</span>}
+              </span>
             </div>
             <div className="crh-detalhe-linha">
               <span>Alimentação</span>

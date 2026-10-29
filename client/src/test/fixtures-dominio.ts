@@ -322,6 +322,7 @@ export function realizadoFake(parcial: Partial<BudgetActual> = {}): BudgetActual
     splitParentId: null,
     workedDays: null,
     diasMeiaExtra: null,
+    diasDobra: null, // 29/10 (dobra de turno)
     didNotAttend: false,
     didNotAttendReason: null,
     rhAdjusted: false,

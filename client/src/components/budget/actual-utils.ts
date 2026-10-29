@@ -63,7 +63,31 @@ export type AlimField = "weekdayLunch" | "weekdayDinner" | "weekendLunch" | "wee
  * subtotal gravado, como sempre.
  */
 /** `meiaCents` (28/10, revisão R5): o ½ que entrou no dia — desmarcar tira exatamente ele. */
-export interface DayEntry { date: string; valueCents: number; active: boolean; isWeekend: boolean; meia?: boolean; meiaCents?: number }
+/**
+ * `dobra` (29/10, shared/dobra-de-turno): dia com DOBRA de turno — o
+ * `valueCents` JÁ inclui mais uma diária do dia (`dobraCents`); desmarcar
+ * tira exatamente ela. Um dia não é ½ e dobra ao mesmo tempo.
+ */
+export interface DayEntry { date: string; valueCents: number; active: boolean; isWeekend: boolean; meia?: boolean; meiaCents?: number; dobra?: boolean; dobraCents?: number }
+
+/**
+ * Marca/desmarca "trabalhou" no dia (29/10): desmarcar o dia tira a dobra
+ * dele (e o valor dela) — dia não trabalhado não tem dobra.
+ */
+/**
+ * Prestação já enviada ao DP e ainda em análise (29/10): o modal fica só de
+ * leitura, mas o DP ainda marca a dobra de turno (a mesma trava das outras
+ * edições — o servidor só deixa o DP mexer em prestação travada). Aprovada
+ * é final: ninguém marca.
+ */
+export function dpMarcaDobraNaTrava(item: Pick<BudgetActual, "sentForReview" | "rhStatus">, ehDp: boolean): boolean {
+  return ehDp && !!item.sentForReview && (item.rhStatus || "pendente") === "pendente";
+}
+
+export function alternarAtivoDoDia(d: DayEntry): DayEntry {
+  if (d.active && d.dobra) return { ...d, active: false, dobra: false, dobraCents: 0, valueCents: Math.max(0, d.valueCents - (d.dobraCents ?? 0)) };
+  return { ...d, active: !d.active };
+}
 
 export interface DayCounts { weekdays: number; weekends: number; startDate: string | null; endDate: string | null }
 

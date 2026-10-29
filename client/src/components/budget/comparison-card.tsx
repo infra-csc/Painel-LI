@@ -24,8 +24,9 @@
  */
 import { memo, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { ChevronDown, ClipboardList, GitFork, MessageSquare, PencilLine, TriangleAlert, Undo2, UserX } from "lucide-react";
+import { ChevronDown, ClipboardList, GitFork, Layers, MessageSquare, PencilLine, TriangleAlert, Undo2, UserX } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { contagemDasDobras, resumoDasDobras } from "@shared/dobra-de-turno";
 import { Checkbox } from "@/components/ui/checkbox";
 import { BudgetChat, BudgetNotesBadge, BudgetNotesSnippet } from "@/components/budget-chat";
 import { ActivityTimeline, PlannedEditedBadge, type ActivityLog } from "@/components/activity-timeline";
@@ -34,7 +35,7 @@ import { Chip } from "./budget-card";
 import { BlocoDoExtrato, CabecalhoDoExtrato, Diferenca, LinhaDoExtrato } from "./comparison-blocks";
 import { ratearPlanejadoPorDias } from "./actual-utils";
 import { isCasaType } from "./types";
-import { dailySubtotalOf, fmt, getWorkedDayCount, lerAdjustedFields, type ComparisonRow, type SplitDetailState } from "./comparison-utils";
+import { dailySubtotalOf, fmt, getWorkedDayCount, lerAdjustedFields, valorDoAjusteDoDp, type ComparisonRow, type SplitDetailState } from "./comparison-utils";
 import { ResumoDaPresenca } from "@/components/presenca/resumo-da-presenca";
 import type { PrestacaoDaPresenca } from "@/components/presenca/tipos";
 import { seloDoCnpj } from "@/components/presenca/presenca-utils";
@@ -176,6 +177,7 @@ function ComparisonCardBody(props: ComparisonCardProps & { plannedTotal: number;
   const ajustes = Object.values(lerAdjustedFields(a.rhAdjustedFields) as Record<string, { from: number; to: number; label: string }>);
   const diff = actualTotal - plannedTotal;
   const tomDoItem = itemRhStatus === "aprovado" ? "ok" : itemRhStatus === "rejeitado" ? "perigo" : "alerta";
+  const temDobra = !row.isSplit && (a.diasDobra?.length ?? 0) > 0;
 
   return (
     <div className="cmp-corpo" onClick={(e) => e.stopPropagation()}>
@@ -201,7 +203,8 @@ function ComparisonCardBody(props: ComparisonCardProps & { plannedTotal: number;
               // O subtotal de diárias é o do cabeçalho da categoria.
               subtotal={{ planned: dailyPlanned, actual: dailyActual }}
               linhas={[
-                { rotulo: "Quantidade de diárias", planned: p?.dailyQuantity || 0, actual: a.dailyQuantity, quantidade: true },
+                // Dobra de turno (29/10): o dia paga 2 diárias — conta na quantidade.
+                { rotulo: (a.diasDobra?.length ?? 0) > 0 ? `Quantidade de diárias (${contagemDasDobras(a.diasDobra!.length)})` : "Quantidade de diárias", planned: p?.dailyQuantity || 0, actual: a.dailyQuantity, quantidade: true },
                 // Preço, não parcela: fica fora do subtotal.
                 { rotulo: "Valor unitário (média)", planned: p?.dailyValue || 0, actual: a.dailyValue, soma: false },
               ]}
@@ -248,8 +251,13 @@ function ComparisonCardBody(props: ComparisonCardProps & { plannedTotal: number;
       )}
 
       {/* ── Anotações ── */}
-      {(a.changeReason || a.rhComment || (rhComment && !a.rhComment) || a.rhAdjustNote || ajustes.length > 0 || plannedEdits.length > 0) && (
+      {(temDobra || a.changeReason || a.rhComment || (rhComment && !a.rhComment) || a.rhAdjustNote || ajustes.length > 0 || plannedEdits.length > 0) && (
         <div className="cmp-notas">
+          {temDobra && (
+            <Nota icone={Layers} titulo="Dobra de turno">
+              <p className="m-0" data-testid="cmp-dobra">{resumoDasDobras(a.diasDobra)} — o dia paga 2 diárias; a diária a mais já está nos valores.</p>
+            </Nota>
+          )}
           {a.changeReason && (
             <Nota icone={MessageSquare} titulo="Justificativa do responsável"><p className="m-0">{a.changeReason}</p></Nota>
           )}
@@ -267,10 +275,10 @@ function ComparisonCardBody(props: ComparisonCardProps & { plannedTotal: number;
                   {ajustes.map((f, i) => (
                     <li key={i} className="flex flex-wrap items-baseline gap-x-1.5 text-slate-600">
                       <span>{f.label}:</span>
-                      <span className="tabular-nums line-through text-muted-foreground">{fmt(f.from)}</span>
+                      <span className="tabular-nums line-through text-muted-foreground">{valorDoAjusteDoDp(f.label, f.from, fmt)}</span>
                       <span aria-hidden="true">→</span>
                       <span className="sr-only">para</span>
-                      <span className="tabular-nums font-semibold text-warning">{fmt(f.to)}</span>
+                      <span className="tabular-nums font-semibold text-warning">{valorDoAjusteDoDp(f.label, f.to, fmt)}</span>
                     </li>
                   ))}
                 </ul>

@@ -223,7 +223,7 @@ export const ROTULO_DO_CAMPO: Record<string, string> = {
   mobilityVolta: "Mobilidade da volta", transport: "Transporte", weekdayLunch: "Almoço (dia útil)",
   weekdayDinner: "Jantar (dia útil)", weekendLunch: "Almoço (fim de semana)", weekendDinner: "Jantar (fim de semana)",
   dailyQuantity: "Qtd. de diárias", collaboratorType: "Tipo de colaborador", didNotAttend: "Não compareceu",
-  didNotAttendReason: "Motivo da ausência", workedDays: "Dias trabalhados", rhStatus: "Situação no DP",
+  didNotAttendReason: "Motivo da ausência", workedDays: "Dias trabalhados", diasDobra: "Dias com dobra de turno", rhStatus: "Situação no DP",
   rhComment: "Comentário do DP", rhAdjusted: "Ajustado pelo DP", rhAdjustNote: "Nota do ajuste do DP",
   rhActionAt: "Ação do DP em", rhActionBy: "Ação do DP por", sentForReview: "Enviado ao DP",
   paymentStatus: "Situação do pagamento", approvedBy: "Aprovado por", approvedAt: "Aprovado em",
@@ -406,6 +406,8 @@ export function formatarValor(campo: string, valor: unknown, nomes: NomesParaLog
   if (Array.isArray(valor)) {
     if (valor.length === 0) return "nenhum";
     if (campo === "attachmentIds") return `${valor.length} ${valor.length === 1 ? "arquivo" : "arquivos"}`;
+    // Dobra de turno (29/10): "12/10, 13/10".
+    if (campo === "diasDobra" && valor.every((v) => typeof v === "string" && DATA.test(v))) return (valor as string[]).map((v) => `${v.slice(8, 10)}/${v.slice(5, 7)}`).join(", ");
     // Rotas da busca de passagens (09/10): a chave da consulta vira "GRU ⇄ JPA 12/11".
     if (campo === "rotas" && valor.every((v) => typeof v === "string")) {
       const legiveis = (valor as string[]).map(rotaDaChaveLegivel);

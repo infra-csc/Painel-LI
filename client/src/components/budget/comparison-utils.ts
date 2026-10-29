@@ -21,6 +21,15 @@ export const centavosParaCampo = (centavos: number | null | undefined) =>
 
 // Campos ajustados pelo RH: aceita string (API de hoje) ou objeto (jsonb) —
 // devolve o objeto ou {} se ausente/inválido (ver lib/json-seguro).
+/**
+ * Valor de um ajuste do DP (de → para): a quantidade de diárias é número, o
+ * resto é dinheiro. Antes "Qtd. Diárias: 4 → 5" saía "R$ 0,04 → R$ 0,05"
+ * (29/10 — a dobra de turno muda a quantidade e deixou isso à vista).
+ */
+export function valorDoAjusteDoDp(rotulo: string, valor: number, moeda: (centavos: number) => string): string {
+  return /^Qtd\b/i.test(rotulo) ? String(valor) : moeda(valor);
+}
+
 export function lerAdjustedFields(raw: string | RhAdjustedFields | null | undefined): RhAdjustedFields {
   const parsed = lerJson<RhAdjustedFields>(raw);
   return parsed && typeof parsed === "object" ? parsed : {};

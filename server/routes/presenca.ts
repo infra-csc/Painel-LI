@@ -44,6 +44,7 @@ import { podeEnviarParaRevisao, prestacaoEstaTravada } from "@shared/prestacao-r
 import { dataDeCorteLegivel, ehEventoLegado } from "@shared/legado-honorarios";
 import { digitosDoCnpj, mascararCnpj } from "@shared/cnpj";
 import { situacaoContratualDoColaborador } from "@shared/contratos";
+import { motivoComDobras } from "@shared/dobra-de-turno";
 import { HttpError } from "../http";
 import { acessosDosColaboradores, colaboradorEscaladoNoFluxoNovo, obterOcorrencia, salvarAcesso } from "../storage/presenca";
 import { contratosDosColaboradores } from "../storage/contratos";
@@ -591,6 +592,8 @@ export function registrarPresenca(app: Express): void {
       `Check-out final da presença por ${nomeDe(user)}`,
       nOcorrencias > 0 ? `${nOcorrencias} ${nOcorrencias === 1 ? "ocorrência" : "ocorrências"}` : null,
       pct ? `ajuste de ${pct.toLocaleString("pt-BR")}% sobre o calculado` : null,
+      // Dobra de turno (29/10): fato do dia, já no calculado — fica dito no motivo.
+      campos.diasDobra.length > 0 ? motivoComDobras(null, campos.diasDobra) : null,
       semConfirmacao ? `sem a confirmação do colaborador: ${justificativa}` : null,
     ].filter(Boolean).join(" · ");
     const agora = new Date();

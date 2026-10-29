@@ -117,6 +117,8 @@ export interface RealizadoParaControle {
   pagoEm?: string | null;
   /** 28/10 (Fase 3, prazos): os dias trabalhados, o check-out final e o registro da OC. */
   workedDays?: (string | null)[] | null;
+  /** 29/10: dias com dobra de turno (o dia paga 2 diárias) — o card do DP mostra. */
+  diasDobra?: (string | null)[] | null;
   checkoutFinalEm?: Date | string | null;
   ocRegistradaEm?: Date | string | null;
   ocData?: string | null;

@@ -937,6 +937,10 @@ const PASSOS: Passo[] = [
   { descricao: "tickets.return_transport_type (tipo da volta, quando diferente da ida)", sql: `ALTER TABLE tickets ADD COLUMN IF NOT EXISTS return_transport_type text` },
   { descricao: "tickets.return_value (parte da volta comprada à parte, dentro do total)", sql: `ALTER TABLE tickets ADD COLUMN IF NOT EXISTS return_value integer` },
   { descricao: "tickets.return_purchase_order_number (bilhete/LOC da volta comprada à parte)", sql: `ALTER TABLE tickets ADD COLUMN IF NOT EXISTS return_purchase_order_number text` },
+  // 29/10 — dobra de turno no Realizado: os dias em que a pessoa trabalhou
+  // dobrado (2 diárias no dia). Regra em shared/dobra-de-turno.ts
+  // (scripts/migrations/2026-10-29-dobra-de-turno.sql).
+  { descricao: "budget_actual.dias_dobra (dias com dobra de turno)", sql: `ALTER TABLE budget_actual ADD COLUMN IF NOT EXISTS dias_dobra text[]` },
   // 25/09 — usuário fixo 'system' em users: team_inclusion_logs.user_id
   // aponta para ele quando a vaga muda sem ator humano. Sem a linha, a FK
   // (declarada no schema; criada NOT VALID pela migração de 25/09) recusa o

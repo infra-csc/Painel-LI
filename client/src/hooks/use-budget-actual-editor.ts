@@ -13,7 +13,7 @@ import { deflationFactorsFromSettings, isFuncaoLocal, isPercursoFunction, regraD
 import { isTransporteTerrestre } from "@shared/atendimento";
 import { calcAlimentacao, dataDeChegadaDaIda, isCenotecnicaFunction, refeicaoCentsDia, refeicaoPerfil, toHoraHHMM } from "@shared/alimentacao";
 import { idaEVoltaDaMobilidade } from "@shared/comparativo";
-import { diariaDoDiaNaPosicao, meiaDaDiaria, semMeiaDiaria, valoresDosDiasDoSubtotal } from "@shared/meia-diaria";
+import { diariaDoDiaNaPosicao, dobraDaDiaria, meiaDaDiaria, semMeiaDiaria, valoresDosDiasDoSubtotal } from "@shared/meia-diaria";
 import { listarDiasDeTrabalho } from "@shared/dias-de-trabalho";
 import { tipoDaVolta } from "@shared/tipo-por-trecho";
 import { usaEmpreitaCenotecnica, vagaComEmpreita } from "@shared/cenotecnica-empreita";
@@ -307,12 +307,15 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
     const regraDaMeia = regraDaMeiaDoItem(item);
     const meiasNaAbertura = valoresDosDiasDoSubtotal({
       subtotalCents: subtotalOrigem, diasComDiaria: ativasNoPeriodo.filter(regraDaMeia.temDiaria),
-      diasMeiaExtra: item.diasMeiaExtra, fatores: regraDaMeia.fatores,
+      diasMeiaExtra: item.diasMeiaExtra, diasDobra: item.diasDobra, fatores: regraDaMeia.fatores,
     });
     setDiariaDaRegra(meiasNaAbertura.diaria);
     const meiaPorDia = new Map(meiasNaAbertura.dias.filter((d) => d.meiaCents > 0).map((d) => [d.dia, d.meiaCents]));
     const somaDasMeias = Array.from(meiaPorDia.values()).reduce((s, v) => s + v, 0);
-    const { valorUtil, valorFds } = reconstructDailyValues(subtotalOrigem - somaDasMeias, recWeekdays, days.weekends);
+    // Dobra de turno (29/10): mais uma diária do dia, pela mesma regra do ½.
+    const dobraPorDia = new Map(meiasNaAbertura.dias.filter((d) => d.dobraCents > 0).map((d) => [d.dia, d.dobraCents]));
+    const somaDasDobras = Array.from(dobraPorDia.values()).reduce((s, v) => s + v, 0);
+    const { valorUtil, valorFds } = reconstructDailyValues(subtotalOrigem - somaDasMeias - somaDasDobras, recWeekdays, days.weekends);
 
     // Alimentação e mobilidade: SEMPRE inicializa com os valores do próprio item.
     // Usar o planejado aqui fazia reabrir+salvar reverter ajustes feitos pelo RH.
@@ -348,7 +351,11 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
         const active = !workedDaysList || workedDaysList.length === 0 || workedDaysList.includes(dateStr);
         const base = isWknd ? valorFds : valorUtil;
         const meiaCents = active ? meiaPorDia.get(dateStr) ?? 0 : 0;
-        dayEntries.push({ date: dateStr, valueCents: base + meiaCents, active, isWeekend: isWknd, meia: meiaCents > 0, meiaCents });
+        const dobraCents = active ? dobraPorDia.get(dateStr) ?? 0 : 0;
+        dayEntries.push({
+          date: dateStr, valueCents: base + meiaCents + dobraCents, active, isWeekend: isWknd,
+          meia: meiaCents > 0, meiaCents, dobra: dobraCents > 0, dobraCents,
+        });
         cur.setDate(cur.getDate() + 1);
       }
     }
@@ -408,8 +415,33 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
         if (d.meia) return { ...d, meia: false, meiaCents: 0, valueCents: d.meiaCents != null ? d.valueCents - d.meiaCents : semMeiaDiaria(d.valueCents) };
         const posicao = comDiaria.indexOf(date);
         if (posicao < 0) return d;
-        const meiaCents = diariaDaRegra > 0 ? meiaDaDiaria(diariaDoDiaNaPosicao(diariaDaRegra, posicao, regra.fatores)) : meiaDaDiaria(d.valueCents);
-        return meiaCents > 0 ? { ...d, meia: true, meiaCents, valueCents: d.valueCents + meiaCents } : d;
+        // Dia com dobra (29/10): o ½ substitui a dobra — tira a diária a mais antes.
+        const semDobra = d.dobra ? { ...d, dobra: false, dobraCents: 0, valueCents: d.valueCents - (d.dobraCents ?? 0) } : d;
+        const meiaCents = diariaDaRegra > 0 ? meiaDaDiaria(diariaDoDiaNaPosicao(diariaDaRegra, posicao, regra.fatores)) : meiaDaDiaria(semDobra.valueCents);
+        return meiaCents > 0 ? { ...semDobra, meia: true, meiaCents, valueCents: semDobra.valueCents + meiaCents } : d;
+      });
+    });
+  };
+
+  /**
+   * Dobra de turno (29/10, shared/dobra-de-turno): marca/desmarca o dia — o
+   * valor do dia ganha (ou perde) mais uma diária DAQUELE dia (com o fator
+   * da deflação da posição dele, como o ½). Só dia trabalhado que recebe
+   * diária pela regra; a dobra substitui o ½ do dia.
+   */
+  const alternarDobra = (date: string) => {
+    if (!editingItem) return;
+    const regra = regraDaMeiaDoItem(editingItem);
+    setEditDayEntries(prev => {
+      const comDiaria = prev.filter(d => d.active && regra.temDiaria(d.date)).map(d => d.date).sort();
+      return prev.map(d => {
+        if (d.date !== date) return d;
+        if (d.dobra) return { ...d, dobra: false, dobraCents: 0, valueCents: Math.max(0, d.valueCents - (d.dobraCents ?? 0)) };
+        const posicao = comDiaria.indexOf(date);
+        if (!d.active || posicao < 0) return d;
+        const semMeia = d.meia ? { ...d, meia: false, meiaCents: 0, valueCents: d.meiaCents != null ? d.valueCents - d.meiaCents : semMeiaDiaria(d.valueCents) } : d;
+        const dobraCents = diariaDaRegra > 0 ? dobraDaDiaria(diariaDoDiaNaPosicao(diariaDaRegra, posicao, regra.fatores)) : dobraDaDiaria(semMeia.valueCents);
+        return dobraCents > 0 ? { ...semMeia, dobra: true, dobraCents, valueCents: semMeia.valueCents + dobraCents } : d;
       });
     });
   };
@@ -456,7 +488,9 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
     // R$ 0 e o Planejado envia dailyQuantity = dias com diária; contar todos
     // os dias aqui fazia o Comparativo acusar diferença falsa em "Qtd. Diárias".
     const diasComValor = activeDays.filter(d => d.valueCents > 0).length;
-    const qtdDiarias = diasComValor > 0 ? diasComValor : (subtotalDiarias === 0 ? 0 : activeDays.length);
+    // Dobra de turno (29/10): o dia paga 2 diárias — conta mais uma na quantidade.
+    const diasComDobra = activeDays.filter(d => d.dobra && (d.dobraCents ?? 0) > 0).map(d => d.date);
+    const qtdDiarias = diasComValor > 0 ? diasComValor + diasComDobra.length : (subtotalDiarias === 0 ? 0 : activeDays.length);
     const dailyValue = qtdDiarias > 0 ? Math.round(subtotalDiarias / qtdDiarias) : editFormData.valorDiariaUtil;
     const totalMobility = editFormData.mobilityIda + editFormData.mobilityVolta;
     // Translado (transport) faz parte do total gravado — sem ele o totalValue encolhia a cada salvamento
@@ -471,7 +505,9 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
         workedDays: activeDays.map(d => d.date),
         // 1,5 diária (28/10): os dias ativos marcados (o ½ já está no valor do dia).
         // 28/10 (revisão R4): só o dia cujo ½ tem valor.
-        diasMeiaExtra: activeDays.filter(d => d.meia && (d.meiaCents ?? 1) > 0).map(d => d.date),
+        diasMeiaExtra: activeDays.filter(d => d.meia && !d.dobra && (d.meiaCents ?? 1) > 0).map(d => d.date),
+        // Dobra de turno (29/10): os dias ativos com dobra (o valor já está no dia).
+        diasDobra: diasComDobra,
         // Alimentação: só o RESULTADO é persistido. Os horários de chegada/
         // partida usados no cálculo NÃO têm coluna aqui (e não criamos uma):
         // ficam como estado do modal, derivados da passagem/escalação.
@@ -504,7 +540,7 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
     chegadaInputRef, partidaInputRef, modalActualTab, setModalActualTab,
     editTravel, travelSource, activeDates,
     openEditModal, recalcAlimentacao, setAlimField, montarPayloadParaSalvar, fechar, fecharBotao, aoSalvar,
-    alternarMeiaDiaria,
+    alternarMeiaDiaria, alternarDobra,
   };
 }
 

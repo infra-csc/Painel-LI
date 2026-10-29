@@ -27,7 +27,7 @@ import {
   type CalculoDaPresenca, type RealizadoParaCalculo, type ConfiguracaoDaPresenca, type EstadoDoDia, type FonteDosDias, type QuemConfirma, type QuemRegistra,
 } from "@shared/presenca";
 import { ehEventoLegado } from "@shared/legado-honorarios";
-import { deflationFactorsFromSettings, isPercursoFunction } from "@shared/calculation-rules";
+import { deflationFactorsFromSettings, isPercursoFunction, type DeflationFactors } from "@shared/calculation-rules";
 import { isCenotecnicaFunction } from "@shared/alimentacao";
 import { usaEmpreitaCenotecnica, vagaComEmpreita } from "@shared/cenotecnica-empreita";
 import { prestacaoEstaTravada } from "@shared/prestacao-rules";
@@ -74,6 +74,8 @@ export interface PrestacaoMontada {
   calculo: CalculoDaPresenca;
   pendentes: string[];
   checkoutFinalFeito: boolean;
+  /** Fatores da deflação do recálculo (null = valor fechado por dia: percurso/empreita) — 29/10, dobra na base. */
+  fatores: DeflationFactors | null;
 }
 
 /**
@@ -122,13 +124,14 @@ export async function montarPrestacoes(actuals: readonly BudgetActual[], config:
     // Valor fechado por dia (percurso, empreita): sem deflação, como no Planejado.
     const valorFlatPorDia = isPercursoFunction(funcaoNome) || vagaComEmpreita(inclusao)
       || usaEmpreitaCenotecnica(isCenotecnicaFunction(funcaoNome), actual.collaboratorType);
+    const fatores = valorFlatPorDia ? null : fatoresDoPadrao;
     const calculo = recalcularValor({
       realizado,
       dias: periodo.dias,
       ocorrencias: ocorrenciasDela.map((o) => ({ tipo: o.tipo, dia: o.dia ? String(o.dia).slice(0, 10) : null, horas: o.horas })),
       divisorHoraExtra: config.horaExtraDivisor,
       horaExtraMaxDia: config.horaExtraMaxDia,
-      fatores: valorFlatPorDia ? null : fatoresDoPadrao,
+      fatores,
       nomeDaFuncao: funcaoNome,
     });
     const pendentes = diasPendentes({
@@ -140,7 +143,7 @@ export async function montarPrestacoes(actuals: readonly BudgetActual[], config:
       actual, evento, colaborador: actual.collaboratorId ? colabPorId.get(actual.collaboratorId) ?? null : null,
       funcaoNome, inclusao, realizado, dias: periodo.dias, fonteDosDias: periodo.fonte, presencaPorDia,
       ocorrencias: ocorrenciasDela, confirmacao: confirmacaoPorActual.get(actual.id) ?? null,
-      calculo, pendentes, checkoutFinalFeito: !!actual.checkoutFinalEm,
+      calculo, pendentes, checkoutFinalFeito: !!actual.checkoutFinalEm, fatores,
     });
   }
   return montadas;

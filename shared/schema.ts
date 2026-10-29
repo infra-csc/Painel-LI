@@ -673,6 +673,11 @@ export const budgetActual = pgTable("budget_actual", {
   // 28/10 (DP): dias trabalhados com 1,5 diária (subconjunto de worked_days).
   // O valor do dia já vem com o ½ na grade e no total — a lista só diz quais.
   diasMeiaExtra: text("dias_meia_extra").array(),
+  // 29/10 (dono): dias com DOBRA DE TURNO (subconjunto de worked_days, sem
+  // repetir dia de ½): o dia paga 2 diárias. O valor já está no total e a
+  // quantidade de diárias conta a dobra. Regra: shared/dobra-de-turno.ts.
+  // Migração: scripts/migrations/2026-10-29-dobra-de-turno.sql (+ ensure-schema).
+  diasDobra: text("dias_dobra").array(),
   didNotAttend: boolean("did_not_attend").notNull().default(false), // marcado como não participou
   didNotAttendReason: text("did_not_attend_reason"), // motivo de não participação
   rhAdjusted: boolean("rh_adjusted").notNull().default(false), // RH editou valores do realizado
@@ -698,6 +703,8 @@ export const budgetActual = pgTable("budget_actual", {
     dailyQuantity: number; dailyValue: number; totalValue: number;
     weekdayLunch: number; weekdayDinner: number; weekendLunch: number; weekendDinner: number;
     mobility: number; transport: number; workedDays: string[] | null; diasMeiaExtra: string[] | null;
+    /** 29/10: dias com dobra de turno (ausente nas bases gravadas antes). */
+    diasDobra?: string[] | null;
   }>(),
   // Módulo de Honorários, Fase 2 MANUAL (28/10) — etapas 4 (OC) e 7 (pago),
   // regras em shared/honorarios-pagamento.ts. Só as rotas de

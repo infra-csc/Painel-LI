@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { AcoesDoComparativo } from "@/hooks/use-budget-comparison-actions";
 import { fmt } from "./comparison-utils";
 import { parseBrNumber } from "@/lib/utils";
+import { resumoDasDobras } from "@shared/dobra-de-turno";
 
 const ALIM_FIELDS = [
   { key: "weekdayLunch", label: "Almoço (dias úteis)" },
@@ -96,6 +97,12 @@ export function RhEditActualDialog({ acoes, getCollaboratorName, getFunctionName
                       onChange={e => setEditForm(f => ({ ...f, dailyValue: e.target.value }))} onFocus={e => e.target.select()} className={CAMPO} />
                   </Campo>
                 </div>
+                {/* Dobra de turno (29/10): a quantidade já conta a diária a mais do dia. */}
+                {(editingActual.diasDobra?.length ?? 0) > 0 && (
+                  <p className="m-0 mt-2 text-2xs text-primary" data-testid="aj-dobra">
+                    Inclui {resumoDasDobras(editingActual.diasDobra)} de turno (2 diárias no dia) — a quantidade já conta a dobra. Para marcar ou tirar a dobra, abra a prestação no Realizado.
+                  </p>
+                )}
               </Secao>
 
               <Secao titulo="Alimentação" cor="bg-warning-strong">

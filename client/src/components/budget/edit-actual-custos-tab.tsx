@@ -22,7 +22,8 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { hasRole } from "@/lib/role-utils";
 import { MEIA_DIARIA_ROTULO, resumoDasMeiasDiarias } from "@shared/meia-diaria";
-import { isWeekendDate, TRAVEL_SOURCE_LABEL, type AlimField, type EditFormBase, type TravelSource } from "./actual-utils";
+import { DOBRA_ROTULO, DOBRA_SELO, contagemDasDobras, resumoDasDobras } from "@shared/dobra-de-turno";
+import { alternarAtivoDoDia, dpMarcaDobraNaTrava, isWeekendDate, TRAVEL_SOURCE_LABEL, type AlimField, type EditFormBase, type TravelSource } from "./actual-utils";
 import { CabecalhoDoBloco, inputCls } from "./edit-modal-custos-tab";
 import { formatCurrency } from "./types";
 
@@ -51,11 +52,15 @@ const BLOCO = "bg-card rounded-xl border border-border overflow-hidden";
 /** ── Diárias — editável (grade por dia + dia extra + diferença) ── */
 function DiariasBlock(p: CustosTabRealizadoProps) {
   const { editor, isReadOnly, planned, plannedValorUtil, plannedValorFds, plannedSubDiarias, subtotalDiariasRaw } = p;
-  const { editDayEntries, setEditDayEntries, showAddDay, setShowAddDay, setExtraDayEdge, alternarMeiaDiaria } = editor;
+  const { editDayEntries, setEditDayEntries, showAddDay, setShowAddDay, setExtraDayEdge, alternarMeiaDiaria, alternarDobra } = editor;
   // 1,5 diária (28/10): o DP (e o admin) marca/desmarca o dia trabalhado; os demais só veem.
   const { user } = useAuth();
-  const dpMarcaMeia = hasRole(user, "admin", "financial") && !isReadOnly;
+  const ehDp = hasRole(user, "admin", "financial");
+  const dpMarcaMeia = ehDp && !isReadOnly;
+  // Dobra de turno (29/10): quem edita o Realizado marca; enviada ao DP, só o DP.
+  const marcaDobra = !isReadOnly || dpMarcaDobraNaTrava(p.editingItem, ehDp);
   const diasComMeia = editDayEntries.filter(d => d.active && d.meia).map(d => d.date);
+  const diasComDobra = editDayEntries.filter(d => d.active && d.dobra).map(d => d.date);
   const activeDayEntries = editDayEntries.filter(d => d.active);
   const sortedActiveDays = [...activeDayEntries].sort((a, b) => a.date.localeCompare(b.date));
   const primeiroDiaAtivo = sortedActiveDays[0]?.date ?? null;
@@ -63,7 +68,10 @@ function DiariasBlock(p: CustosTabRealizadoProps) {
   const diffDiarias = subtotalDiariasRaw - plannedSubDiarias;
   const pctDiarias = plannedSubDiarias > 0 ? ((subtotalDiariasRaw - plannedSubDiarias) / plannedSubDiarias * 100) : 0;
   const sub = editDayEntries.length > 0
-    ? `${activeDayEntries.length} de ${editDayEntries.length} ${editDayEntries.length === 1 ? "dia trabalhado" : "dias trabalhados"}`
+    ? [
+      `${activeDayEntries.length} de ${editDayEntries.length} ${editDayEntries.length === 1 ? "dia trabalhado" : "dias trabalhados"}`,
+      contagemDasDobras(diasComDobra.length),
+    ].filter(Boolean).join(" · ")
     : undefined;
   return (
     <div className={BLOCO}>
@@ -90,11 +98,11 @@ function DiariasBlock(p: CustosTabRealizadoProps) {
               <Checkbox
                 checked={entry.active}
                 disabled={isReadOnly}
-                onCheckedChange={() => setEditDayEntries(prev => prev.map((x, i) => i === idx ? { ...x, active: !x.active } : x))}
+                onCheckedChange={() => setEditDayEntries(prev => prev.map((x, i) => i === idx ? alternarAtivoDoDia(x) : x))}
                 aria-label={`Dia ${dateLabel} trabalhado`}
                 className="pas-alvo"
               />
-              <div className={cn("flex items-center gap-1.5 min-w-0", !entry.active && "opacity-55")}>
+              <div className={cn("flex flex-wrap items-center gap-x-1.5 gap-y-0.5 min-w-0", !entry.active && "opacity-55")}>
                 <span className={cn("text-sm font-medium tabular-nums text-foreground", !entry.active && "line-through decoration-muted-foreground/60")}>{dateLabel}</span>
                 <span className="text-xs text-muted-foreground capitalize">{dayLabel}</span>
                 {entry.isWeekend && <span className="inline-flex items-center h-[18px] px-1.5 rounded-md bg-warning-soft text-warning text-2xs font-medium">fds</span>}
@@ -106,10 +114,24 @@ function DiariasBlock(p: CustosTabRealizadoProps) {
                     title={entry.meia ? `${MEIA_DIARIA_ROTULO} — clique para tirar o ½` : `Marcar ${dateLabel} com ${MEIA_DIARIA_ROTULO} (+½ do valor do dia)`}
                     aria-label={`${MEIA_DIARIA_ROTULO} em ${dateLabel}`}
                     data-testid={`rea-meia-${entry.date}`}
-                    className={cn("pas-alvo inline-flex items-center h-[18px] px-1.5 rounded-md border text-2xs font-semibold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    className={cn("relative inline-flex items-center h-[18px] px-1.5 rounded-md border after:absolute after:-inset-x-0.5 after:-inset-y-3 after:content-[''] text-2xs font-semibold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       entry.meia ? "bg-info text-white border-info" : "bg-card text-muted-foreground border-dashed border-border hover:text-info hover:border-info/50")}
                   >1,5×</button>
                 ) : entry.meia ? <span className="inline-flex items-center h-[18px] px-1.5 rounded-md bg-info-soft text-info text-2xs font-semibold" title={MEIA_DIARIA_ROTULO}>1,5×</span> : null)}
+                {/* Dobra de turno (29/10): o dia paga 2 diárias; substitui o ½ do dia. O alvo de toque
+                    cresce por um ::after (o selo fica pequeno e não empurra a linha). */}
+                {entry.active && (marcaDobra && (entry.valueCents > 0 || entry.dobra) ? (
+                  <button
+                    type="button"
+                    aria-pressed={!!entry.dobra}
+                    onClick={() => alternarDobra(entry.date)}
+                    title={entry.dobra ? `${DOBRA_ROTULO} — clique para tirar a dobra` : `Marcar ${dateLabel} com ${DOBRA_ROTULO} (+1 diária do dia${entry.meia ? "; tira o ½" : ""})`}
+                    aria-label={`${DOBRA_ROTULO} em ${dateLabel}`}
+                    data-testid={`rea-dobra-${entry.date}`}
+                    className={cn("relative inline-flex items-center h-[18px] px-1.5 rounded-md border after:absolute after:-inset-x-0.5 after:-inset-y-3 after:content-[''] text-2xs font-semibold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      entry.dobra ? "bg-primary text-primary-foreground border-primary" : "bg-card text-muted-foreground border-dashed border-border hover:text-primary hover:border-primary/50")}
+                  >{DOBRA_SELO}</button>
+                ) : entry.dobra ? <span className="inline-flex items-center h-[18px] px-1.5 rounded-md bg-brand-soft text-primary text-2xs font-semibold" title={DOBRA_ROTULO} data-testid={`rea-dobra-selo-${entry.date}`}>{DOBRA_SELO}</span> : null)}
                 {!entry.active && <span className="text-2xs text-muted-foreground">não trabalhou</span>}
               </div>
               <span className="text-right text-xs tabular-nums text-muted-foreground">
@@ -129,6 +151,9 @@ function DiariasBlock(p: CustosTabRealizadoProps) {
       </div>
       {diasComMeia.length > 0 && (
         <p className="m-0 px-4 py-1.5 border-t border-border text-2xs text-info" data-testid="rea-resumo-meia">{resumoDasMeiasDiarias(diasComMeia)} — o ½ já está no valor do dia</p>
+      )}
+      {diasComDobra.length > 0 && (
+        <p className="m-0 px-4 py-1.5 border-t border-border text-2xs text-primary" data-testid="rea-resumo-dobra">{resumoDasDobras(diasComDobra)} — dobra de turno: a diária a mais já está no valor do dia</p>
       )}
       {/* Dia extra */}
       {!isReadOnly && (

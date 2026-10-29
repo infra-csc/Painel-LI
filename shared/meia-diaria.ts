@@ -122,38 +122,56 @@ export function meiaDaDiaria(valorDoDiaCents: number): number {
 
 export interface ValorDoDiaDeDiaria {
   dia: string;
-  /** Diária do dia, sem o ½. */
+  /** Diária do dia, sem o ½ e sem a dobra. */
   baseCents: number;
-  /** O ½ (0 se o dia não está marcado). */
+  /** O ½ (0 se o dia não está marcado — ou se tem dobra: a dobra substitui o ½). */
   meiaCents: number;
-  /** base + ½. */
+  /** A dobra de turno (29/10): mais uma diária do dia (0 se o dia não tem dobra). */
+  dobraCents: number;
+  /** base + ½ + dobra. */
   valorCents: number;
 }
 
 /**
- * Do subtotal GRAVADO (diárias com os ½ dentro, como o Planejado grava e o
- * Realizado guarda) de volta ao valor de CADA dia pela regra do Planejado: a
- * diária cheia sai de subtotal ÷ Σ(fator do dia + fator ÷ 2 nos dias com ½);
- * cada dia vale diária × fator (+ o ½). Só os `diasComDiaria` (pela regra do
- * colaborador) têm valor — ½ marcado em dia sem diária não conta (28/10, R4).
- * O último dia absorve o centavo do arredondamento (a soma fecha no subtotal).
+ * A dobra de um dia (29/10 — shared/dobra-de-turno.ts): mais uma diária
+ * cheia DAQUELE dia (o valor do dia, já com o fator da deflação dele).
+ */
+export function dobraDaDiaria(valorDoDiaCents: number): number {
+  return Math.round(Math.max(0, valorDoDiaCents));
+}
+
+/**
+ * Do subtotal GRAVADO (diárias com os ½ e as dobras dentro, como o Planejado
+ * grava e o Realizado guarda) de volta ao valor de CADA dia pela regra do
+ * Planejado: a diária cheia sai de subtotal ÷ Σ(fator do dia; × 1,5 nos dias
+ * com ½; × 2 nos dias com dobra); cada dia vale diária × fator (+ o ½ ou + a
+ * dobra). Só os `diasComDiaria` (pela regra do colaborador) têm valor — ½ ou
+ * dobra marcados em dia sem diária não contam (28/10, R4). Dia nas duas
+ * listas vale como dobra (a dobra substitui o ½ — 29/10). O último dia
+ * absorve o centavo do arredondamento (a soma fecha no subtotal).
  */
 export function valoresDosDiasDoSubtotal(a: {
   subtotalCents: number;
   diasComDiaria: readonly string[];
   diasMeiaExtra?: readonly (string | null | undefined)[] | null;
+  /** Dias com dobra de turno (29/10, só no Realizado). */
+  diasDobra?: readonly (string | null | undefined)[] | null;
   fatores: DeflationFactors | null;
 }): { diaria: number; dias: ValorDoDiaDeDiaria[] } {
   const dias = Array.from(new Set(a.diasComDiaria)).sort();
-  const meias = new Set((a.diasMeiaExtra ?? []).map((d) => String(d ?? "").slice(0, 10)).filter((d) => dias.includes(d)));
+  const daLista = (l: readonly (string | null | undefined)[] | null | undefined) =>
+    new Set((l ?? []).map((d) => String(d ?? "").slice(0, 10)).filter((d) => dias.includes(d)));
+  const dobras = daLista(a.diasDobra);
+  const meias = new Set(Array.from(daLista(a.diasMeiaExtra)).filter((d) => !dobras.has(d)));
   const fator = (i: number) => (a.fatores ? fatorDeDeflacaoDoDia(i + 1, a.fatores) : 1);
-  const pesos = dias.reduce((s, d, i) => s + fator(i) * (meias.has(d) ? 1.5 : 1), 0);
+  const pesos = dias.reduce((s, d, i) => s + fator(i) * (dobras.has(d) ? 2 : meias.has(d) ? 1.5 : 1), 0);
   const subtotal = Math.max(0, Math.round(a.subtotalCents || 0));
   const diaria = pesos > 0 ? subtotal / pesos : 0;
   const lista = dias.map((dia, i) => {
     const baseCents = diariaDoDiaNaPosicao(diaria, i, a.fatores);
     const meiaCents = meias.has(dia) ? meiaDaDiaria(baseCents) : 0;
-    return { dia, baseCents, meiaCents, valorCents: baseCents + meiaCents };
+    const dobraCents = dobras.has(dia) ? dobraDaDiaria(baseCents) : 0;
+    return { dia, baseCents, meiaCents, dobraCents, valorCents: baseCents + meiaCents + dobraCents };
   });
   const resto = subtotal - lista.reduce((s, d) => s + d.valorCents, 0);
   const ultimo = lista[lista.length - 1];

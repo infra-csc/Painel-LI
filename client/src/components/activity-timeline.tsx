@@ -104,6 +104,20 @@ function formatDate(iso: string | null | undefined): string {
 }
 
 
+/** Dias de dobra que entraram/saíram entre dois registros (29/10). */
+function frasesDaDobra(antes: unknown, depois: unknown): string[] {
+  const lista = (v: unknown) => (Array.isArray(v) ? v.filter((d): d is string => typeof d === "string").map((d) => d.slice(0, 10)) : []);
+  const a = new Set(lista(antes));
+  const d = new Set(lista(depois));
+  const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+  const entraram = Array.from(d).filter((x) => !a.has(x)).sort().map(ddmm);
+  const sairam = Array.from(a).filter((x) => !d.has(x)).sort().map(ddmm);
+  const frases: string[] = [];
+  if (entraram.length) frases.push(`Dobra de turno marcada em ${entraram.join(", ")} (2 diárias no dia).`);
+  if (sairam.length) frases.push(`Dobra de turno tirada de ${sairam.join(", ")}.`);
+  return frases;
+}
+
 function buildNarrativeBullets(action: string, prev: Snapshot | null, next: Snapshot | null, details?: string): string[] {
   const bullets: string[] = [];
 
@@ -178,6 +192,8 @@ function buildNarrativeBullets(action: string, prev: Snapshot | null, next: Snap
     if (next.sentForReview === true && prev.sentForReview !== true) {
       return ['Enviado para análise do DP.'];
     }
+    // Dobra de turno (29/10): "Dobra de turno marcada em 12/10." / "… tirada de 12/10."
+    bullets.push(...frasesDaDobra(prev.diasDobra, next.diasDobra));
     // Campo a campo — apenas campos com label humano
     const allKeys = new Set([...Object.keys(prev), ...Object.keys(next)]);
     allKeys.forEach(field => {

@@ -16,6 +16,9 @@ import { CAMPOS_DE_VALOR_DO_PLANEJADO, ROTULO_DO_CAMPO_DE_VALOR, camposDeValorQu
 import { ehEventoLegado } from "@shared/legado-honorarios";
 import { mobilidadeCoerente } from "@shared/comparativo";
 import { dataIsoValida, normalizarDiasMeiaExtra } from "@shared/meia-diaria";
+import { mesmosDiasDeDobra, motivoComDobras, normalizarDiasDobra, separarMeiaEDobra } from "@shared/dobra-de-turno";
+import { baseComDobras } from "@shared/presenca";
+import { lerConfiguracaoDoBanco, montarPrestacao } from "../presenca-servico";
 import { lerDataDeCorteDoBanco } from "./honorarios-fluxo";
 import {
   montarLogDeAuditoria,
@@ -143,6 +146,16 @@ export function registrarOrcamentoRealizado(app: Express): void {
             });
           }
         }
+      }
+      // Dobra de turno (29/10): só dias trabalhados da prestação; tira o ½ do mesmo dia.
+      if (data.diasDobra != null) {
+        const ativos = (data.workedDays ?? []).map((d) => String(d).slice(0, 10));
+        const sem = separarMeiaEDobra({
+          diasMeiaExtra: (data.diasMeiaExtra ?? []).map((d) => String(d).slice(0, 10)),
+          diasDobra: normalizarDiasDobra(data.diasDobra, ativos),
+        });
+        data.diasDobra = sem.diasDobra.length > 0 ? sem.diasDobra : null;
+        if (data.diasMeiaExtra) data.diasMeiaExtra = sem.diasMeiaExtra;
       }
       const actual = await storage.createBudgetActual({ ...data, createdBy: actorId });
       const actor = usuarioDaSessao(req);
@@ -283,9 +296,19 @@ export function registrarOrcamentoRealizado(app: Express): void {
         mobility: inteiroOu(mobility, parent.mobility || 0),
       };
       const remainingDays: string[] = Array.isArray(parentWorkedDays) ? parentWorkedDays : [];
+      // ½ e dobra (29/10): ficam no titular só os dos dias que continuam com
+      // ele (o dia que passa ao novo colaborador perde o ½/dobra — o DP marca
+      // de novo no novo, se for o caso); cada dobra que fica conta 1 diária a mais.
+      const ficam = new Set(remainingDays.map((d) => String(d).slice(0, 10)));
+      const soDosQueFicam = (l: readonly (string | null)[] | null | undefined) => {
+        const r = Array.from(new Set((l ?? []).map((d) => String(d ?? "").slice(0, 10)).filter((d) => ficam.has(d)))).sort();
+        return r.length ? r : null;
+      };
+      const meiasDoPai = soDosQueFicam(parent.diasMeiaExtra);
+      const dobrasDoPai = soDosQueFicam(parent.diasDobra);
       const pv = req.body?.parentValues && typeof req.body.parentValues === "object" ? req.body.parentValues : null;
       const pai = {
-        dailyQuantity: inteiroOu(pv?.dailyQuantity, parent.dailyQuantity),
+        dailyQuantity: inteiroOu(pv?.dailyQuantity, parent.dailyQuantity) + (pv ? (dobrasDoPai?.length ?? 0) : 0),
         dailyValue: parent.dailyValue,
         weekdayLunch: inteiroOu(pv?.weekdayLunch, parent.weekdayLunch),
         weekdayDinner: inteiroOu(pv?.weekdayDinner, parent.weekdayDinner),
@@ -313,7 +336,7 @@ export function registrarOrcamentoRealizado(app: Express): void {
         // Pai: dias restantes + valores recalculados; guardado pelo estado (não
         // pode ter ido para análise no meio).
         const [paiAtualizado] = await tx.update(budgetActualTable)
-          .set({ workedDays: remainingDays, ...(pv ? { ...pai, totalValue: totalDaPrestacao(pai) } : {}), updatedAt: new Date(), updatedBy: actorId })
+          .set({ workedDays: remainingDays, diasMeiaExtra: meiasDoPai, diasDobra: dobrasDoPai, ...(pv ? { ...pai, totalValue: totalDaPrestacao(pai) } : {}), updatedAt: new Date(), updatedBy: actorId })
           .where(and(eq(budgetActualTable.id, parent.id), eq(budgetActualTable.rhStatus, parent.rhStatus), eq(budgetActualTable.sentForReview, parent.sentForReview)))
           .returning();
         if (!paiAtualizado) throw new HttpError(409, "O item original mudou de estado enquanto era dividido — recarregue e tente de novo.");
@@ -383,7 +406,7 @@ export function registrarOrcamentoRealizado(app: Express): void {
         cnpjEmissor: _ce, razaoSocialEmissor: _rse, valorCalculado: _vc, ajusteProdutorPct: _ap, horasExtras: _he,
         valorHorasExtras: _vhe, checkoutFinalEm: _cfe, checkoutFinalPor: _cfp, ...parsed
       } = insertBudgetActualSchema.partial().parse(req.body);
-      const updatePayload: Partial<InsertBudgetActual> = { ...parsed, updatedBy: actorId };
+      const updatePayload: Partial<InsertBudgetActual> & { baseCheckoutFinal?: BudgetActual["baseCheckoutFinal"] } = { ...parsed, updatedBy: actorId };
       // Mobilidade coerente (28/10 — caso Lucas, NR São Luís): o "Ajustar o
       // realizado" mandava só o total; zerado, ficavam ida/volta = R$ 58,00
       // gravados (e o Flash usa ida + volta quando o total é 0). Agora o total
@@ -407,6 +430,42 @@ export function registrarOrcamentoRealizado(app: Express): void {
         updatePayload.diasMeiaExtra = ativos.length > 0
           ? normalizarDiasMeiaExtra(parsed.diasMeiaExtra, ativos)
           : Array.from(new Set((parsed.diasMeiaExtra ?? []).filter(dataIsoValida))).sort();
+      }
+      // Dobra de turno (29/10 — shared/dobra-de-turno.ts): só dias ativos da
+      // prestação, sem repetição; a dobra substitui o ½ do mesmo dia; tirar o
+      // dia (workedDays) tira a dobra dele. Prestação travada: só o DP (acima).
+      let dobraMudou = false;
+      if (parsed.diasDobra !== undefined || (parsed.workedDays !== undefined && (prev.diasDobra?.length ?? 0) > 0)) {
+        const ativos = (parsed.workedDays ?? prev.workedDays ?? []).map((d) => String(d).slice(0, 10));
+        const pedido = parsed.diasDobra !== undefined ? parsed.diasDobra : prev.diasDobra;
+        const dobra = ativos.length > 0
+          ? normalizarDiasDobra(pedido, ativos)
+          : Array.from(new Set((pedido ?? []).map((d) => String(d).slice(0, 10)).filter(dataIsoValida))).sort();
+        const meiaAtual = (updatePayload.diasMeiaExtra ?? prev.diasMeiaExtra ?? []).map((d) => String(d).slice(0, 10));
+        const sem = separarMeiaEDobra({ diasMeiaExtra: meiaAtual, diasDobra: dobra });
+        updatePayload.diasDobra = sem.diasDobra;
+        if (sem.diasMeiaExtra.length !== meiaAtual.length) updatePayload.diasMeiaExtra = sem.diasMeiaExtra;
+        dobraMudou = !mesmosDiasDeDobra(prev.diasDobra, sem.diasDobra);
+        // A dobra é um FATO do dia: fica dita no motivo da mudança ("Dobra de
+        // turno em 12/10") — a Conferência DP lê a justificativa.
+        if (dobraMudou && parsed.changeReason === undefined) updatePayload.changeReason = motivoComDobras(prev.changeReason, sem.diasDobra);
+      }
+      // Depois do 1º check-out final (prestação devolvida e refeita), o
+      // recálculo parte da BASE: a dobra marcada/tirada agora entra nela
+      // (shared/presenca → baseComDobras), senão sumia no 2º check-out final.
+      // 29/10: o ½ marcado/tirado depois do 1º check-out final segue o mesmo caminho.
+      const meiaMudou = updatePayload.diasMeiaExtra !== undefined
+        && !mesmosDiasDeDobra(prev.diasMeiaExtra, updatePayload.diasMeiaExtra as string[] | null);
+      if ((dobraMudou || meiaMudou) && prev.baseCheckoutFinal) {
+        const m = await montarPrestacao(prev.id, await lerConfiguracaoDoBanco());
+        if (m) {
+          updatePayload.baseCheckoutFinal = baseComDobras({
+            base: prev.baseCheckoutFinal, dias: m.dias,
+            diasDobra: updatePayload.diasDobra !== undefined ? updatePayload.diasDobra : prev.diasDobra,
+            diasMeiaExtra: updatePayload.diasMeiaExtra !== undefined ? updatePayload.diasMeiaExtra : prev.diasMeiaExtra,
+            collaboratorType: prev.collaboratorType, nomeDaFuncao: m.funcaoNome, fatores: m.fatores,
+          });
+        }
       }
 
       if (isRhAdmin && prev) {

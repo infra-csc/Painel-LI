@@ -57,7 +57,8 @@ export async function createBudgetActual(actual: InsertBudgetActual): Promise<Bu
   return created;
 }
 
-export async function updateBudgetActual(id: string, actual: Partial<InsertBudgetActual>): Promise<BudgetActual> {
+/** `baseCheckoutFinal` (fora do insert schema): só o servidor manda — a dobra marcada depois do check-out final (29/10). */
+export async function updateBudgetActual(id: string, actual: Partial<InsertBudgetActual> & { baseCheckoutFinal?: BudgetActual["baseCheckoutFinal"] }): Promise<BudgetActual> {
   const [updated] = await db.update(budgetActual).set({ ...actual, updatedAt: new Date() }).where(eq(budgetActual.id, id)).returning();
   return updated;
 }

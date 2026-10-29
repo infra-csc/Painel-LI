@@ -24,8 +24,9 @@
 import { memo } from "react";
 import { Calendar, ChevronDown, ChevronUp, Eye, GitFork, Lock, MessageSquare, PencilLine, Trash2, TriangleAlert, Undo2, UserX } from "lucide-react";
 import { resumoDasMeiasDiarias } from "@shared/meia-diaria";
+import { DOBRA_ROTULO, resumoDasDobras } from "@shared/dobra-de-turno";
 import { cn, formatDiasUteis, formatFds } from "@/lib/utils";
-import { lerAdjustedFields } from "./comparison-utils";
+import { lerAdjustedFields, valorDoAjusteDoDp } from "./comparison-utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { BudgetNotesBadge, BudgetNotesSnippet } from "@/components/budget-chat";
@@ -132,6 +133,10 @@ function ActualCardBody({ cardItem, cardDays, cardPlanned: planned, notAttended 
         {cardDays.weekdays === 0 && cardDays.weekends === 0 && <span>—</span>}
         {(cardItem.diasMeiaExtra?.length ?? 0) > 0 && (
           <span className="text-info" data-testid="realizado-meia-diaria" title="O ½ da diária já está no valor do dia">{resumoDasMeiasDiarias(cardItem.diasMeiaExtra)}</span>
+        )}
+        {/* Dobra de turno (29/10): o dia paga 2 diárias — já no valor. */}
+        {(cardItem.diasDobra?.length ?? 0) > 0 && (
+          <span className="text-primary font-medium" data-testid="realizado-dobra" title={`${DOBRA_ROTULO} — a diária a mais já está no valor do dia`}>{resumoDasDobras(cardItem.diasDobra)}</span>
         )}
         {planned && <DiferencaDaLinha real={cardSubtotalDiarias} plano={plannedDiarias} />}
       </Lancamento>
@@ -311,9 +316,9 @@ export const ActualCard = memo(function ActualCard(p: ActualCardProps) {
                 {Object.values(rhFields).map((f, i) => (
                   <li key={i} className="flex flex-wrap items-baseline gap-x-1.5 text-2xs leading-5 text-slate-600">
                     <span>{f.label}:</span>
-                    <span className="tabular-nums line-through text-muted-foreground">{formatCurrency(f.from)}</span>
+                    <span className="tabular-nums line-through text-muted-foreground">{valorDoAjusteDoDp(f.label, f.from, formatCurrency)}</span>
                     <span aria-hidden="true">→</span>
-                    <span className="tabular-nums font-semibold text-warning">{formatCurrency(f.to)}</span>
+                    <span className="tabular-nums font-semibold text-warning">{valorDoAjusteDoDp(f.label, f.to, formatCurrency)}</span>
                   </li>
                 ))}
               </ul>

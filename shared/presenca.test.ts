@@ -4,7 +4,7 @@ import {
   diasDaPrestacao, diasPendentes, erroDaSenha, estadoDoDia, faixaDoAjuste, horaEmBrasilia, inclusaoDaPrestacao, instanteEmBrasilia,
   lerConfiguracaoDaPresenca, periodoDaPrestacao, podeConfirmarPrestacao, podeRegistrarEntrada, podeRegistrarSaida, recalcularValor,
   situacaoDoCnpjInformado, validarConfiguracaoDaPresenca, type RealizadoParaCalculo,
-  baseDoCheckoutFinal, erroDaOcorrencia, realizadoParaCalculo,
+  baseDoCheckoutFinal, baseComDobras, erroDaOcorrencia, realizadoParaCalculo,
 } from "./presenca";
 import { completarCnpj } from "./cnpj";
 
@@ -282,6 +282,91 @@ describe("revisão 28/10 — recálculo por DIA (R2, R3, R8, S2)", () => {
     // Antes: recalculava do total já ajustado (R$ 500) → R$ 625.
     const segundo = recalcularValor({ realizado: realizadoParaCalculo(gravado), dias, ocorrencias, divisorHoraExtra: 8, nomeDaFuncao: "Montagem" });
     expect(segundo.valorCalculado).toBe(50_000);
+  });
+});
+
+describe("dobra de turno na presença (29/10)", () => {
+  // Freela, seg 02/11 a qui 05/11/2026, diária R$ 100, DOBRA na terça 03/11:
+  // subtotal R$ 500 e 5 diárias (o dia com dobra paga 2), sem alimentação.
+  const dias = ["2026-11-02", "2026-11-03", "2026-11-04", "2026-11-05"];
+  const comDobra: RealizadoParaCalculo = {
+    dailyQuantity: 5, dailyValue: 10_000, totalValue: 50_000, weekdayLunch: 0, weekdayDinner: 0, weekendLunch: 0, weekendDinner: 0,
+    mobility: 0, transport: 0, collaboratorType: "freela", diasDobra: ["2026-11-03"],
+  };
+  const calc = (ocorrencias: Parameters<typeof recalcularValor>[0]["ocorrencias"], r: RealizadoParaCalculo = comDobra) =>
+    recalcularValor({ realizado: r, dias, ocorrencias, divisorHoraExtra: 8, nomeDaFuncao: "Montagem" });
+
+  it("sem ocorrências: o calculado já tem a dobra (fato do dia, não ajuste) e a memória diz", () => {
+    const c = calc([]);
+    expect(c.valorCalculado).toBe(50_000);
+    expect(c.dailyQuantity).toBe(5);
+    expect(c.diasDobra).toEqual(["2026-11-03"]);
+    expect(c.linhas[0]).toContain("1 dobra de turno (03/11)");
+  });
+
+  it("falta no dia com dobra tira as DUAS diárias do dia: fica R$ 300 e 3 diárias", () => {
+    const c = calc([{ tipo: "falta", dia: "2026-11-03" }]);
+    expect(c.valorCalculado).toBe(30_000);
+    expect(c.dailyQuantity).toBe(3);
+    expect(c.diariasRemovidas).toBe(2);
+    expect(c.diasDobra).toEqual([]);
+    expect(c.linhas.some((l) => l.includes("Falta em 03/11") && l.includes("dobra: 2 diárias"))).toBe(true);
+  });
+
+  it("falta noutro dia tira R$ 100 e mantém a dobra; o check-out final grava a dobra que ficou", () => {
+    const c = calc([{ tipo: "falta", dia: "2026-11-02" }]);
+    expect(c.valorCalculado).toBe(40_000);
+    expect(c.dailyQuantity).toBe(4);
+    const campos = camposDoRealizadoNoCheckoutFinal(comDobra, c, c.valorCalculado);
+    expect(campos.diasDobra).toEqual(["2026-11-03"]);
+    expect(campos.workedDays).toEqual(["2026-11-03", "2026-11-04", "2026-11-05"]);
+    expect(campos.dailyValue).toBe(10_000);
+  });
+
+  it("horas extras no dia com dobra: a hora é a da diária do dia (não a dobrada)", () => {
+    const c = calc([{ tipo: "horas_extras", horas: 8, dia: "2026-11-03" }]);
+    expect(c.valorHorasExtras).toBe(10_000);
+    expect(c.valorCalculado).toBe(60_000);
+  });
+
+  it("a base do check-out final guarda a dobra; o 2º check-out (depois da devolução) recalcula com ela", () => {
+    const base = baseDoCheckoutFinal({ ...comDobra, workedDays: dias });
+    expect(base.diasDobra).toEqual(["2026-11-03"]);
+    const primeiro = calc([{ tipo: "horas_extras", horas: 8, dia: "2026-11-02" }]);
+    const gravado = { ...comDobra, ...camposDoRealizadoNoCheckoutFinal(comDobra, primeiro, primeiro.valorCalculado), baseCheckoutFinal: base };
+    const segundo = recalcularValor({ realizado: realizadoParaCalculo(gravado), dias, ocorrencias: [{ tipo: "horas_extras", horas: 8, dia: "2026-11-02" }], divisorHoraExtra: 8, nomeDaFuncao: "Montagem" });
+    expect(segundo.valorCalculado).toBe(60_000);
+    expect(segundo.diasDobra).toEqual(["2026-11-03"]);
+  });
+
+  it("baseComDobras: dobra marcada depois do 1º check-out final entra na base (e sai, se tirada)", () => {
+    const semDobra = baseDoCheckoutFinal({ ...comDobra, dailyQuantity: 4, totalValue: 40_000, diasDobra: null, workedDays: dias });
+    const comNova = baseComDobras({ base: semDobra, dias, diasDobra: ["2026-11-03"], collaboratorType: "freela", nomeDaFuncao: "Montagem" });
+    expect(comNova).toMatchObject({ totalValue: 50_000, dailyQuantity: 5, dailyValue: 10_000, diasDobra: ["2026-11-03"] });
+    expect(recalcularValor({ realizado: comNova, dias, ocorrencias: [], divisorHoraExtra: 8, nomeDaFuncao: "Montagem" }).valorCalculado).toBe(50_000);
+    const tirada = baseComDobras({ base: comNova, dias, diasDobra: [], collaboratorType: "freela", nomeDaFuncao: "Montagem" });
+    expect(tirada).toMatchObject({ totalValue: 40_000, dailyQuantity: 4, diasDobra: null });
+    // Sem mudança: a mesma base.
+    expect(baseComDobras({ base: comNova, dias, diasDobra: ["2026-11-03"], collaboratorType: "freela", nomeDaFuncao: "Montagem" })).toBe(comNova);
+  });
+
+  it("baseComDobras: dobra num dia de 1,5 substitui o ½; dia sem diária (casa em dia útil) é ignorado", () => {
+    const comMeia = baseDoCheckoutFinal({ ...comDobra, dailyQuantity: 4, totalValue: 45_000, diasDobra: null, diasMeiaExtra: ["2026-11-04"], workedDays: dias });
+    const r = baseComDobras({ base: comMeia, dias, diasDobra: ["2026-11-04"], collaboratorType: "freela", nomeDaFuncao: "Montagem" });
+    expect(r).toMatchObject({ totalValue: 50_000, dailyQuantity: 5, diasMeiaExtra: null, diasDobra: ["2026-11-04"] });
+    const casa = baseDoCheckoutFinal({ ...comDobra, collaboratorType: "casa", dailyQuantity: 0, totalValue: 0, diasDobra: null, workedDays: dias });
+    expect(baseComDobras({ base: casa, dias, diasDobra: ["2026-11-03"], collaboratorType: "casa", nomeDaFuncao: "Montagem" })).toBe(casa);
+  });
+
+  it("baseComDobras: ½ marcado ou tirado depois do 1º check-out final também entra na base (29/10)", () => {
+    const semMeia = baseDoCheckoutFinal({ ...comDobra, dailyQuantity: 4, totalValue: 40_000, diasDobra: null, diasMeiaExtra: null, workedDays: dias });
+    const comMeia = baseComDobras({ base: semMeia, dias, diasDobra: null, diasMeiaExtra: ["2026-11-03"], collaboratorType: "freela", nomeDaFuncao: "Montagem" });
+    // ½ não conta na quantidade (não é número inteiro): só o valor sobe.
+    expect(comMeia).toMatchObject({ totalValue: 45_000, dailyQuantity: 4, diasMeiaExtra: ["2026-11-03"], diasDobra: null });
+    const tirada = baseComDobras({ base: comMeia, dias, diasDobra: null, diasMeiaExtra: [], collaboratorType: "freela", nomeDaFuncao: "Montagem" });
+    expect(tirada).toMatchObject({ totalValue: 40_000, dailyQuantity: 4, diasMeiaExtra: null });
+    // diasMeiaExtra ausente mantém os ½ da base.
+    expect(baseComDobras({ base: comMeia, dias, diasDobra: null, collaboratorType: "freela", nomeDaFuncao: "Montagem" })).toBe(comMeia);
   });
 });
 

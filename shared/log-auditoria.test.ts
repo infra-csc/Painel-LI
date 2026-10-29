@@ -187,3 +187,10 @@ describe("busca de passagens no log (09/10 — aparecia como \"Outro registro\")
     expect(descreverLog({ action: "update", entityType: "ticket", previousData: { justificativaPreco: null }, newData: { justificativaPreco: "Único voo antes da montagem" } }).mudancas[0].campo).toBe("Justificativa do preço");
   });
 });
+
+describe("dobra de turno no histórico (29/10)", () => {
+  it("o campo tem nome e as datas saem dd/mm", () => {
+    const s = descreverLog({ action: "update", entityType: "budget_actual", previousData: { diasDobra: [] }, newData: { diasDobra: ["2026-10-12", "2026-10-13"] } });
+    expect(s.mudancas).toEqual([{ campo: "Dias com dobra de turno", antes: "nenhum", depois: "12/10, 13/10" }]);
+  });
+});

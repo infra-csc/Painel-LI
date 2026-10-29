@@ -719,6 +719,36 @@ describe("revisão 28/10 — ocorrências e check-out final (R2, S2, S7)", () =>
     const gravado = await ctx.storage.getBudgetActualById(actual.id);
     expect(gravado!.baseCheckoutFinal).toMatchObject({ totalValue: 60_000, dailyValue: 20_000 });
   });
+
+  it("dobra de turno (29/10): é fato do dia — entra no calculado sem gastar o ±10%; marcada depois da devolução entra na base; a falta no dia tira as duas diárias", async () => {
+    const { colab } = await colaboradorComCpf();
+    const { actual } = await prestacaoPassada(colab.id);
+    const dp = await agenteLogado("financial");
+    // O DP marca a dobra em 02/10 no Realizado (R$ 200 a mais; 4 diárias).
+    const marcada = await mutacao(dp.agent.patch(`/api/budget-actual/${actual.id}`)).send({ diasDobra: ["2026-10-02"], dailyQuantity: 4, dailyValue: 20_000, totalValue: 80_000 });
+    expect(marcada.status, marcada.text).toBe(200);
+    const { agent } = await agenteLogado("production");
+    // Os 10% são sobre o calculado COM a dobra (R$ 800 → até R$ 880).
+    const ok = await mutacao(agent.post(`/api/presenca/${actual.id}/checkout-final`)).send({ valorFinal: 88_000, justificativa: "Fechamento do evento" });
+    expect(ok.status, ok.text).toBe(200);
+    expect(ok.body.checkoutFinal).toMatchObject({ valorCalculado: 80_000, ajustePct: 10 });
+    const gravado = await ctx.storage.getBudgetActualById(actual.id);
+    expect(gravado).toMatchObject({ diasDobra: ["2026-10-02"], dailyQuantity: 4 });
+    expect(gravado!.changeReason).toContain("Dobra de turno em 02/10 (2 diárias no dia)");
+    expect(gravado!.baseCheckoutFinal).toMatchObject({ totalValue: 80_000, diasDobra: ["2026-10-02"] });
+
+    // O DP devolve; marca outra dobra em 03/10 → a base acompanha (R$ 1.000).
+    await ctx.db.update(ctx.schema.budgetActual).set({ rhStatus: "devolvido", sentForReview: false }).where(eq(ctx.schema.budgetActual.id, actual.id));
+    const outra = await mutacao(dp.agent.patch(`/api/budget-actual/${actual.id}`)).send({ diasDobra: ["2026-10-02", "2026-10-03"], dailyQuantity: 5, totalValue: 108_000 });
+    expect(outra.status, outra.text).toBe(200);
+    const tela = async () => (await agent.get(`/api/presenca/eventos/${actual.eventId}`)).body.prestacoes.find((p: { actualId: string }) => p.actualId === actual.id);
+    expect((await tela()).calculo.valorCalculado).toBe(100_000);
+    // Falta no dia com dobra: saem as DUAS diárias do dia (R$ 400).
+    expect((await mutacao(agent.post(`/api/presenca/${actual.id}/ocorrencias`)).send({ tipo: "falta", dia: "2026-10-02" })).status).toBe(201);
+    const depois = await tela();
+    expect(depois.calculo.valorCalculado).toBe(60_000);
+    expect(depois.calculo.linhas.some((l: string) => l.startsWith("Falta em 02/10") && l.includes("dobra: 2 diárias"))).toBe(true);
+  });
 });
 
 describe("revisão 28/10 — selfies (S5) e Voltar ao Planejado (S5, S8)", () => {

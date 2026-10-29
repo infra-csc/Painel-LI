@@ -24,8 +24,10 @@ import { isFuncaoLocal, isPercursoFunction } from "@shared/calculation-rules";
 import type { BudgetActual, BudgetPlanned, TeamInclusion } from "@shared/schema";
 import type { EditorDoRealizado } from "@/hooks/use-budget-actual-editor";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
+import { hasRole } from "@/lib/role-utils";
 import { EditActualCustosTab } from "./edit-actual-custos-tab";
-import { reconstructDailyValues, subtotalDiariasDe, type DayCounts } from "./actual-utils";
+import { dpMarcaDobraNaTrava, reconstructDailyValues, subtotalDiariasDe, type DayCounts } from "./actual-utils";
 import { formatCurrency } from "./types";
 
 export interface EditActualModalProps {
@@ -55,7 +57,10 @@ export function EditActualModal(p: EditActualModalProps) {
   // Alterações não salvas: o que o salvar mandaria agora × o que mandaria ao
   // abrir (fotografado na primeira renderização de cada prestação).
   const fotoRef = useRef<{ id: string; payload: string } | null>(null);
-  const payloadAtual = editingItem && editFormData && !editingItem.sentForReview
+  const { user } = useAuth();
+  const ehDp = hasRole(user, "admin", "financial");
+  // Enviada ao DP: só o DP ainda mexe (na dobra de turno — 29/10).
+  const payloadAtual = editingItem && editFormData && (!editingItem.sentForReview || dpMarcaDobraNaTrava(editingItem, ehDp))
     ? JSON.stringify(editor.montarPayloadParaSalvar()?.data ?? null)
     : null;
   if (editingItem && payloadAtual !== null && fotoRef.current?.id !== editingItem.id) {
@@ -73,6 +78,8 @@ export function EditActualModal(p: EditActualModalProps) {
 
         {editingItem && editFormData && (() => {
           const isReadOnly = !!editingItem.sentForReview;
+          // Dobra de turno (29/10): enviada ao DP, o DP ainda marca a dobra (só ela).
+          const dobraNaTrava = isReadOnly && dpMarcaDobraNaTrava(editingItem, ehDp);
           const itemDays = getItemDayCounts(editingItem);
           const activeDayEntries = editDayEntries.filter(d => d.active);
           const subtotalDiariasRaw = activeDayEntries.reduce((sum, d) => sum + d.valueCents, 0);
@@ -178,7 +185,10 @@ export function EditActualModal(p: EditActualModalProps) {
               {isReadOnly && (
                 <div className="flex items-center gap-2.5 px-5 sm:px-6 py-2 bg-surface-muted border-b border-border shrink-0">
                   <Lock className="w-3.5 h-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
-                  <p className="m-0 text-xs text-slate-600">Valores enviados para revisão — somente leitura.</p>
+                  <p className="m-0 text-xs text-slate-600">
+                    Valores enviados para revisão — somente leitura.
+                    {dobraNaTrava && <> O DP ainda pode marcar a dobra de turno (2×) nos dias.</>}
+                  </p>
                 </div>
               )}
 
@@ -280,7 +290,7 @@ export function EditActualModal(p: EditActualModalProps) {
                   </dl>
                 </div>
                 <div className="flex flex-wrap items-center justify-end gap-2 mt-3 pt-3 border-t border-border">
-                  {isReadOnly ? (
+                  {isReadOnly && !(dobraNaTrava && sujo) ? (
                     <Button variant="outline" className="h-9 px-4 rounded-lg text-sm font-medium" onClick={fecharBotao}>
                       Fechar
                     </Button>
@@ -297,7 +307,7 @@ export function EditActualModal(p: EditActualModalProps) {
                         data-testid="realizado-salvar-prestacao"
                       >
                         {isSaving ? <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <CheckCheck className="w-4 h-4" aria-hidden="true" />}
-                        {isSaving ? "Salvando…" : "Salvar prestação"}
+                        {isSaving ? "Salvando…" : isReadOnly ? "Salvar dobra" : "Salvar prestação"}
                       </Button>
                     </>
                   )}

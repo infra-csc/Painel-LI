@@ -1640,6 +1640,15 @@ li:hover .fun-remover, .fun-remover:focus-visible { opacity: 1; }
   .rea-dia { grid-template-columns: 1.25rem minmax(0, 1fr) 104px; }
   .rea-dia > :nth-child(3) { display: none; }
 }
+/* Toque (29/10): a caixa "trabalhou" ganha 44px (pas-alvo) — a coluna acompanha,
+   senão ela cobria a data e os selos ½/2×. No celular o planejado sai da linha. */
+@media (pointer: coarse) {
+  .rea-dia { grid-template-columns: 44px minmax(0, 1fr) 6.5rem 104px; }
+}
+@media (pointer: coarse) and (max-width: 480px) {
+  .rea-dia { grid-template-columns: 44px minmax(0, 1fr) 104px; }
+  .rea-dia > :nth-child(3) { display: none; }
+}
 /* Resumo: entre 768 e 1024px os valores não cabem em cinco colunas — fica 2 × 2
    (as divisórias do 2 × 2 do pla-resumo, que só valem abaixo de 768px).
    08/10: o Realizado passou para a grade do pla-resumo-grade (pela largura do

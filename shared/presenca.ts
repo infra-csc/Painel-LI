@@ -21,7 +21,7 @@
 import { FUSO_DA_OPERACAO, hojeISO } from "./hoje-sp";
 import { listarDiasDeTrabalho } from "./dias-de-trabalho";
 import { DEFLATION_FACTORS_DEFAULT, regraDiariaPorTipo, type DeflationFactors } from "./calculation-rules";
-import { valoresDosDiasDoSubtotal } from "./meia-diaria";
+import { dobraDaDiaria, meiaDaDiaria, valoresDosDiasDoSubtotal } from "./meia-diaria";
 import { cnpjValido, digitosDoCnpj } from "./cnpj";
 import { contratoVigenteEm, type ContratoParaVigencia } from "./contratos";
 
@@ -302,6 +302,8 @@ export interface RealizadoParaCalculo {
   collaboratorType?: string | null;
   /** Dias com 1,5 diária (28/10) — o ½ deles está no subtotal. */
   diasMeiaExtra?: readonly (string | null)[] | null;
+  /** Dias com dobra de turno (29/10) — a diária a mais deles está no subtotal. */
+  diasDobra?: readonly (string | null)[] | null;
 }
 
 /**
@@ -323,6 +325,8 @@ export interface BaseDoCheckoutFinal {
   transport: number;
   workedDays: string[] | null;
   diasMeiaExtra: string[] | null;
+  /** 29/10 (dobra de turno). Ausente nas bases gravadas antes = sem dobra. */
+  diasDobra?: string[] | null;
 }
 
 /** A fotografia do Realizado para guardar no 1º check-out final. */
@@ -332,6 +336,7 @@ export function baseDoCheckoutFinal(a: RealizadoParaCalculo & { workedDays?: rea
     dailyQuantity: a.dailyQuantity, dailyValue: a.dailyValue, totalValue: a.totalValue,
     weekdayLunch: a.weekdayLunch, weekdayDinner: a.weekdayDinner, weekendLunch: a.weekendLunch, weekendDinner: a.weekendDinner,
     mobility: a.mobility, transport: a.transport, workedDays: lista(a.workedDays), diasMeiaExtra: lista(a.diasMeiaExtra),
+    diasDobra: lista(a.diasDobra),
   };
 }
 
@@ -373,6 +378,8 @@ export interface CalculoDaPresenca {
   valorHorasExtras: number;
   /** Dias com 1,5 diária que continuam pagos (28/10, revisão R3). */
   diasMeiaExtra: string[];
+  /** Dias com dobra de turno que continuam pagos (29/10). */
+  diasDobra: string[];
   /** Memória de cálculo em frases (pt-BR). */
   linhas: string[];
 }
@@ -394,11 +401,13 @@ const numero = (v: number | string | null | undefined): number => {
  * das ocorrências (27/10; por DIA desde a revisão de 28/10):
  *  - cada dia de diária vale o que a regra do Planejado dá a ele
  *    (shared/meia-diaria → `valoresDosDiasDoSubtotal`: diária × fator da
- *    deflação daquela posição, + o ½ se o dia é de 1,5) — casa/CLT só tem
- *    diária no fim de semana;
+ *    deflação daquela posição, + o ½ se o dia é de 1,5, + mais uma diária
+ *    do dia se o dia tem DOBRA de turno — 29/10) — casa/CLT só tem diária no
+ *    fim de semana;
  *  - falta (e substituição — a falta do titular naquele dia; o substituto é
  *    pago pela "Dividir escalação" do Realizado) tira o DIA: o valor DELE (não
- *    a média — R3) e a alimentação média daquele tipo de dia;
+ *    a média — R3; no dia com dobra, as DUAS diárias) e a alimentação média
+ *    daquele tipo de dia;
  *  - diária extra põe um dia (a diária cheia, sem deflação, pela mesma regra
  *    do tipo + alimentação média);
  *  - horas extras SÓ com dia (S2): horas do dia (até `horaExtraMaxDia`) ×
@@ -431,7 +440,7 @@ export function recalcularValor(a: {
   const alimAntes = r.weekdayLunch + r.weekdayDinner + r.weekendLunch + r.weekendDinner;
   const subtotal = Math.max(0, r.totalValue - alimAntes - r.mobility - r.transport);
   const porDia = valoresDosDiasDoSubtotal({
-    subtotalCents: subtotal, diasComDiaria: dias.filter(temDiaria), diasMeiaExtra: r.diasMeiaExtra,
+    subtotalCents: subtotal, diasComDiaria: dias.filter(temDiaria), diasMeiaExtra: r.diasMeiaExtra, diasDobra: r.diasDobra,
     fatores: a.fatores === undefined ? DEFLATION_FACTORS_DEFAULT : a.fatores,
   });
   const valorDoDia = new Map(porDia.dias.map((d) => [d.dia, d]));
@@ -450,7 +459,12 @@ export function recalcularValor(a: {
   const linhas: string[] = [];
   const comDiaria = Math.max(0, r.dailyQuantity || 0);
   const meiasNoRealizado = porDia.dias.filter((d) => d.meiaCents > 0);
-  linhas.push(`Realizado: ${plural(comDiaria, "diária", "diárias")} (${reaisDaPresenca(subtotal)}${meiasNoRealizado.length ? `, com ${plural(meiasNoRealizado.length, "dia", "dias")} de 1,5` : ""}) + alimentação ${reaisDaPresenca(alimAntes)} + mobilidade ${reaisDaPresenca(r.mobility)}${r.transport ? ` + translado ${reaisDaPresenca(r.transport)}` : ""} = ${reaisDaPresenca(r.totalValue)}.`);
+  const dobrasNoRealizado = porDia.dias.filter((d) => d.dobraCents > 0);
+  const extrasDoDia = [
+    meiasNoRealizado.length ? `com ${plural(meiasNoRealizado.length, "dia", "dias")} de 1,5` : "",
+    dobrasNoRealizado.length ? `${plural(dobrasNoRealizado.length, "dobra", "dobras")} de turno (${dobrasNoRealizado.map((d) => diaCurto(d.dia)).join(", ")})` : "",
+  ].filter(Boolean).join(" e ");
+  linhas.push(`Realizado: ${plural(comDiaria, "diária", "diárias")} (${reaisDaPresenca(subtotal)}${extrasDoDia ? `, ${extrasDoDia}` : ""}) + alimentação ${reaisDaPresenca(alimAntes)} + mobilidade ${reaisDaPresenca(r.mobility)}${r.transport ? ` + translado ${reaisDaPresenca(r.transport)}` : ""} = ${reaisDaPresenca(r.totalValue)}.`);
 
   // Arredonda a alimentação de cada campo UMA vez (soma das médias), para o total fechar.
   const delta = { weekdayLunch: 0, weekdayDinner: 0, weekendLunch: 0, weekendDinner: 0 };
@@ -462,11 +476,12 @@ export function recalcularValor(a: {
     const m = mediaDoDia(d);
     const doDia = valorDoDia.get(d);
     const tiraDiaria = !!doDia && doDia.valorCents > 0 && diariasRemovidas < comDiaria;
-    if (tiraDiaria) { diariasRemovidas++; total -= doDia.valorCents; }
+    // Dia com dobra (29/10): a falta tira as DUAS diárias do dia.
+    if (tiraDiaria) { diariasRemovidas = Math.min(comDiaria, diariasRemovidas + (doDia.dobraCents > 0 ? 2 : 1)); total -= doDia.valorCents; }
     if (m.fds) { delta.weekendLunch -= m.lunch; delta.weekendDinner -= m.dinner; } else { delta.weekdayLunch -= m.lunch; delta.weekdayDinner -= m.dinner; }
     const alim = Math.round(m.lunch + m.dinner);
     const tipo = ativas.some((o) => o.tipo === "substituicao" && o.dia === d) ? "Substituição" : "Falta";
-    const rotuloDaDiaria = tiraDiaria ? ` diária ${reaisDaPresenca(doDia.valorCents)}${doDia.meiaCents > 0 ? " (1,5)" : ""}` : " sem diária no dia";
+    const rotuloDaDiaria = tiraDiaria ? ` diária ${reaisDaPresenca(doDia.valorCents)}${doDia.meiaCents > 0 ? " (1,5)" : doDia.dobraCents > 0 ? " (dobra: 2 diárias)" : ""}` : " sem diária no dia";
     linhas.push(`${tipo} em ${diaCurto(d)}: −${rotuloDaDiaria}${alim ? ` e alimentação ${reaisDaPresenca(alim)}` : ""}.`);
   }
   for (const d of diasExtras) {
@@ -537,6 +552,7 @@ export function recalcularValor(a: {
     valorDaHora,
     valorHorasExtras,
     diasMeiaExtra: meiasNoRealizado.map((d) => d.dia).filter((d) => !diasComFalta.includes(d)),
+    diasDobra: dobrasNoRealizado.map((d) => d.dia).filter((d) => !diasComFalta.includes(d)),
     linhas,
   };
 }
@@ -548,23 +564,92 @@ export function recalcularValor(a: {
  * dailyValue = subtotal ÷ diárias. As horas extras e o ajuste do produtor
  * entram no subtotal das diárias (o Realizado não tem outra coluna que some
  * no total); o valor das horas fica registrado à parte em `valor_horas_extras`.
- * 28/10 (R3): os dias de 1,5 são só os que continuam pagos.
+ * 28/10 (R3): os dias de 1,5 são só os que continuam pagos (29/10: e os de dobra).
  */
 export function camposDoRealizadoNoCheckoutFinal(
   realizado: RealizadoParaCalculo,
   calculo: CalculoDaPresenca,
   valorFinal: number,
-): { workedDays: string[]; diasMeiaExtra: string[]; dailyQuantity: number; dailyValue: number; totalValue: number } & Refeicoes {
+): { workedDays: string[]; diasMeiaExtra: string[]; diasDobra: string[]; dailyQuantity: number; dailyValue: number; totalValue: number } & Refeicoes {
   const ref = calculo.refeicoes;
   const subtotal = valorFinal - ref.weekdayLunch - ref.weekdayDinner - ref.weekendLunch - ref.weekendDinner - realizado.mobility - realizado.transport;
   const qtd = calculo.dailyQuantity;
   return {
     workedDays: calculo.diasPagos,
     diasMeiaExtra: calculo.diasMeiaExtra.filter((d) => calculo.diasPagos.includes(d)),
+    diasDobra: calculo.diasDobra.filter((d) => calculo.diasPagos.includes(d)),
     dailyQuantity: qtd,
     dailyValue: qtd > 0 && subtotal > 0 ? Math.round(subtotal / qtd) : qtd > 0 ? realizado.dailyValue : 0,
     totalValue: valorFinal,
     ...ref,
+  };
+}
+
+/**
+ * Dobra de turno ou ½ diária marcados (ou tirados) DEPOIS do 1º check-out
+ * final (29/10): refeito depois da devolução do DP, o recálculo parte da
+ * BASE — sem isto o que foi lançado no Realizado sumia no 2º check-out final.
+ * Dobra e ½ são FATOS do dia (não ajustes): a base passa a tê-los, pela MESMA
+ * regra do dia (`valoresDosDiasDoSubtotal`: mais uma diária — dobra — ou meia
+ * diária daquele dia, com o fator da deflação). A dobra substitui o ½ do mesmo
+ * dia. Dia fora dos `dias` ou sem diária pela regra é ignorado. `diasMeiaExtra`
+ * ausente (undefined) mantém os ½ da base. Sem mudança, devolve a mesma base.
+ */
+export function baseComDobras(a: {
+  base: BaseDoCheckoutFinal;
+  /** Os dias da prestação no recálculo (os mesmos de `recalcularValor`). */
+  dias: readonly string[];
+  /** A lista nova de dias com dobra. */
+  diasDobra: readonly (string | null | undefined)[] | null | undefined;
+  /** A lista nova de dias com ½ (29/10); ausente = mantém os da base. */
+  diasMeiaExtra?: readonly (string | null | undefined)[] | null;
+  collaboratorType?: string | null;
+  nomeDaFuncao?: string | null;
+  fatores?: DeflationFactors | null;
+}): BaseDoCheckoutFinal {
+  const b = a.base;
+  const regra = regraDiariaPorTipo(a.collaboratorType, a.nomeDaFuncao);
+  const temDiaria = (d: string) => regra === "todos" || (regra === "fds" && ehFimDeSemana(d));
+  const dias = Array.from(new Set(a.dias)).sort();
+  const alim = b.weekdayLunch + b.weekdayDinner + b.weekendLunch + b.weekendDinner;
+  const subtotal = Math.max(0, b.totalValue - alim - b.mobility - b.transport);
+  const porDia = valoresDosDiasDoSubtotal({
+    subtotalCents: subtotal, diasComDiaria: dias.filter(temDiaria), diasMeiaExtra: b.diasMeiaExtra, diasDobra: b.diasDobra,
+    fatores: a.fatores === undefined ? DEFLATION_FACTORS_DEFAULT : a.fatores,
+  });
+  const doDia = new Map(porDia.dias.map((d) => [d.dia, d]));
+  const valido = (d: string) => (doDia.get(d)?.baseCents ?? 0) > 0;
+  const daLista = (l: readonly (string | null | undefined)[] | null | undefined) =>
+    new Set((l ?? []).map((d) => String(d ?? "").slice(0, 10)).filter(valido));
+  const dobras = daLista(a.diasDobra);
+  const meiasPedidas = a.diasMeiaExtra === undefined ? daLista(b.diasMeiaExtra) : daLista(a.diasMeiaExtra);
+  const meias = new Set(Array.from(meiasPedidas).filter((d) => !dobras.has(d)));
+  let delta = 0;
+  let qtd = Math.max(0, b.dailyQuantity || 0);
+  for (const x of porDia.dias) {
+    const extraAntes = x.meiaCents + x.dobraCents;
+    const extraDepois = dobras.has(x.dia) ? dobraDaDiaria(x.baseCents) : meias.has(x.dia) ? meiaDaDiaria(x.baseCents) : 0;
+    delta += extraDepois - extraAntes;
+    if (x.dobraCents > 0 && !dobras.has(x.dia)) qtd = Math.max(0, qtd - 1);
+    if (x.dobraCents === 0 && dobras.has(x.dia)) qtd += 1;
+  }
+  if (delta === 0 && qtd === Math.max(0, b.dailyQuantity || 0)) {
+    const iguais = (x: Set<string>, l: readonly (string | null | undefined)[] | null | undefined) => {
+      const y = new Set((l ?? []).map((d) => String(d ?? "").slice(0, 10)));
+      return x.size === y.size && Array.from(x).every((d) => y.has(d));
+    };
+    if (iguais(dobras, b.diasDobra) && iguais(meias, b.diasMeiaExtra)) return b;
+  }
+  const novoSubtotal = Math.max(0, subtotal + delta);
+  const listaMeias = Array.from(meias).sort();
+  const listaDobras = Array.from(dobras).sort();
+  return {
+    ...b,
+    totalValue: novoSubtotal + alim + b.mobility + b.transport,
+    dailyQuantity: qtd,
+    dailyValue: qtd > 0 ? Math.round(novoSubtotal / qtd) : b.dailyValue,
+    diasMeiaExtra: listaMeias.length ? listaMeias : null,
+    diasDobra: listaDobras.length ? listaDobras : null,
   };
 }
 
