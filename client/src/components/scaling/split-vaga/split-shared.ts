@@ -40,8 +40,10 @@ export function initials(name: string) {
   return name.split(" ").filter(Boolean).slice(0, 2).map((w: string) => w[0]).join("").toUpperCase() || "?";
 }
 
+/** "DÉBORA freitas" → "Débora Freitas". Só a 1ª letra de cada palavra (29/10:
+ *  `\b\w` tratava "é" como fronteira e escrevia "DéBora"). */
 export function capitalizeName(name: string): string {
-  return name.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+  return name.toLowerCase().replace(/(^|[\s'-])(\S)/g, (_, sep: string, c: string) => sep + c.toUpperCase());
 }
 
 // `type`, não `interface` (25/09): o Realizado passa este objeto a um parâmetro
@@ -49,6 +51,9 @@ export function capitalizeName(name: string): string {
 // índice implícita que torna isso válido — era o que o tipo inline antigo dava.
 export type SplitPayload = {
   collaboratorId: string;
+  /** Tipo do NOVO colaborador (casa | freela | local) — 29/10: o servidor já
+   *  aceitava; sem ele o filho herdava o tipo do titular. */
+  collaboratorType?: string | null;
   workedDays: string[];
   parentWorkedDays: string[];
   mobility: number;
@@ -78,6 +83,10 @@ export interface SplitVagaModalProps {
   eventStartDate?: string | null;
   eventEndDate?: string | null;
   takenDays?: string[];
+  /** Nome da função da vaga — perfil da refeição do novo colaborador (29/10). */
+  functionName?: string | null;
+  /** Valores Padrão (`/api/system-settings`) — valores de refeição do novo colaborador (29/10). */
+  systemSettings?: Record<string, number | string | undefined> | null;
   onClose: () => void;
   onConfirm: (payload: SplitPayload) => void;
   isPending?: boolean;

@@ -60,13 +60,17 @@ export interface SplitDialogProps {
   collaborators: Collaborator[] | undefined;
   teamInclusion: TeamInclusion | undefined;
   selectedEvent: Event | undefined;
+  /** Nome da função por id e Valores Padrão — a alimentação do NOVO colaborador
+   *  segue as regras dele (29/10). Os dois já vêm de `useBudgetQueries`. */
+  getFunctionName?: (id?: string | null) => string;
+  systemSettings?: Record<string, number> | undefined;
   isPending: boolean;
   onClose: () => void;
   onConfirm: (id: string, payload: Record<string, unknown>) => void;
 }
 
 /** Split Escalação Modal. */
-export function SplitDialog({ splittingItem, budgetActual, collaborators, teamInclusion, selectedEvent, isPending, onClose, onConfirm }: SplitDialogProps) {
+export function SplitDialog({ splittingItem, budgetActual, collaborators, teamInclusion, selectedEvent, getFunctionName, systemSettings, isPending, onClose, onConfirm }: SplitDialogProps) {
   if (!splittingItem) return null;
   const takenDays = (budgetActual || [])
     .filter(a => a.splitParentId === splittingItem.id)
@@ -79,6 +83,8 @@ export function SplitDialog({ splittingItem, budgetActual, collaborators, teamIn
       eventStartDate={selectedEvent?.startDate}
       eventEndDate={selectedEvent?.endDate}
       takenDays={takenDays}
+      functionName={splittingItem.functionId && getFunctionName ? getFunctionName(splittingItem.functionId) : null}
+      systemSettings={systemSettings}
       onClose={onClose}
       isPending={isPending}
       onConfirm={(payload) => { onConfirm(splittingItem.id, payload); }}

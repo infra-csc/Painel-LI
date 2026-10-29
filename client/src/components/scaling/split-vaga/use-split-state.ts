@@ -7,9 +7,11 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { fixEncoding } from "@/lib/utils";
 import { useConfirmarDescarte } from "@/lib/use-confirmar-descarte";
+import { vagaComEmpreita } from "@shared/cenotecnica-empreita";
 import { getDaysInRange, isWeekend, fmtR$, type SplitVagaModalProps, type Step2Form } from "./split-shared";
+import { preencherValoresDoNovo } from "./valores-do-novo";
 
-export function useSplitState({ item, collaborators, teamInclusion, eventStartDate, eventEndDate, takenDays = [], onClose, onConfirm, isPending }: SplitVagaModalProps) {
+export function useSplitState({ item, collaborators, teamInclusion, eventStartDate, eventEndDate, takenDays = [], functionName, systemSettings, onClose, onConfirm, isPending }: SplitVagaModalProps) {
   // ── Step 1 state ──────────────────────────────────────────────────────────
   const [step, setStep] = useState<1 | 2>(1);
   const [collabSearch, setCollabSearch] = useState("");
@@ -31,6 +33,8 @@ export function useSplitState({ item, collaborators, teamInclusion, eventStartDa
     weekendDinner: 0,
     mobility: 0,
   });
+  // De onde veio cada valor pré-preenchido do passo 2 (29/10) — texto curto na tela.
+  const [origemDosValores, setOrigemDosValores] = useState<{ diarias: string; alimentacao: string; mobilidade: string }>({ diarias: "", alimentacao: "", mobilidade: "" });
 
   // ── Derived (step 1) ──────────────────────────────────────────────────────
   const availableDays = useMemo(() => {
@@ -133,20 +137,32 @@ export function useSplitState({ item, collaborators, teamInclusion, eventStartDa
 
   function goToStep2() {
     if (!selectedCollabId || selectedDays.size === 0) return;
-    const newWeekdays = selDaysSorted.filter(d => !isWeekend(d)).length;
-    const newWeekends = selDaysSorted.filter(d => isWeekend(d)).length;
-    const proRateMobility = parentWorkedDays.length > 0
-      ? Math.round((item.mobility || 0) * selectedDays.size / parentWorkedDays.length)
-      : 0;
-    setStep2Form({
-      valorDiariaUtil: item.dailyValue,
-      valorDiariaFds: item.dailyValue,
-      weekdayLunch: newWeekdays * perDayWeekdayLunch,
-      weekdayDinner: newWeekdays * perDayWeekdayDinner,
-      weekendLunch: newWeekends * perDayWeekendLunch,
-      weekendDinner: newWeekends * perDayWeekendDinner,
-      mobility: proRateMobility,
+    // 29/10: diária e alimentação pelas regras do NOVO colaborador (tipo, VR, função,
+    // Valores Padrão) — não mais a média do titular, que deixava o novo só com
+    // a diária quando o titular era freela. Mobilidade: proporção do titular.
+    const novo = collaborators.find(c => c.id === selectedCollabId);
+    const pre = preencherValoresDoNovo({
+      dias: selDaysSorted,
+      tipoColaborador: novo?.type,
+      vrDiarioCents: novo?.vrDiarioCents,
+      functionName,
+      atendimentoTipo: teamInclusion?.atendimentoTipo,
+      empreita: vagaComEmpreita(teamInclusion),
+      settings: systemSettings,
+      mobilidadeTitular: item.mobility || 0,
+      diasTitular: parentWorkedDays.length,
+      diariaTitular: item.dailyValue,
     });
+    setStep2Form({
+      valorDiariaUtil: pre.valorDiariaUtil,
+      valorDiariaFds: pre.valorDiariaFds,
+      weekdayLunch: pre.weekdayLunch,
+      weekdayDinner: pre.weekdayDinner,
+      weekendLunch: pre.weekendLunch,
+      weekendDinner: pre.weekendDinner,
+      mobility: pre.mobility,
+    });
+    setOrigemDosValores({ diarias: pre.origemDiarias, alimentacao: pre.origemAlimentacao, mobilidade: pre.origemMobilidade });
     setStep(2);
   }
 
@@ -185,6 +201,7 @@ export function useSplitState({ item, collaborators, teamInclusion, eventStartDa
 
     onConfirm({
       collaboratorId: selectedCollabId,
+      collaboratorType: selectedCollab?.type ?? null,
       workedDays: selDaysSorted,
       parentWorkedDays: remainingForParent,
       mobility: step2Form.mobility,
@@ -277,7 +294,7 @@ export function useSplitState({ item, collaborators, teamInclusion, eventStartDa
   return {
     step, setStep, collabSearch, setCollabSearch, selectedCollabId, setSelectedCollabId,
     collabDropOpen, setCollabDropOpen, selectedDays, setSelectedDays, showZeroDayConfirm, setShowZeroDayConfirm,
-    dropRef, inputRef, dropRect, step2Form, setStep2Form,
+    dropRef, inputRef, dropRect, step2Form, setStep2Form, origemDosValores,
     availableDays, parentWorkedDays, selDaysSorted, selWeekdays, selWeekends, remainingForParent, takenSet,
     filteredCollabs, selectedCollab,
     s2SubDiariasUtil, s2SubDiariasFds, s2SubDiarias, s2TotalAlim, s2Realizado,

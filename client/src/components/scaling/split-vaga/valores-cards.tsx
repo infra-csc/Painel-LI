@@ -1,8 +1,10 @@
 /**
  * Passo 2 · cartões de valores (25/09 — extraídos de split-vaga-modal.tsx):
  * Diárias (útil × fim de semana), Mobilidade e Alimentação (almoço/jantar).
+ * 29/10: ids para a composição do rodapé levar a cada cartão e o texto de
+ * "de onde veio o valor" (regra do colaborador / proporção do titular).
  */
-import { Calendar, Briefcase, Sun, Moon, Car, Utensils } from "lucide-react";
+import { Calendar, Briefcase, Sun, Moon, Car, Utensils, Info } from "lucide-react";
 import { CurrencyInput } from "@/components/common/currency-input";
 import { fmtR$ } from "./split-shared";
 import type { SplitState } from "./use-split-state";
@@ -10,7 +12,7 @@ import type { SplitState } from "./use-split-state";
 export function DiariasCard({ s }: { s: SplitState }) {
   const { step2Form, setStep2Form, selWeekdays, selWeekends, s2SubDiarias, s2SubDiariasUtil, s2SubDiariasFds } = s;
   return (
-    <div className="bg-card rounded-xl border border-border overflow-hidden">
+    <div id="split-card-diarias" className="bg-card rounded-xl border border-border overflow-hidden scroll-mt-4">
       <div className="h-[3px] bg-primary" />
       <div className="flex items-center justify-between px-4 py-2.5 bg-brand-soft/60 border-b border-primary/25">
         <div className="flex items-center gap-2">
@@ -31,6 +33,7 @@ export function DiariasCard({ s }: { s: SplitState }) {
           <div className="flex items-center gap-1">
             <span className="text-2xs text-muted-foreground">R$</span>
             <CurrencyInput
+              aria-label="Diária por dia útil"
               className={`h-8 text-sm flex-1 text-center font-semibold ${selWeekdays === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
               value={step2Form.valorDiariaUtil}
               onChange={v => setStep2Form(f => ({ ...f, valorDiariaUtil: v }))}
@@ -49,6 +52,7 @@ export function DiariasCard({ s }: { s: SplitState }) {
           <div className="flex items-center gap-1">
             <span className="text-2xs text-muted-foreground">R$</span>
             <CurrencyInput
+              aria-label="Diária por dia de fim de semana"
               className={`h-8 text-sm flex-1 text-center font-semibold ${selWeekends === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
               value={step2Form.valorDiariaFds}
               onChange={v => setStep2Form(f => ({ ...f, valorDiariaFds: v }))}
@@ -59,6 +63,7 @@ export function DiariasCard({ s }: { s: SplitState }) {
           <div className={`text-2xs font-bold tabular-nums text-center mt-1.5 ${selWeekends === 0 ? 'text-muted-foreground' : 'text-primary'}`}>{fmtR$(s2SubDiariasFds)}</div>
         </div>
       </div>
+      <OrigemDoValor texto={s.origemDosValores.diarias} testId="split-origem-diarias" />
     </div>
   );
 }
@@ -66,7 +71,7 @@ export function DiariasCard({ s }: { s: SplitState }) {
 export function MobilidadeCard({ s }: { s: SplitState }) {
   const { step2Form, setStep2Form, selectedDays } = s;
   return (
-    <div className="bg-card rounded-xl border border-border overflow-hidden">
+    <div id="split-card-mobilidade" data-testid="split-card-mobilidade" className="bg-card rounded-xl border border-border overflow-hidden scroll-mt-4">
       <div className="h-[3px] bg-primary" />
       <div className="flex items-center justify-between px-4 py-2.5 bg-brand-soft/60 border-b border-primary/25">
         <div className="flex items-center gap-2">
@@ -82,6 +87,7 @@ export function MobilidadeCard({ s }: { s: SplitState }) {
           <label className="text-2xs font-semibold text-muted-foreground block mb-1">Total do período (R$)</label>
           <CurrencyInput
             className="h-9 text-sm"
+            aria-label="Mobilidade — total do período"
             value={step2Form.mobility}
             onChange={v => setStep2Form(f => ({ ...f, mobility: v }))}
           />
@@ -93,7 +99,19 @@ export function MobilidadeCard({ s }: { s: SplitState }) {
           </div>
         </div>
       </div>
+      <OrigemDoValor texto={s.origemDosValores.mobilidade} testId="split-origem-mobilidade" />
     </div>
+  );
+}
+
+/** "De onde veio este valor" — texto curto no pé do cartão (29/10). */
+function OrigemDoValor({ texto, testId }: { texto: string; testId: string }) {
+  if (!texto) return null;
+  return (
+    <p className="flex items-start gap-1.5 m-0 px-4 pb-3 -mt-1 text-2xs leading-snug text-muted-foreground" data-testid={testId}>
+      <Info className="w-3 h-3 flex-shrink-0 mt-px" aria-hidden="true" />
+      <span>{texto}</span>
+    </p>
   );
 }
 
@@ -102,7 +120,7 @@ export function AlimentacaoCard({ s }: { s: SplitState }) {
   const cell = "rounded-lg p-2 border border-border bg-surface-muted/50";
   const input = (dias: number) => `h-8 text-xs text-center w-full ${dias === 0 ? 'opacity-40 cursor-not-allowed' : ''}`;
   return (
-    <div className="bg-card rounded-xl border border-border overflow-hidden">
+    <div id="split-card-alimentacao" data-testid="split-card-alimentacao" className="bg-card rounded-xl border border-border overflow-hidden scroll-mt-4">
       <div className="h-[3px] bg-warning-strong" />
       <div className="flex items-center justify-between px-4 py-2.5 bg-warning-soft/60 border-b border-warning/25">
         <div className="flex items-center gap-2">
@@ -117,12 +135,12 @@ export function AlimentacaoCard({ s }: { s: SplitState }) {
         <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 mb-2">
           <div />
           <div className="text-center">
-            <span className="inline-flex items-center gap-1 text-2xs font-bold text-primary bg-brand-soft border border-primary/25 px-2 py-0.5 rounded-full">
+            <span className="inline-flex items-center gap-1 whitespace-nowrap text-2xs font-bold text-primary bg-brand-soft border border-primary/25 px-2 py-0.5 rounded-full">
               <Briefcase className="w-2.5 h-2.5" aria-hidden="true" /> Dias Úteis
             </span>
           </div>
           <div className="text-center">
-            <span className="inline-flex items-center gap-1 text-2xs font-bold text-warning bg-warning-soft border border-warning/25 px-2 py-0.5 rounded-full">
+            <span className="inline-flex items-center gap-1 whitespace-nowrap text-2xs font-bold text-warning bg-warning-soft border border-warning/25 px-2 py-0.5 rounded-full">
               <Sun className="w-2.5 h-2.5" aria-hidden="true" /> Fins de Sem.
             </span>
           </div>
@@ -133,10 +151,10 @@ export function AlimentacaoCard({ s }: { s: SplitState }) {
             <span className="text-2xs font-semibold text-slate-600">Almoço</span>
           </div>
           <div className={cell}>
-            <CurrencyInput className={input(selWeekdays)} value={step2Form.weekdayLunch} onChange={v => setStep2Form(f => ({ ...f, weekdayLunch: v }))} disabled={selWeekdays === 0} />
+            <CurrencyInput aria-label="Almoço em dias úteis" className={input(selWeekdays)} value={step2Form.weekdayLunch} onChange={v => setStep2Form(f => ({ ...f, weekdayLunch: v }))} disabled={selWeekdays === 0} />
           </div>
           <div className={cell}>
-            <CurrencyInput className={input(selWeekends)} value={step2Form.weekendLunch} onChange={v => setStep2Form(f => ({ ...f, weekendLunch: v }))} disabled={selWeekends === 0} />
+            <CurrencyInput aria-label="Almoço no fim de semana" className={input(selWeekends)} value={step2Form.weekendLunch} onChange={v => setStep2Form(f => ({ ...f, weekendLunch: v }))} disabled={selWeekends === 0} />
           </div>
         </div>
         <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 mb-3">
@@ -145,10 +163,10 @@ export function AlimentacaoCard({ s }: { s: SplitState }) {
             <span className="text-2xs font-semibold text-slate-600">Jantar</span>
           </div>
           <div className={cell}>
-            <CurrencyInput className={input(selWeekdays)} value={step2Form.weekdayDinner} onChange={v => setStep2Form(f => ({ ...f, weekdayDinner: v }))} disabled={selWeekdays === 0} />
+            <CurrencyInput aria-label="Jantar em dias úteis" className={input(selWeekdays)} value={step2Form.weekdayDinner} onChange={v => setStep2Form(f => ({ ...f, weekdayDinner: v }))} disabled={selWeekdays === 0} />
           </div>
           <div className={cell}>
-            <CurrencyInput className={input(selWeekends)} value={step2Form.weekendDinner} onChange={v => setStep2Form(f => ({ ...f, weekendDinner: v }))} disabled={selWeekends === 0} />
+            <CurrencyInput aria-label="Jantar no fim de semana" className={input(selWeekends)} value={step2Form.weekendDinner} onChange={v => setStep2Form(f => ({ ...f, weekendDinner: v }))} disabled={selWeekends === 0} />
           </div>
         </div>
         <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 border-t border-border pt-2">
@@ -157,6 +175,7 @@ export function AlimentacaoCard({ s }: { s: SplitState }) {
           <div className="text-center"><span className="text-xs font-bold text-warning tabular-nums">{fmtR$(step2Form.weekendLunch + step2Form.weekendDinner)}</span></div>
         </div>
       </div>
+      <OrigemDoValor texto={s.origemDosValores.alimentacao} testId="split-origem-alimentacao" />
     </div>
   );
 }

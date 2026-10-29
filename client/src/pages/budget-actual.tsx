@@ -403,6 +403,8 @@ export default function BudgetActualPage() {
         collaborators={collaborators}
         teamInclusion={acoes.splittingItem ? dados.getItemInclusion(acoes.splittingItem) : undefined}
         selectedEvent={selectedEvent}
+        getFunctionName={getFunctionName}
+        systemSettings={q.systemSettings}
         isPending={splitMutation.isPending}
         onClose={() => acoes.setSplittingItem(null)}
         onConfirm={(id, payload) => splitMutation.mutate({ id, payload })}

@@ -32,7 +32,7 @@ export function SplitVagaModal(props: SplitVagaModalProps) {
           aria-modal="true"
           aria-label="Dividir escalação"
           tabIndex={-1}
-          className="bg-card rounded-xl w-full max-w-[680px] max-h-[92vh] flex flex-col shadow-3 overflow-hidden outline-none border border-black/6"
+          className={cn("bg-card rounded-xl w-full max-h-[92vh] flex flex-col shadow-3 overflow-hidden outline-none border border-black/6", step === 2 ? "max-w-[680px] md:max-w-[920px]" : "max-w-[680px]")}
         >
           {/* ── Title header ── */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
