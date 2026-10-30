@@ -86,10 +86,10 @@ export default function Topbar({ topOffset, onOpenPalette, onOpenShortcuts }: {
 
       {showBrand && (
         <div className="flex items-center gap-2 shrink-0">
-          <img src="/selo-app.svg" alt="Norte" className="block w-8 h-8 shrink-0" />
-          {/* No celular fica só o logotipo (25/09): com "Norte" escrito, o nome
+          <img src="/selo-app.svg" alt="Trupp" className="block w-8 h-8 shrink-0" />
+          {/* No celular fica só o logotipo (25/09): com "Trupp" escrito, o nome
               da tela na trilha sobrava em "E." */}
-          <span className="hidden sm:inline text-sm font-bold text-primary tracking-tight">Norte</span>
+          <span className="hidden sm:inline text-sm font-bold text-primary tracking-tight">Trupp</span>
           <span aria-hidden="true" className="hidden sm:block w-px h-5 bg-border ml-1" />
         </div>
       )}

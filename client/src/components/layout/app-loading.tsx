@@ -10,12 +10,12 @@
  *   então a troca para a tela real não "pula".
  */
 import { Skeleton } from "@/components/ui/skeleton";
-import { MarcaNorte } from "./auth-layout";
+import { MarcaDoApp } from "./auth-layout";
 
 export function TelaDeCarregamento({ texto = "Carregando o painel…" }: { texto?: string }) {
   return (
     <div role="status" aria-live="polite" className="min-h-dvh flex flex-col items-center justify-center gap-5 bg-background">
-      <MarcaNorte tamanho={44} />
+      <MarcaDoApp tamanho={44} />
       <div className="casca-progresso w-28 h-[3px] rounded-full" aria-hidden="true" />
       <span className="text-xs text-muted-foreground">{texto}</span>
     </div>

@@ -19,9 +19,9 @@ const MODULOS = [
   { icon: Wallet, texto: "Planejado, realizado e notas fiscais" },
 ];
 
-/** Marca: selo do kit de identidade do Portal (`/selo-app.svg`) — quadrado branco
- *  arredondado com o "N" na cor do app; já traz fundo e borda, então vai sem moldura. */
-export function MarcaNorte({ tamanho = 40 }: { tamanho?: number }) {
+/** Marca: selo Trupp (`/selo-app.svg`, 30/10) — quadrado branco arredondado com o
+ *  símbolo da Trupp; já traz fundo e borda, então vai sem moldura. */
+export function MarcaDoApp({ tamanho = 40 }: { tamanho?: number }) {
   return (
     <img src="/selo-app.svg" alt="" className="block shrink-0" style={{ width: tamanho, height: tamanho }} />
   );
@@ -33,8 +33,8 @@ export function AuthLayout({ children, rodape }: { children: ReactNode; rodape?:
       {/* ── Painel de marca (só desktop) ── */}
       <div className="casca-grade relative hidden lg:flex lg:w-[44%] 2xl:w-[40%] flex-col justify-between p-12 xl:p-16 text-white">
         <div className="flex items-center gap-3">
-          <MarcaNorte tamanho={40} />
-          <p className="m-0 text-lg font-bold tracking-tight">Norte</p>
+          <MarcaDoApp tamanho={40} />
+          <p className="m-0 text-lg font-bold tracking-tight">Trupp</p>
         </div>
 
         <div className="max-w-[440px] xl:max-w-[520px]">
@@ -76,8 +76,8 @@ export function AuthHeader({ titulo, descricao, acima, selo }: { titulo: ReactNo
     <div className="mb-7">
       {acima}
       <div className="flex items-center gap-2.5 mb-6 lg:hidden">
-        <MarcaNorte tamanho={36} />
-        <p className="m-0 text-base font-bold tracking-tight text-primary">Norte</p>
+        <MarcaDoApp tamanho={36} />
+        <p className="m-0 text-base font-bold tracking-tight text-primary">Trupp</p>
       </div>
       {selo}
       <h1 className="m-0 text-2xl font-bold tracking-tight text-foreground">{titulo}</h1>
