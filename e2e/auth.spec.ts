@@ -42,6 +42,8 @@ test.describe("Login por papel", () => {
     await expect(menu(page).getByRole("link", { name: "Notas fiscais" })).toBeVisible();
     await expect(menu(page).getByText("Configuração e apoio")).toBeVisible();
     await expect(menu(page).getByRole("link", { name: "Log de auditoria" })).toHaveCount(0);
+    // 30/10 (revisão): o servidor dos Painéis é só admin/Compras/Produção — o menu acompanha.
+    await expect(menu(page).getByRole("link", { name: "Visão geral", exact: true })).toHaveCount(0);
   });
 });
 
