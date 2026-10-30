@@ -53,6 +53,7 @@ export interface RolePermissions {
   canAccessScreen2: boolean;     // scaling
   canSelectCollaborators: boolean;
   canAccessScreen3: boolean;     // tickets + accommodations
+  canAccessPaineis: boolean;     // Painéis (30/10): admin, Compras e Logística — o mesmo do GET /api/paineis/atividade
   canRegisterTickets: boolean;
   canAccessScreen4: boolean;
   canEditScreen4: boolean;
@@ -138,6 +139,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessSimulation: true,        // "Ver como usuário" — só admin
         canAccessHonorariosCeno: true,
         canAccessPresenca: true,
+        canAccessPaineis: true,
       };
 
     case "production":
@@ -178,6 +180,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessSimulation: false,       // "Ver como usuário" — só admin
         canAccessHonorariosCeno: false,
         canAccessPresenca: true,
+        canAccessPaineis: true,
       };
 
     case "function_area":
@@ -218,6 +221,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessSimulation: false,       // "Ver como usuário" — só admin
         canAccessHonorariosCeno: false,
         canAccessPresenca: true,          // só as funções em que é responsável (o servidor recorta)
+        canAccessPaineis: false,
       };
 
     case "purchasing":
@@ -258,6 +262,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessSimulation: false,         // "Ver como usuário" — só admin
         canAccessHonorariosCeno: false,
         canAccessPresenca: false,
+        canAccessPaineis: true,
       };
 
     case "financial":
@@ -298,6 +303,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessSimulation: false,         // "Ver como usuário" — só admin
         canAccessHonorariosCeno: true,
         canAccessPresenca: true,
+        canAccessPaineis: false,
       };
 
     default:
@@ -338,6 +344,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessSimulation: false,
         canAccessHonorariosCeno: false,
         canAccessPresenca: false,
+        canAccessPaineis: false,
       };
   }
 }

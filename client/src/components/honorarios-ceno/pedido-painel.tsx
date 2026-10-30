@@ -36,7 +36,7 @@ import { AcaoDoEstado, BotaoTentarDeNovo, EstadoDaValidacao } from "@/components
 import { ICONE_DA_LINHA, MOLDURA, TH } from "@/components/scaling-approval/tokens";
 import { isCenotecnicaFunction } from "@shared/alimentacao";
 import { isCenoFreelaTipo } from "@shared/cenotecnica-empreita";
-import { contarLancamento, ehTipoDeTabela, faltaParaEnviar, lancadoPor, rotuloDoValor, valorPorDiaria, type SituacaoNaFila } from "@shared/honorarios-ceno";
+import { contarLancamento, diariasDoValor, ehTipoDeTabela, faltaParaEnviar, lancadoPor, rotuloDoValor, valorPorDiaria, type SituacaoNaFila } from "@shared/honorarios-ceno";
 import { useAuth } from "@/hooks/use-auth";
 import { ABAS_DO_PEDIDO, AbasDoPedido, AutoriaDoPedido, BadgeFaltaLancar, ResumoDoLancamento, abaDaSituacao, contagemPorAba, situacaoDaLinha, type AbaDoPedido } from "./lancamento";
 import {
@@ -315,7 +315,7 @@ interface DadosDaLinha {
 }
 
 function PorDiariaOuStatus({ d }: { d: DadosDaLinha }) {
-  const porDia = valorPorDiaria(d.valor, d.diarias);
+  const porDia = valorPorDiaria(d.valor, d.h ? diariasDoValor(d.h) : d.diarias);
   if (d.estado !== "parado") return <IndicadorDeSalvamento estado={d.estado} erro={d.erro} />;
   return <span className="tabular-nums">{porDia != null && d.valor > 0 ? `${brl(porDia)}/diária` : "— /diária"}</span>;
 }
@@ -331,7 +331,7 @@ function CampoDoValor({ d, alinhar = "direita" }: { d: DadosDaLinha; alinhar?: "
     }
     return (
       <>
-        <ValorComDiaria valor={h ? h.valorAprovado ?? h.valorPedido : daTabela} diarias={d.diarias} riscado={h?.valorAprovado != null ? h.valorPedido : null} alinhar={alinhar} />
+        <ValorComDiaria valor={h ? h.valorAprovado ?? h.valorPedido : daTabela} diarias={h ? diariasDoValor(h) : d.diarias} riscado={h?.valorAprovado != null ? h.valorPedido : null} alinhar={alinhar} />
         {d.editavel && (
           <span className={cn("mt-0.5 flex min-h-4 text-2xs text-muted-foreground", alinhar === "direita" ? "justify-end" : "justify-start")}>
             {d.estado !== "parado" ? <IndicadorDeSalvamento estado={d.estado} erro={d.erro} />

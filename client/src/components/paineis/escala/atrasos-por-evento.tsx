@@ -12,7 +12,7 @@ import { useLocation } from "wouter";
 import { CheckCircle2 } from "lucide-react";
 import { ROTULO_DA_ETAPA, type DiasDosPrazos } from "@shared/prazos-da-escala";
 import {
-  quadroDoEvento, rotuloDaDataDoEvento, textoDePrazo,
+  diasAteODia, quadroDoEvento, rotuloDaDataDoEvento, textoAteOEvento,
   type AnalyticsContext, type QuadroDoEvento,
 } from "@/components/scaling/scaling-analytics-data";
 import { DetalheDaEtapa } from "@/components/scaling/scaling-analytics-quadro-detalhe";
@@ -122,7 +122,7 @@ export function AtrasosPorEvento({ linhas, ctx, hoje, dias }: {
                 <div className="min-w-0 pb-2 sm:px-4 sm:py-2.5">
                   <p className="line-clamp-2 break-words text-sm font-semibold leading-snug text-foreground" title={e.nome}>{e.nome}</p>
                   <p className="truncate text-2xs text-muted-foreground">
-                    Evento {rotuloDaDataDoEvento(e)} · {textoDePrazo(e.prazoDias)} · {e.total} {plural(e.total, "vaga", "vagas")}
+                    Evento {rotuloDaDataDoEvento(e)} · {textoAteOEvento(diasAteODia(e.dataEvento, hoje))} · {e.total} {plural(e.total, "vaga", "vagas")}
                   </p>
                   {/* No celular o pior atraso fica junto do nome. */}
                   {l.piorAtraso !== null && (

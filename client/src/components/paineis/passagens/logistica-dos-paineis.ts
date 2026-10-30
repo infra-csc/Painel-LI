@@ -49,7 +49,7 @@ export const ROTULOS_DA_ETAPA: Record<EtapaDaLogistica, {
   feitas: string; aFazer: string; acao: string; precisam: string; umaFeita: string; varias: string; uma: string;
 }> = {
   passagem: { feitas: "emitidas", aFazer: "a emitir", acao: "Abrir em Passagens", precisam: "precisam de passagem", umaFeita: "emitida", varias: "passagens", uma: "passagem" },
-  hotel: { feitas: "registradas", aFazer: "a reservar", acao: "Abrir no Espelho", precisam: "precisam de hotel", umaFeita: "registrada", varias: "hospedagens", uma: "hospedagem" },
+  hotel: { feitas: "registradas", aFazer: "a reservar", acao: "Abrir em Hospedagem", precisam: "precisam de hotel", umaFeita: "registrada", varias: "hospedagens", uma: "hospedagem" },
 };
 
 /** As listas que as telas de Passagens/Hospedagem/Escalação já baixam (mesmas chaves de cache). */

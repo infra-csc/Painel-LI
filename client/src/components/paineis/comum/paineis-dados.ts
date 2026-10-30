@@ -17,7 +17,7 @@ import {
   type DiasDosPrazos,
 } from "@shared/prazos-da-escala";
 import {
-  ETAPAS_DO_QUADRO, O_QUE_FALTA, quadroDoEvento, rotuloDaDataDoEvento,
+  ETAPAS_DO_QUADRO, O_QUE_FALTA, diasAteODia, quadroDoEvento, rotuloDaDataDoEvento,
   type AnalyticsContext, type EtapaDoQuadro, type EventoAnalisado,
 } from "@/components/scaling/scaling-analytics-data";
 
@@ -45,8 +45,8 @@ export interface EventoComAtraso {
   nome: string;
   /** "06/11" ou "05–06/11" — o rótulo do Quadro. */
   data: string;
-  /** Dias até a escala começar (do Quadro). */
-  prazoDias: number | null;
+  /** Dias até o dia do evento (o mesmo do rótulo `data`). */
+  diasAteOEvento: number | null;
   totalVagas: number;
   etapas: AtrasoDaEtapa[];
 }
@@ -68,7 +68,11 @@ export function atrasosDosEventos(eventos: EventoAnalisado[], ctx: AnalyticsCont
     if (e.jaTerminou) continue;
     const quadro = quadroDoEvento(e.vagas, ctx);
     const etapas: AtrasoDaEtapa[] = [];
+    // Prova já passou (só falta a desmontagem): passagem e hotel saem, como no
+    // Painel de passagens/hospedagem — senão a Visão geral cobra o que o painel não lista.
+    const provaPassou = (diasAteODia(e.dataEvento, hoje) ?? 0) < 0;
     for (const etapa of ETAPAS_DO_QUADRO) {
+      if (provaPassou && (etapa === "passagem" || etapa === "hotel")) continue;
       const coluna = quadro.colunas[etapa];
       const prazo = prazoDaEtapa(e.dataEvento ?? e.ini, etapa, dias);
       const situacao = situacaoDoPrazo(prazo, hoje, coluna.paradas.length);
@@ -87,14 +91,14 @@ export function atrasosDosEventos(eventos: EventoAnalisado[], ctx: AnalyticsCont
       });
     }
     if (etapas.length === 0) continue;
-    out.push({ eventId: e.eventId, nome: e.nome, data: rotuloDaDataDoEvento(e), prazoDias: e.prazoDias, totalVagas: e.total, etapas });
+    out.push({ eventId: e.eventId, nome: e.nome, data: rotuloDaDataDoEvento(e), diasAteOEvento: diasAteODia(e.dataEvento, hoje), totalVagas: e.total, etapas });
   }
   return ordenarPorGravidade(out);
 }
 
 function ordenarPorGravidade(lista: EventoComAtraso[]): EventoComAtraso[] {
   return lista.sort((a, b) => piorDoEvento(b) - piorDoEvento(a)
-    || (a.prazoDias ?? Infinity) - (b.prazoDias ?? Infinity)
+    || (a.diasAteOEvento ?? Infinity) - (b.diasAteOEvento ?? Infinity)
     || a.nome.localeCompare(b.nome, "pt-BR"));
 }
 

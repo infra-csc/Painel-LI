@@ -27,7 +27,7 @@ import { isApiError } from "@/lib/queryClient";
 import { apiErrorMessage, cn } from "@/lib/utils";
 import { BotaoTentarDeNovo, EstadoDaValidacao } from "@/components/scaling-validation/validation-page/estados";
 import { APROVAR_DA_LINHA, ICONE_DA_LINHA, MOLDURA, SOBRE_ESCURO, TH } from "@/components/scaling-approval/tokens";
-import { HONORARIO_TEXTO_MAX, rotuloDoValor, validarAjuste, validarMotivo, valorPorDiaria } from "@shared/honorarios-ceno";
+import { HONORARIO_TEXTO_MAX, diariasDoValor, rotuloDoValor, validarAjuste, validarMotivo, valorPorDiaria } from "@shared/honorarios-ceno";
 import { useFilaDeAprovacao, useMutacoesDoAprovador, type Honorario } from "./api";
 import { AvisoDaLinha, BarraDaVerba, EtapaBadge, OrigemDaLinha, OrigemDoValor, ValorComDiaria, VagasDaEmpreitaLista, brl, brlCurto, dataBr, diariasTexto, haQuanto, periodoCurto, useFocoDeVolta } from "./pecas";
 import { HistoricoSheet } from "./historico-sheet";
@@ -60,7 +60,7 @@ function AjusteDialog({ h, onClose }: { h: Honorario | null; onClose: () => void
   if (h && aberto !== h.id) { setAberto(h.id); setValor(h.valorPedido); setMotivo(""); setErro(null); }
   if (!h) { if (aberto !== null) setAberto(null); return null; }
   const diferenca = valor - h.valorPedido;
-  const porDia = valorPorDiaria(valor, h.diarias);
+  const porDia = valorPorDiaria(valor, diariasDoValor(h));
   const salvar = async () => {
     const e = validarAjuste(h.valorPedido, valor, motivo);
     if (e) { setErro(e); return; }
@@ -89,7 +89,7 @@ function AjusteDialog({ h, onClose }: { h: Honorario | null; onClose: () => void
             <div className="rounded-xl border border-border bg-surface-muted/60 px-3.5 py-3">
               <p className="text-2xs text-muted-foreground">Pedido</p>
               <p className="text-base font-semibold tabular-nums text-muted-foreground line-through decoration-muted-foreground/40">{brl(h.valorPedido)}</p>
-              <p className="text-2xs tabular-nums text-muted-foreground">{valorPorDiaria(h.valorPedido, h.diarias) != null ? `${brl(valorPorDiaria(h.valorPedido, h.diarias)!)}/diária` : "—"}</p>
+              <p className="text-2xs tabular-nums text-muted-foreground">{valorPorDiaria(h.valorPedido, diariasDoValor(h)) != null ? `${brl(valorPorDiaria(h.valorPedido, diariasDoValor(h))!)}/diária` : "—"}</p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="hon-ajuste-valor" className="text-xs">Valor aprovado</Label>
@@ -170,7 +170,7 @@ function LinhaPendente({ h, marcado, onMarcar, onAprovar, onAjustar, onDevolver,
         <span className="block text-xs tabular-nums text-foreground">{periodoCurto(h.inicio, h.fim)}</span>
         <span className="block text-2xs text-muted-foreground">{diariasTexto(h.diarias)}</span>
       </td>
-      <td data-rotulo="Valor pedido" className="px-3 py-3"><ValorComDiaria valor={h.valorPedido} diarias={h.diarias} alinhar="esquerda" className="xl:text-right" /></td>
+      <td data-rotulo="Valor pedido" className="px-3 py-3"><ValorComDiaria valor={h.valorPedido} diarias={diariasDoValor(h)} alinhar="esquerda" className="xl:text-right" /></td>
       <td data-rotulo="Pedido por" className="px-3 py-3">
         <span className="block text-xs font-medium text-foreground">{h.enviadoPorNome ?? h.criadoPorNome}</span>
         <span className="block text-2xs text-muted-foreground">{haQuanto(h.enviadoEm)}</span>
@@ -372,7 +372,7 @@ function Pendentes({ eventId }: { eventId: string | null }) {
         {aprovando && aprovando.length > 1 && <ListaDoLote linhas={aprovando} />}
         {aprovando && aprovando.length === 1 && (
           <dl className="grid grid-cols-3 gap-px overflow-hidden rounded-xl border border-border bg-border text-xs">
-            {[["Valor", brl(aprovando[0].valorPedido)], ["Diárias", String(aprovando[0].diarias ?? "—")], ["Por diária", valorPorDiaria(aprovando[0].valorPedido, aprovando[0].diarias) != null ? brl(valorPorDiaria(aprovando[0].valorPedido, aprovando[0].diarias)!) : "—"]].map(([r, v]) => (
+            {[["Valor", brl(aprovando[0].valorPedido)], ["Diárias", String(diariasDoValor(aprovando[0]) ?? "—")], ["Por diária", valorPorDiaria(aprovando[0].valorPedido, diariasDoValor(aprovando[0])) != null ? brl(valorPorDiaria(aprovando[0].valorPedido, diariasDoValor(aprovando[0]))!) : "—"]].map(([r, v]) => (
               <div key={r} className="bg-card px-3 py-2"><dt className="text-2xs text-muted-foreground">{r}</dt><dd className="font-semibold tabular-nums text-foreground">{v}</dd></div>
             ))}
           </dl>
@@ -441,7 +441,7 @@ function Decididos({ eventId }: { eventId: string | null }) {
               <AvisoDaLinha h={h} />
             </span>
             <span className="w-[150px] shrink-0"><EtapaBadge h={h} visao="aprovacao" /><span className="mt-1 block text-2xs text-muted-foreground">{h.decididoPorNome} · {haQuanto(h.decididoEm)}</span></span>
-            <span className="w-[130px] shrink-0"><ValorComDiaria valor={h.valorAprovado ?? h.valorPedido} diarias={h.diarias} riscado={h.valorAprovado != null ? h.valorPedido : null} /></span>
+            <span className="w-[130px] shrink-0"><ValorComDiaria valor={h.valorAprovado ?? h.valorPedido} diarias={diariasDoValor(h)} riscado={h.valorAprovado != null ? h.valorPedido : null} /></span>
             <span className="hidden w-[120px] shrink-0 md:block">{h.valorAprovado ? <BarraDaVerba aprovado={h.valorAprovado} liberado={h.liberado} /> : <span className="text-2xs text-muted-foreground">—</span>}</span>
             <span className="ml-auto inline-flex shrink-0 items-center gap-0.5">
               {h.podeDevolver && h.status !== "devolvido" && (

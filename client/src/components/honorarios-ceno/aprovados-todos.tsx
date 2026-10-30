@@ -38,7 +38,7 @@ import { useMediaQuery } from "@/lib/use-media-query";
 import { normalizarNomeDeFuncao } from "@shared/cenotecnica";
 import { hojeISO } from "@shared/hoje-sp";
 import {
-  SITUACAO_DA_VERBA_LABEL, reaisParaCsv, rotuloDoValor, situacaoDaVerba, temOc, type SituacaoDaVerba,
+  SITUACAO_DA_VERBA_LABEL, diariasDoValor, reaisParaCsv, rotuloDoValor, situacaoDaVerba, temOc, type SituacaoDaVerba,
 } from "@shared/honorarios-ceno";
 import {
   descricaoDoIntervalo, ehAtalhoDoPeriodo, intervaloDoPeriodo, preambuloDoCsv, recortarPelaDataDoEvento, semLimite, sufixoDoPeriodo,
@@ -216,7 +216,7 @@ function LinhaDoAprovado({ h, comEvento, onAbrir, onInformarOc }: {
         </td>
       )}
       <td data-rotulo="Aprovado" className="px-3 py-3 xl:pr-5">
-        <ValorComDiaria valor={h.valorAprovado} diarias={h.diarias} riscado={h.status === "aprovado_ajuste" ? h.valorPedido : null} alinhar="esquerda" className="xl:text-right" />
+        <ValorComDiaria valor={h.valorAprovado} diarias={diariasDoValor(h)} riscado={h.status === "aprovado_ajuste" ? h.valorPedido : null} alinhar="esquerda" className="xl:text-right" />
       </td>
       <td data-rotulo="Liberado" className="px-3 py-3">
         <span className="block text-sm tabular-nums text-foreground xl:text-right">{h.liberado ? brlCurto(h.liberado) : "—"}</span>

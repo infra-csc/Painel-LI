@@ -309,7 +309,18 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
       subtotalCents: subtotalOrigem, diasComDiaria: ativasNoPeriodo.filter(regraDaMeia.temDiaria),
       diasMeiaExtra: item.diasMeiaExtra, diasDobra: item.diasDobra, fatores: regraDaMeia.fatores,
     });
-    setDiariaDaRegra(meiasNaAbertura.diaria);
+    // Depois do 1º check-out final, o total da linha já traz as horas extras e
+    // o ajuste do produtor dentro das diárias (30/10): a diária do ½ e da dobra
+    // sai da BASE guardada, senão a dobra marcada pelo DP vem inflada.
+    const base = item.baseCheckoutFinal;
+    const diariaDaBase = base
+      ? valoresDosDiasDoSubtotal({
+          subtotalCents: subtotalDiariasDe(base),
+          diasComDiaria: (base.workedDays?.length ? base.workedDays.map((d) => String(d).slice(0, 10)) : datasDoPeriodo).filter(regraDaMeia.temDiaria),
+          diasMeiaExtra: base.diasMeiaExtra, diasDobra: base.diasDobra ?? null, fatores: regraDaMeia.fatores,
+        }).diaria
+      : 0;
+    setDiariaDaRegra(diariaDaBase > 0 ? diariaDaBase : meiasNaAbertura.diaria);
     const meiaPorDia = new Map(meiasNaAbertura.dias.filter((d) => d.meiaCents > 0).map((d) => [d.dia, d.meiaCents]));
     const somaDasMeias = Array.from(meiaPorDia.values()).reduce((s, v) => s + v, 0);
     // Dobra de turno (29/10): mais uma diária do dia, pela mesma regra do ½.

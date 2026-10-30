@@ -114,3 +114,54 @@ describe("POST /api/budget-actual/:id/split — ½ e dobra (29/10)", () => {
     expect(r.body.diasDobra ?? null).toBeNull();
   });
 });
+
+describe("POST /api/budget-actual/:id/split — valores do titular pela regra (revisão 30/10)", () => {
+  const corpo = (novoId: string, extra: Record<string, unknown> = {}) => ({
+    collaboratorId: novoId, collaboratorType: "freela", workedDays: ["2026-11-04"], parentWorkedDays: ["2026-11-02", "2026-11-03"],
+    dailyValue: 10_000, dailyQuantity: 1, weekdayLunch: 0, weekdayDinner: 0, weekendLunch: 0, weekendDinner: 0, mobility: 0,
+    parentValues: { dailyQuantity: 2, weekdayLunch: 0, weekdayDinner: 0, weekendLunch: 0, weekendDinner: 0, mobility: 0 },
+    ...extra,
+  });
+
+  it("o ½ do dia que saiu não fica no titular (3 × R$ 100 + ½ no dia que sai → R$ 200)", async () => {
+    const { agent } = await agenteLogado("financial");
+    const actual = await prestacao({ diasMeiaExtra: ["2026-11-04"], dailyValue: 11_667, totalValue: 35_000 });
+    const novo = await criarColaborador();
+    const r = await mutacao(agent.post(`/api/budget-actual/${actual.id}/split`)).send(corpo(novo.id));
+    expect(r.status).toBe(201);
+    const [pai] = await ctx.db.select().from(ctx.schema.budgetActual).where(eq(ctx.schema.budgetActual.id, actual.id));
+    expect(pai.totalValue).toBe(20_000);
+    expect(pai.dailyQuantity).toBe(2);
+    expect(pai.diasMeiaExtra).toBeNull();
+  });
+
+  it("casa não ganha diária em dia útil que fica com ele", async () => {
+    const { agent } = await agenteLogado("financial");
+    // Casa de seg a qua: sem diária (só fds), só a alimentação.
+    const actual = await prestacao({ collaboratorType: "casa", dailyQuantity: 0, dailyValue: 0, totalValue: 1_500, weekdayLunch: 1_500 });
+    const novo = await criarColaborador();
+    const r = await mutacao(agent.post(`/api/budget-actual/${actual.id}/split`)).send(corpo(novo.id, {
+      parentValues: { dailyQuantity: 2, weekdayLunch: 1_000, weekdayDinner: 0, weekendLunch: 0, weekendDinner: 0, mobility: 0 },
+    }));
+    expect(r.status).toBe(201);
+    const [pai] = await ctx.db.select().from(ctx.schema.budgetActual).where(eq(ctx.schema.budgetActual.id, actual.id));
+    expect(pai.dailyQuantity).toBe(0);
+    expect(pai.totalValue).toBe(1_000);
+  });
+
+  it("depois do 1º check-out final, a base também perde os dias que saíram", async () => {
+    const { agent } = await agenteLogado("financial");
+    const base = {
+      dailyQuantity: 3, dailyValue: 10_000, totalValue: 30_000, weekdayLunch: 0, weekdayDinner: 0, weekendLunch: 0, weekendDinner: 0,
+      mobility: 0, transport: 0, workedDays: DIAS, diasMeiaExtra: null, diasDobra: null,
+    };
+    const actual = await prestacao({ baseCheckoutFinal: base, totalValue: 33_000, dailyValue: 11_000 });
+    const novo = await criarColaborador();
+    const r = await mutacao(agent.post(`/api/budget-actual/${actual.id}/split`)).send(corpo(novo.id));
+    expect(r.status).toBe(201);
+    const [pai] = await ctx.db.select().from(ctx.schema.budgetActual).where(eq(ctx.schema.budgetActual.id, actual.id));
+    expect(pai.baseCheckoutFinal?.totalValue).toBe(20_000);
+    expect(pai.baseCheckoutFinal?.dailyQuantity).toBe(2);
+    expect(pai.baseCheckoutFinal?.workedDays).toEqual(["2026-11-02", "2026-11-03"]);
+  });
+});

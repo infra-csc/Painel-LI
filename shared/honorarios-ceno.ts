@@ -244,6 +244,28 @@ export function valorPorDiaria(valorCents: number | null | undefined, diarias: n
   return Math.round(valorCents / diarias);
 }
 
+/**
+ * Quantas diárias o valor paga (30/10, dono: "somar todas as diárias e
+ * dividir pelo total"). Freela: as diárias da vaga. Empreita: a soma das
+ * diárias de TODAS as pessoas — as vagas dela, cada uma com os seus dias; sem
+ * vaga na escala, pessoas × diárias. Antes a empreita dividia o total só
+ * pelos dias da montagem (R$ 6.670 ÷ 4 = R$ 1.667,50 "por diária" para 5 pessoas).
+ */
+export function diariasDoValor(h: {
+  tipo?: string | null;
+  diarias?: number | null;
+  pessoas?: number | null;
+  vagasDaEmpreita?: readonly { dias: number; aviso?: string | null }[] | null;
+}): number | null {
+  if (h.tipo !== "empreita") return h.diarias ?? null;
+  const vagas = (h.vagasDaEmpreita ?? []).filter((v) => !v.aviso && v.dias > 0);
+  const somaDasVagas = vagas.reduce((s, v) => s + v.dias, 0);
+  // Pessoas da equipe que não estão na escala trabalham os dias do pedido.
+  const semVaga = Math.max(0, (h.pessoas ?? 0) - vagas.length);
+  const total = somaDasVagas + semVaga * (h.diarias ?? 0);
+  return total > 0 ? total : h.diarias ?? null;
+}
+
 /** O valor que vale para a linha: o aprovado quando existe, senão o pedido. */
 export function valorVigente(h: { valorPedido: number; valorAprovado: number | null }): number {
   return h.valorAprovado ?? h.valorPedido;

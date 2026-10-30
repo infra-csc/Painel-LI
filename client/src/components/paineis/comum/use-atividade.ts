@@ -18,7 +18,10 @@ export function useAtividade(filtros: FiltrosDoServidor, opcoes: { limite?: numb
     queryFn: ({ pageParam, signal }) => fetchJson<RespostaDaAtividade>(urlDaAtividade(filtros, pageParam, limite), signal),
     initialPageParam: null,
     getNextPageParam: (ultima) => ultima.proximo,
-    refetchInterval: ATUALIZA_A_CADA_MS,
+    // Atualizar uma lista infinita rebusca TODAS as páginas abertas — e cada
+    // uma remonta a janela inteira no servidor. Com "Carregar mais" aberto, só
+    // o botão Atualizar busca de novo.
+    refetchInterval: (query) => ((query.state.data?.pages.length ?? 0) > 1 ? false : ATUALIZA_A_CADA_MS),
     // Trocar de filtro mantém a lista anterior na tela até a nova chegar.
     placeholderData: keepPreviousData,
     enabled: opcoes.enabled ?? true,

@@ -35,7 +35,7 @@ export function destinosDosBlocos(user: User | null) {
   const escalacaoDoEvento = (e: EventoComAtraso) => ({ href: `/scaling?eventId=${enc(e.eventId)}`, tela: "Escalação" });
   return {
     passagem: (e: EventoComAtraso) => ({ href: `/tickets?event=${enc(e.eventId)}&status=pending`, tela: "Passagens" }),
-    // O mesmo destino do Quadro de prazos (o Espelho abre no evento; Hospedagem não lê o evento da URL).
+    // Hospedagem abre já filtrada no evento (?event=, 30/10).
     hotel: (e: EventoComAtraso) => ({ href: `/accommodations?event=${enc(e.eventId)}`, tela: "Hospedagem" }),
     escala: (e: EventoComAtraso) => {
       const soSemNome = e.etapas.every((a) => a.etapa === "escalacao");

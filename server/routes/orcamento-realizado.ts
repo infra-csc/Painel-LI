@@ -17,7 +17,8 @@ import { ehEventoLegado } from "@shared/legado-honorarios";
 import { mobilidadeCoerente } from "@shared/comparativo";
 import { dataIsoValida, normalizarDiasMeiaExtra } from "@shared/meia-diaria";
 import { mesmosDiasDeDobra, motivoComDobras, normalizarDiasDobra, separarMeiaEDobra } from "@shared/dobra-de-turno";
-import { baseComDobras } from "@shared/presenca";
+import { baseComDobras, ehFimDeSemana } from "@shared/presenca";
+import { diariasQueFicam } from "@shared/dividir-diarias";
 import { lerConfiguracaoDoBanco, montarPrestacao } from "../presenca-servico";
 import { lerDataDeCorteDoBanco } from "./honorarios-fluxo";
 import {
@@ -307,15 +308,57 @@ export function registrarOrcamentoRealizado(app: Express): void {
       const meiasDoPai = soDosQueFicam(parent.diasMeiaExtra);
       const dobrasDoPai = soDosQueFicam(parent.diasDobra);
       const pv = req.body?.parentValues && typeof req.body.parentValues === "object" ? req.body.parentValues : null;
+      // 30/10 (revisão): as diárias do titular saem dia a dia pela regra dele
+      // (shared/dividir-diarias) — não "dias que ficam × diária média", que
+      // pagava o casa em dia útil e deixava com ele o ½ do dia que saiu.
+      const lista = (l: readonly (string | null)[] | null | undefined) => (l ?? []).filter((d): d is string => !!d).map((d) => String(d).slice(0, 10));
+      const diasDoTitular = lista(parent.workedDays).length ? lista(parent.workedDays) : [...remainingDays, ...workedDays].map((d) => String(d).slice(0, 10));
+      const m = await montarPrestacao(parent.id, await lerConfiguracaoDoBanco());
+      const regraDoTitular = { collaboratorType: parent.collaboratorType, nomeDaFuncao: m?.funcaoNome ?? null, ...(m ? { fatores: m.fatores } : {}) };
+      const alimentacao = (v: { weekdayLunch: number; weekdayDinner: number; weekendLunch: number; weekendDinner: number }) => v.weekdayLunch + v.weekdayDinner + v.weekendLunch + v.weekendDinner;
+      const ficaNoPai = diariasQueFicam({
+        subtotalCents: parent.totalValue - alimentacao(parent) - (parent.mobility || 0) - (parent.transport || 0),
+        dias: diasDoTitular, ficam: remainingDays, diasMeiaExtra: parent.diasMeiaExtra, diasDobra: parent.diasDobra, ...regraDoTitular,
+      });
       const pai = {
-        dailyQuantity: inteiroOu(pv?.dailyQuantity, parent.dailyQuantity) + (pv ? (dobrasDoPai?.length ?? 0) : 0),
-        dailyValue: parent.dailyValue,
+        dailyQuantity: ficaNoPai.dailyQuantity,
+        dailyValue: ficaNoPai.dailyValue,
         weekdayLunch: inteiroOu(pv?.weekdayLunch, parent.weekdayLunch),
         weekdayDinner: inteiroOu(pv?.weekdayDinner, parent.weekdayDinner),
         weekendLunch: inteiroOu(pv?.weekendLunch, parent.weekendLunch),
         weekendDinner: inteiroOu(pv?.weekendDinner, parent.weekendDinner),
         mobility: inteiroOu(pv?.mobility, parent.mobility),
       };
+      const totalDoPai = ficaNoPai.subtotalCents + alimentacao(pai) + pai.mobility + (parent.transport || 0);
+      // Depois do 1º check-out final (prestação devolvida), a BASE também
+      // perde os dias que saíram — senão o 2º check-out devolvia ao titular o
+      // valor dos dias que agora são do novo colaborador.
+      const b = parent.baseCheckoutFinal;
+      let baseDoPai: typeof b = b;
+      if (b) {
+        const diasDaBase = b.workedDays?.length ? lista(b.workedDays) : diasDoTitular;
+        const ficaNaBase = diariasQueFicam({
+          subtotalCents: b.totalValue - alimentacao(b) - (b.mobility || 0) - (b.transport || 0),
+          dias: diasDaBase, ficam: remainingDays, diasMeiaExtra: b.diasMeiaExtra, diasDobra: b.diasDobra ?? null, ...regraDoTitular,
+        });
+        const util = (l: string[]) => l.filter((d) => !ehFimDeSemana(d)).length;
+        const fds = (l: string[]) => l.filter((d) => ehFimDeSemana(d)).length;
+        const ficamDaBase = diasDaBase.filter((d) => ficam.has(d));
+        const parte = (v: number, de: number, ficaram: number) => (de > 0 ? Math.round((v * ficaram) / de) : 0);
+        const nova = {
+          weekdayLunch: parte(b.weekdayLunch, util(diasDaBase), util(ficamDaBase)),
+          weekdayDinner: parte(b.weekdayDinner, util(diasDaBase), util(ficamDaBase)),
+          weekendLunch: parte(b.weekendLunch, fds(diasDaBase), fds(ficamDaBase)),
+          weekendDinner: parte(b.weekendDinner, fds(diasDaBase), fds(ficamDaBase)),
+          mobility: parte(b.mobility || 0, diasDaBase.length, ficamDaBase.length),
+        };
+        baseDoPai = {
+          ...b, ...nova,
+          dailyQuantity: ficaNaBase.dailyQuantity, dailyValue: ficaNaBase.dailyValue,
+          totalValue: ficaNaBase.subtotalCents + alimentacao(nova) + nova.mobility + (b.transport || 0),
+          workedDays: ficamDaBase.sort(), diasMeiaExtra: ficaNaBase.diasMeiaExtra, diasDobra: ficaNaBase.diasDobra,
+        };
+      }
 
       const created = await db.transaction(async (tx) => {
         const [row] = await tx.insert(budgetActualTable).values({
@@ -336,7 +379,12 @@ export function registrarOrcamentoRealizado(app: Express): void {
         // Pai: dias restantes + valores recalculados; guardado pelo estado (não
         // pode ter ido para análise no meio).
         const [paiAtualizado] = await tx.update(budgetActualTable)
-          .set({ workedDays: remainingDays, diasMeiaExtra: meiasDoPai, diasDobra: dobrasDoPai, ...(pv ? { ...pai, totalValue: totalDaPrestacao(pai) } : {}), updatedAt: new Date(), updatedBy: actorId })
+          .set({
+            workedDays: remainingDays, diasMeiaExtra: meiasDoPai, diasDobra: dobrasDoPai,
+            ...(pv ? { ...pai, totalValue: totalDoPai } : {}),
+            ...(b ? { baseCheckoutFinal: baseDoPai } : {}),
+            updatedAt: new Date(), updatedBy: actorId,
+          })
           .where(and(eq(budgetActualTable.id, parent.id), eq(budgetActualTable.rhStatus, parent.rhStatus), eq(budgetActualTable.sentForReview, parent.sentForReview)))
           .returning();
         if (!paiAtualizado) throw new HttpError(409, "O item original mudou de estado enquanto era dividido — recarregue e tente de novo.");

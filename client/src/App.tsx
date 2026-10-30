@@ -204,27 +204,27 @@ function Router() {
               </ProtectedRoute>
             </Route>
             <Route path="/paineis/atividade">
-              <ProtectedRoute permission="canAccessScreen3">
+              <ProtectedRoute permission="canAccessPaineis">
                 <PaineisAtividadePage />
               </ProtectedRoute>
             </Route>
             <Route path="/paineis/escala">
-              <ProtectedRoute permission="canAccessScreen3">
+              <ProtectedRoute permission="canAccessPaineis">
                 <PaineisEscalaPage />
               </ProtectedRoute>
             </Route>
             <Route path="/paineis/passagens">
-              <ProtectedRoute permission="canAccessScreen3">
+              <ProtectedRoute permission="canAccessPaineis">
                 <PaineisPassagensPage />
               </ProtectedRoute>
             </Route>
             <Route path="/paineis/hospedagem">
-              <ProtectedRoute permission="canAccessScreen3">
+              <ProtectedRoute permission="canAccessPaineis">
                 <PaineisHospedagemPage />
               </ProtectedRoute>
             </Route>
             <Route path="/paineis">
-              <ProtectedRoute permission="canAccessScreen3">
+              <ProtectedRoute permission="canAccessPaineis">
                 <PaineisPage />
               </ProtectedRoute>
             </Route>

@@ -176,7 +176,6 @@ export function useSplitState({ item, collaborators, teamInclusion, eventStartDa
 
   function doConfirm() {
     if (!selectedCollabId) return;
-    const totalDays = selDaysSorted.length;
     const wkdys = selDaysSorted.filter(d => !isWeekend(d)).length;
     const wknds = selDaysSorted.filter(d => isWeekend(d)).length;
     const subUtil = wkdys * step2Form.valorDiariaUtil;
@@ -184,7 +183,10 @@ export function useSplitState({ item, collaborators, teamInclusion, eventStartDa
     const subDiarias = subUtil + subFds;
     const totalAlim = step2Form.weekdayLunch + step2Form.weekdayDinner + step2Form.weekendLunch + step2Form.weekendDinner;
     const totalValue = subDiarias + step2Form.mobility + totalAlim;
-    const dailyValue = totalDays > 0 ? Math.round(subDiarias / totalDays) : 0;
+    // Quantidade = dias que pagam diária (30/10): o casa de sexta a domingo
+    // tem 2 diárias, não 3 com a média — o Comparativo acusava diferença.
+    const qtdDiarias = (step2Form.valorDiariaUtil > 0 ? wkdys : 0) + (step2Form.valorDiariaFds > 0 ? wknds : 0);
+    const dailyValue = qtdDiarias > 0 ? Math.round(subDiarias / qtdDiarias) : 0;
 
     // Compute parent's new values for remaining days
     const remWkdys = remainingForParent.filter(d => !isWeekend(d)).length;
@@ -210,7 +212,7 @@ export function useSplitState({ item, collaborators, teamInclusion, eventStartDa
       weekendLunch: step2Form.weekendLunch,
       weekendDinner: step2Form.weekendDinner,
       dailyValue,
-      dailyQuantity: totalDays,
+      dailyQuantity: qtdDiarias,
       totalValue,
       parentValues: {
         weekdayLunch: parentNewWeekdayLunch,

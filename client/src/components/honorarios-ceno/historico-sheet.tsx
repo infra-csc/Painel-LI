@@ -12,7 +12,7 @@ import type { LucideIcon } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { apiErrorMessage, cn } from "@/lib/utils";
-import { faltaLiberar, temOc, textoDaOc, valorPorDiaria } from "@shared/honorarios-ceno";
+import { diariasDoValor, faltaLiberar, temOc, textoDaOc, valorPorDiaria } from "@shared/honorarios-ceno";
 import { useHistoricoDoHonorario, type EntradaDoHistorico, type Honorario, type Liberacao } from "./api";
 import { AvisoDaLinha, BarraDaVerba, EtapaBadge, OrigemDaLinha, OrigemDoValor, VagasDaEmpreitaLista, brl, useFocoDeVolta, dataBr, diariasTexto, periodoCurto, type VisaoDaEtapa } from "./pecas";
 
@@ -110,7 +110,7 @@ export function LinhaDoTempo({ historico }: { historico: EntradaDoHistorico[] })
 export function ResumoDosValores({ h }: { h: Honorario }) {
   const aprovado = h.valorAprovado;
   const falta = faltaLiberar(aprovado, h.liberado);
-  const porDia = valorPorDiaria(aprovado ?? h.valorPedido, h.diarias);
+  const porDia = valorPorDiaria(aprovado ?? h.valorPedido, diariasDoValor(h));
   const celula = (rotulo: string, valor: ReactNode, sub?: ReactNode) => (
     <div className="bg-card px-3 py-2.5">
       <dt className="text-2xs text-muted-foreground">{rotulo}</dt>

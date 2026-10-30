@@ -10,7 +10,7 @@ import { ChevronRight } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { DIAS_PADRAO, type DiasDosPrazos } from "@shared/prazos-da-escala";
 import type { EtapaDoQuadro } from "@/components/scaling/scaling-analytics-data";
-import { O_QUE_FALTA, textoDePrazo } from "@/components/scaling/scaling-analytics-data";
+import { O_QUE_FALTA, textoAteOEvento } from "@/components/scaling/scaling-analytics-data";
 import {
   ROTULO_DA_ETAPA, plural, textoDaEtapa, textoDaSituacao, totaisDoBloco,
   type AtrasoDaEtapa, type EventoComAtraso,
@@ -103,7 +103,7 @@ export function BlocoDeAtrasos({ id, titulo, icone, etapas, lista, dias = DIAS_P
                       <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 sm:flex-nowrap">
                         {/* No celular o nome quebra a linha (truncado sumia o que distingue os eventos). */}
                         <span className="min-w-0 break-words text-sm font-semibold text-foreground sm:truncate" title={e.nome}>{e.nome}</span>
-                        <span className="shrink-0 text-2xs tabular-nums text-muted-foreground">{e.data} · {textoDePrazo(e.prazoDias)}</span>
+                        <span className="shrink-0 text-2xs tabular-nums text-muted-foreground">{e.data} · {textoAteOEvento(e.diasAteOEvento)}</span>
                       </span>
                       <span className="mt-1 flex flex-col gap-1">
                         {e.etapas.map((a) => <LinhaDaEtapa key={a.etapa} a={a} dias={dias} />)}

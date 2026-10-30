@@ -74,8 +74,8 @@ describe("Dividir escalação — passo 2 do novo colaborador", () => {
       weekdayLunch: 500, weekdayDinner: 4000, weekendLunch: 4000, weekendDinner: 4000, mobility: 0,
       workedDays: ["2026-04-10", "2026-04-11"], parentWorkedDays: ["2026-04-12"],
     });
-    // Diárias: 0 (sexta, casa) + 150 (sábado) — dailyValue é a média por dia
-    expect(payload).toMatchObject({ dailyQuantity: 2, dailyValue: 7500 });
+    // Diárias: 0 (sexta, casa) + 150 (sábado) — 1 diária que paga (30/10)
+    expect(payload).toMatchObject({ dailyQuantity: 1, dailyValue: 15000 });
     expect(payload.totalValue).toBe(15000 + 12500);
   });
 

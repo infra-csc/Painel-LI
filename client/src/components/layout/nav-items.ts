@@ -83,11 +83,11 @@ export interface NavGroup {
 
 export const ALL_TABS: NavTab[] = [
   // ── Painéis (30/10): acompanhar mudanças da escala, passagens e hotéis para agir rápido ──
-  { id: "paineis",            path: "/paineis",            label: "Visão geral",          icon: Gauge,             permission: "canAccessScreen3", sinonimos: ["dashboard", "painel", "atrasados", "fora do prazo"] },
-  { id: "paineis-atividade",  path: "/paineis/atividade",  label: "Atividade recente",    icon: Activity,          permission: "canAccessScreen3", sinonimos: ["últimas inclusões", "pedidos de ajuste", "notificações", "novidades"] },
-  { id: "paineis-escala",     path: "/paineis/escala",     label: "Painel da escala",     icon: Users,             permission: "canAccessScreen3", sinonimos: ["comparar eventos", "escala lado a lado", "atrasados da escala"] },
-  { id: "paineis-passagens",  path: "/paineis/passagens",  label: "Painel de passagens",  icon: Ticket,            permission: "canAccessScreen3", sinonimos: ["passagens fora do prazo", "emitidas", "preço de passagem"] },
-  { id: "paineis-hospedagem", path: "/paineis/hospedagem", label: "Painel de hospedagem", icon: Hotel,             permission: "canAccessScreen3", sinonimos: ["hotéis atrasados", "room nights", "comparar hotéis"] },
+  { id: "paineis",            path: "/paineis",            label: "Visão geral",          icon: Gauge,             permission: "canAccessPaineis", sinonimos: ["dashboard", "painel", "atrasados", "fora do prazo"] },
+  { id: "paineis-atividade",  path: "/paineis/atividade",  label: "Atividade recente",    icon: Activity,          permission: "canAccessPaineis", sinonimos: ["últimas inclusões", "pedidos de ajuste", "notificações", "novidades"] },
+  { id: "paineis-escala",     path: "/paineis/escala",     label: "Painel da escala",     icon: Users,             permission: "canAccessPaineis", sinonimos: ["comparar eventos", "escala lado a lado", "atrasados da escala"] },
+  { id: "paineis-passagens",  path: "/paineis/passagens",  label: "Painel de passagens",  icon: Ticket,            permission: "canAccessPaineis", sinonimos: ["passagens fora do prazo", "emitidas", "preço de passagem"] },
+  { id: "paineis-hospedagem", path: "/paineis/hospedagem", label: "Painel de hospedagem", icon: Hotel,             permission: "canAccessPaineis", sinonimos: ["hotéis atrasados", "room nights", "comparar hotéis"] },
   { id: "user-registration",  path: "/user-registration",  label: "Cadastro de usuários", icon: UserPlus,          permission: "canCreateUsers" },
   { id: "events",             path: "/events",             label: "Eventos",              icon: CalendarDays,      permission: "canAccessCadastros" },
   { id: "calendar",           path: "/calendar",           label: "Calendário",           icon: Calendar,          permission: "canAccessCalendar" },

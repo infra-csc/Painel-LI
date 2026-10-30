@@ -88,7 +88,8 @@ describe("uma etapa por vaga: a primeira que ela ainda não cumpriu", () => {
     const v = cenario();
     const q = quadroDoEvento(Object.values(v), ctx);
     expect(q.colunas.escalacao.antes.map((i) => i.id).sort()).toEqual([v.validar.id, v.aprovar.id].sort());
-    expect(q.colunas.passagem.antes.length).toBe(5);
+    // Antes da escala confirmada, só quem PRECISA de passagem: validar e semNome.
+    expect(q.colunas.passagem.antes.map((i) => i.id).sort()).toEqual([v.validar.id, v.semNome.id].sort());
     // Já cumpriram Passagem: quem precisava e tem (semHotel, pronta) — soHotel e local não precisavam.
     expect(q.colunas.passagem.passaram.map((i) => i.id).sort()).toEqual([v.semHotel.id, v.pronta.id].sort());
     expect(q.colunas.hotel.passaram.map((i) => i.id)).toEqual([v.pronta.id]);
@@ -107,6 +108,18 @@ describe("uma etapa por vaga: a primeira que ela ainda não cumpriu", () => {
     expect(q.colunas.hotel.paradas).toEqual([]);
     expect(q.colunas.hotel.antes).toEqual([]);
     expect(q.colunas.hotel.passaram.map((i) => i.id).sort()).toEqual([a.id, b.id].sort());
+  });
+
+  it("vaga sem nome que não pede hotel não conta como 'antes' na coluna Hotel", () => {
+    comPassagem.clear();
+    comHotel.clear();
+    const a = vaga({ collaboratorId: "s1", status: "escalado", needsTicket: false, needsAccommodation: true });
+    const semNome = vaga({ needsTicket: true, needsAccommodation: false });
+    comHotel.add(a.id);
+    const q = quadroDoEvento([a, semNome], ctx);
+    expect(q.colunas.hotel.antes).toEqual([]);
+    expect(q.colunas.hotel.paradas).toEqual([]);
+    expect(q.colunas.passagem.antes.map((i) => i.id)).toEqual([semNome.id]);
   });
 
   it("ninguém precisa: o evento sem nenhuma vaga com passagem ou hotel", () => {

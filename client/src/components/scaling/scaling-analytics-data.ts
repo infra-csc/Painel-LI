@@ -511,7 +511,9 @@ export function quadroDoEvento(vagas: TeamInclusion[], ctx: AnalyticsContext): Q
       const coluna: ColunaDoQuadro = {
         etapa,
         paradas: precisam.filter((x) => !cumpriu(etapa, x.i, ctx)).map((x) => x.i),
-        antes: atual.filter((x) => ORDEM[x.e] < ORDEM.passagem).map((x) => x.i),
+        // Só quem PRECISA da tarefa: vaga sem nome que não pede hotel não
+        // tira o ✓ da coluna Hotel.
+        antes: atual.filter((x) => ORDEM[x.e] < ORDEM.passagem && precisaDa(etapa, x.i)).map((x) => x.i),
         passaram: precisam.filter((x) => cumpriu(etapa, x.i, ctx)).map((x) => x.i),
         ninguemPrecisa: !vagas.some((i) => precisaDa(etapa, i)),
       };
@@ -542,6 +544,24 @@ export function diasParadaNaEtapa(i: TeamInclusion, etapa: EtapaAtual, hoje: Dat
   const d = valor instanceof Date ? valor : new Date(valor);
   if (Number.isNaN(d.getTime())) return null;
   return Math.max(0, Math.round((inicioDoDia(hoje).getTime() - inicioDoDia(d).getTime()) / MS_DIA));
+}
+
+/** "2026-11-15" → dias de hoje até esse dia (negativo = passou). */
+export function diasAteODia(iso: string | null, hoje: Date): number | null {
+  if (!iso) return null;
+  const alvo = new Date(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)));
+  return Math.round((alvo.getTime() - inicioDoDia(hoje).getTime()) / MS_DIA);
+}
+
+/**
+ * Ao lado da DATA DO EVENTO, a conta é até ela (30/10): "15/11 · em 13 dias"
+ * contado do início da montagem contradizia o Painel de passagens ("em 16 dias").
+ */
+export function textoAteOEvento(dias: number | null): string {
+  if (dias === null) return "sem data";
+  if (dias < 0) return "já aconteceu";
+  if (dias === 0) return "é hoje";
+  return `em ${dias} ${dias === 1 ? "dia" : "dias"}`;
 }
 
 /** "em 12 dias" / "começa hoje" / "já começou". */

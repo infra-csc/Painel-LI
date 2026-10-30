@@ -10,7 +10,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { ArrowRight, CheckCircle2, UserRound } from "lucide-react";
-import { DIAS_ESPERA_ATRASADA, rotuloDaDataDoEvento, textoDePrazo } from "@/components/scaling/scaling-analytics-data";
+import { DIAS_ESPERA_ATRASADA, diasAteODia, rotuloDaDataDoEvento, textoAteOEvento } from "@/components/scaling/scaling-analytics-data";
 import { cn } from "@/lib/utils";
 import {
   ROTULO_DA_ESPERA, SEM_RESPONSAVEL, cargaPorResponsavel, plural, textoHaDias,
@@ -142,7 +142,7 @@ export function AguardandoDecisao({ esperas }: { esperas: EsperaDoEvento[] }) {
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 bg-surface-muted/60 px-4 py-2">
                   <p className="min-w-0 flex-1 basis-full truncate text-sm font-semibold text-foreground sm:basis-auto" title={e.evento.nome}>{e.evento.nome}</p>
                   <p className="text-2xs text-muted-foreground">
-                    Evento {rotuloDaDataDoEvento(e.evento)} · {textoDePrazo(e.evento.prazoDias)} · {e.grupos.reduce((s, g) => s + g.vagas.length, 0)} esperando
+                    Evento {rotuloDaDataDoEvento(e.evento)} · {textoAteOEvento(diasAteODia(e.evento.dataEvento, new Date()))} · {e.grupos.reduce((s, g) => s + g.vagas.length, 0)} esperando
                   </p>
                 </div>
                 <ul className="divide-y divide-border">
