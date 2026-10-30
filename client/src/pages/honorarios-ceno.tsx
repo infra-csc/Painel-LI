@@ -36,7 +36,7 @@ import { campo, useUrlState } from "@/lib/use-url-state";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { apiErrorMessage, cn } from "@/lib/utils";
 import { normalizarNomeDeFuncao } from "@shared/cenotecnica";
-import { ETAPA_LABEL, etapaDoHonorario, rotuloDoValor, somar, temOc, valorPorDiaria, reaisParaCsv, type TipoDeRelatorio } from "@shared/honorarios-ceno";
+import { ETAPA_LABEL, diariasDoValor, etapaDoHonorario, rotuloDoValor, somar, temOc, valorPorDiaria, reaisParaCsv, type TipoDeRelatorio } from "@shared/honorarios-ceno";
 import { BotaoTentarDeNovo, EstadoDaValidacao } from "@/components/scaling-validation/validation-page/estados";
 import { downloadCsv, slugify } from "@/components/scaling-validation/event-view/event-view-shared";
 import { MOLDURA } from "@/components/scaling-approval/tokens";
@@ -88,13 +88,13 @@ function exportarLinhas(linhas: HonorarioDoFinanceiro[], nomeDoArquivo: string, 
   const cabecalho = ["Evento", "Data do evento", "Nome", "Tipo", "Origem do valor", "Vagas da empreita", "Setor", "Posição", "Início", "Fim", "Diárias", "Valor pedido (R$)", "Valor aprovado (R$)", "Por diária (R$)", "Situação", "Liberado (R$)", "Falta liberar (R$)", ...(porPago ? ["Liberado no período (R$)"] : []), "OC/DP", "Pedido por", "Decidido por"];
   const linhasCsv = linhas.map((h) => {
     const vigente = h.valorAprovado ?? h.valorPedido;
-    const pd = valorPorDiaria(vigente, h.diarias);
+    const pd = valorPorDiaria(vigente, diariasDoValor(h));
     const pago = porPago?.get(h.id);
     const oc = (l: Liberacao) => (temOc(l.oc) ? l.oc.trim() : "sem OC");
     const ocs = pago ? pago.liberacoes.map((l) => `${oc(l)} (${dataBr(l.data)})`) : h.liberacoes.filter((l) => !l.estornadaEm).map(oc);
     return [
       h.eventName ?? "", dataBr(h.eventStartDate), h.nome, h.tipo === "empreita" ? "Empreita" : h.semColaborador ? "Vaga sem colaborador" : "Vaga", rotuloDoValor(h), (h.vagasDaEmpreita ?? []).map((v) => `#${v.inclusionNumber}`).join(" "), setorLabel(h.setor), posicaoLabel(h.posicao),
-      dataBr(h.inicio), dataBr(h.fim), String(h.diarias ?? ""), reaisParaCsv(h.valorPedido), h.valorAprovado != null ? reaisParaCsv(h.valorAprovado) : "",
+      dataBr(h.inicio), dataBr(h.fim), String(diariasDoValor(h) ?? ""), reaisParaCsv(h.valorPedido), h.valorAprovado != null ? reaisParaCsv(h.valorAprovado) : "",
       pd != null ? reaisParaCsv(pd) : "", ETAPA_LABEL[etapaDoHonorario(h)], reaisParaCsv(h.liberado), reaisParaCsv(h.falta),
       ...(porPago ? [reaisParaCsv(pago?.liberadoNoPeriodo ?? 0)] : []),
       ocs.join(" / "), h.enviadoPorNome ?? h.criadoPorNome, h.decididoPorNome ?? "",
@@ -122,7 +122,7 @@ function LinhaALiberar({ h, onLiberar, onHistorico }: { h: HonorarioDoFinanceiro
         {h.tipo === "empreita" && <VagasDaEmpreitaLista vagas={h.vagasDaEmpreita ?? []} className="mt-0.5" />}
         <AvisoDaLinha h={h} />
       </td>
-      <td data-rotulo="Aprovado" className="px-3 py-3"><ValorComDiaria valor={h.valorAprovado} diarias={h.diarias} riscado={h.valorPedido} alinhar="esquerda" className="xl:text-right" /></td>
+      <td data-rotulo="Aprovado" className="px-3 py-3"><ValorComDiaria valor={h.valorAprovado} diarias={diariasDoValor(h)} riscado={h.valorPedido} alinhar="esquerda" className="xl:text-right" /></td>
       <td data-rotulo="Liberado" className="px-3 py-3">
         <span className="block text-right text-sm tabular-nums text-foreground max-xl:text-left">{h.liberado ? brlCurto(h.liberado) : "—"}</span>
         {ocs && <span className="block truncate text-right text-2xs text-muted-foreground max-xl:text-left">{ocs}</span>}
