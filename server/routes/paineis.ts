@@ -22,7 +22,7 @@
  * próprio pedido.
  *
  * Papéis: os mesmos das telas dos Painéis (canAccessScreen3 no client) —
- * admin, Compras e Produção (LOGISTICA_ROLES).
+ * admin e Compras (30/10, dono: "apenas Compras e admin").
  *
  * Dado pessoal: só NOMES (colaborador, autor). O texto das observações e o
  * valor da diária ficam fora (o título diz que mudaram, sem o conteúdo); os
@@ -41,7 +41,10 @@ import {
 import { montarHistoricoDaVaga, type EntradaDoHistorico, type FontesDoHistorico } from "@shared/inclusion-timeline";
 import { trocaNaVisaoDaVaga, type TrocaCrua } from "@shared/swap-permuta";
 import { hojeISO } from "@shared/hoje-sp";
-import { LOGISTICA_ROLES, requireRoles } from "./_compartilhado";
+import { requireRoles } from "./_compartilhado";
+
+/** Quem vê os Painéis (30/10, dono): só admin e Compras. */
+const PAINEIS_ROLES = ["admin", "purchasing"] as const;
 
 // ── Contrato da resposta (espelhado em client/src/components/paineis/comum/atividade-tipos.ts) ──
 
@@ -564,10 +567,10 @@ export async function consultarAtividade(f: FiltrosDaAtividade, agora: Date = ne
 export function registrarPaineis(app: Express): void {
   /**
    * GET /api/paineis/atividade?periodo=hoje|24h|7d&eventId=&tipo=&passagem=1&hotel=1&limite=&cursor=
-   * → RespostaDaAtividade. Admin, Compras e Produção.
+   * → RespostaDaAtividade. Admin e Compras.
    */
   app.get("/api/paineis/atividade", async (req, res) => {
-    if (!await requireRoles(req, res, LOGISTICA_ROLES)) return;
+    if (!await requireRoles(req, res, PAINEIS_ROLES)) return;
     try {
       const resposta = await consultarAtividade(lerFiltros(req.query as Record<string, unknown>));
       res.set("Cache-Control", "no-store");

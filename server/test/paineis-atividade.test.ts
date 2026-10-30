@@ -37,15 +37,15 @@ describe("GET /api/paineis/atividade — papéis", () => {
     expect((await request(ctx.app).get("/api/paineis/atividade")).status).toBe(401);
   });
 
-  it("Área de Função e Financeiro → 403 (as telas dos Painéis são de admin, Compras e Produção)", async () => {
-    for (const papel of ["function_area", "financial"] as const) {
+  it("Logística, Área de Função e Financeiro → 403 (os Painéis são só de admin e Compras, 30/10)", async () => {
+    for (const papel of ["production", "function_area", "financial"] as const) {
       const { agent } = await agenteLogado(papel);
       expect((await agent.get("/api/paineis/atividade")).status).toBe(403);
     }
   });
 
-  it("admin, Compras e Produção → 200 com o contrato do feed", async () => {
-    for (const papel of ["admin", "purchasing", "production"] as const) {
+  it("admin e Compras → 200 com o contrato do feed", async () => {
+    for (const papel of ["admin", "purchasing"] as const) {
       const { agent } = await agenteLogado(papel);
       const res = await agent.get("/api/paineis/atividade?periodo=hoje");
       expect(res.status).toBe(200);
@@ -132,7 +132,7 @@ describe("GET /api/paineis/atividade — o que entra no feed", () => {
   });
 
   it("paginação por cursor: a segunda página continua da primeira, sem repetir", async () => {
-    const { agent, user } = await agenteLogado("production");
+    const { agent, user } = await agenteLogado("purchasing");
     const evento = await criarEvento();
     for (const n of [1, 2, 3]) {
       const v = await criarVaga({ userId: user.id, eventId: evento.id });

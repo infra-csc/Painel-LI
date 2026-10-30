@@ -53,7 +53,7 @@ export interface RolePermissions {
   canAccessScreen2: boolean;     // scaling
   canSelectCollaborators: boolean;
   canAccessScreen3: boolean;     // tickets + accommodations
-  canAccessPaineis: boolean;     // Painéis (30/10): admin, Compras e Logística — o mesmo do GET /api/paineis/atividade
+  canAccessPaineis: boolean;     // Painéis (30/10): só admin e Compras — o mesmo do GET /api/paineis/atividade
   canRegisterTickets: boolean;
   canAccessScreen4: boolean;
   canEditScreen4: boolean;
@@ -180,7 +180,7 @@ export function getRolePermissions(role: UserRole): RolePermissions {
         canAccessSimulation: false,       // "Ver como usuário" — só admin
         canAccessHonorariosCeno: false,
         canAccessPresenca: true,
-        canAccessPaineis: true,
+        canAccessPaineis: false,     // 30/10 (dono): Painéis só de Compras e admin
       };
 
     case "function_area":
