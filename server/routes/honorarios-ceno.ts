@@ -847,14 +847,16 @@ export function registrarHonorariosCeno(app: Express): void {
     const user = await usuarioDe(req, res);
     if (!user) return;
     const a = await acessoDe(user);
-    if (!podeAprovar(a)) return negar(res);
+    // 30/10 (dono): quem lança a cenotécnica também acompanha esta tela — só
+    // as linhas das funções dele e sem decidir (podeDecidir/podeDevolver = false).
+    if (!podeAprovar(a) && !podePedir(a)) return negar(res);
     const situacao = req.query.situacao === "decididos" ? "decididos" : "pendentes";
     const eventId = typeof req.query.eventId === "string" && req.query.eventId ? req.query.eventId : undefined;
     const f = [dados.filtros.status(situacao === "pendentes" ? ["aguardando"] : ["aprovado", "aprovado_ajuste", "devolvido"])];
     if (eventId) f.push(dados.filtros.doEvento(eventId));
     const linhas = await dados.listarHonorarios(f, situacao === "decididos" ? { ordem: "decidido", limite: 300 } : {});
     naoArmazenar(res);
-    res.json(linhas.filter((h) => aprovaNaLinha(a, h)).map((h) => visao(a, h)));
+    res.json(linhas.filter((h) => aprovaNaLinha(a, h) || pedeNaLinha(a, h)).map((h) => visao(a, h)));
   });
 
   // Decisões de um pedido.

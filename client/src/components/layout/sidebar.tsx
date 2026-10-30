@@ -146,8 +146,10 @@ export default function Sidebar() {
   const currentPath = location.split("?")[0];
 
   // Aprovação de honorários (20/10): só para quem aprova — o servidor sabe quem é.
-  const aprovaHonorarios = !!useAcessoHonorarios(!!user).data?.podeAprovar;
-  const groups = useMemo(() => visibleGroups(user, { aprovaHonorarios }), [user, aprovaHonorarios]);
+  const acessoHon = useAcessoHonorarios(!!user).data;
+  const aprovaHonorarios = !!acessoHon?.podeAprovar;
+  const pedeHonorarios = !!acessoHon?.podePedir;
+  const groups = useMemo(() => visibleGroups(user, { aprovaHonorarios, pedeHonorarios }), [user, aprovaHonorarios, pedeHonorarios]);
 
   // ── Preferências locais (favoritos e grupos recolhidos) ──
   const [favorites, setFavs] = useState<string[]>(() => getFavorites(user?.id));

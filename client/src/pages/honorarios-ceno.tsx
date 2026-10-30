@@ -283,6 +283,9 @@ export default function HonorariosCenoPage() {
   const acesso = useAcessoHonorarios();
   const largo = useMediaQuery("(min-width: 1280px)");
   const podeVer = !!acesso.data?.podeLiberar;
+  // 30/10 (dono): quem lança a cenotécnica abre esta tela e vê só os
+  // aprovados de todos os eventos (a mesma lista da Escalação), sem liberar verba.
+  const soQuemLanca = !podeVer && !!acesso.data?.podePedir;
   const q = useHonorariosDoFinanceiro(null, podeVer);
   const [url, setUrl] = useUrlState({
     aba: campo.opcao<Aba>("liberar"),
@@ -367,7 +370,7 @@ export default function HonorariosCenoPage() {
       variant="bar"
       title="Honorários da cenotécnica"
       className="gap-x-3 max-sm:static"
-      subtitle={eventos.length === 0 ? "aprovados pelo aprovador da escala, à espera da verba" : undefined}
+      subtitle={soQuemLanca ? "valores aprovados de todos os eventos" : eventos.length === 0 ? "aprovados pelo aprovador da escala, à espera da verba" : undefined}
       context={eventos.length > 0 && aba !== "aprovados" ? (
         <>
           <span aria-hidden="true" className="hidden h-5 w-px shrink-0 bg-border sm:block" />
@@ -395,6 +398,11 @@ export default function HonorariosCenoPage() {
         <div className="val-osso h-[78px] w-full rounded-xl" />
         <div className={cn(MOLDURA, "space-y-2 p-4")}>{[0, 1, 2, 3].map((i) => <div key={i} className="val-osso h-11 w-full" />)}</div>
       </div>
+    );
+  } else if (soQuemLanca) {
+    conteudo = (
+      <AprovadosDeTodosOsEventos visao="quem-lanca" podeInformarOc={false}
+        filtros={filtrosAprovados} onFiltros={(f) => setFiltrosAprovados((x) => ({ ...x, ...f }))} />
     );
   } else if (!podeVer) {
     conteudo = <EstadoDaValidacao icone={<Lock aria-hidden="true" />} titulo="Tela do Financeiro" texto="Só o Financeiro (DP), o perfil Honorários e o administrador veem os honorários a liberar." testId="hon-fin-sem-acesso" />;

@@ -133,7 +133,7 @@ export default function Scaling() {
       <ScalingHeaderBar
         resumoTopo={r.resumoTopo} aba={aba} onAba={filtros.setAba} canExport={canExport} onExportar={exportar.abrirExportar}
         estado={isErrorInclusions && !teamInclusions ? "erro" : isLoading && !teamInclusions ? "carregando" : "pronta"}
-        acoes={<BotaoHonorariosDoEvento eventId={eventosMarcados.length === 1 ? eventosMarcados[0] : null} onAbrir={() => hon.abrirPainel(eventosMarcados[0] ?? null)} />}
+        acoes={<BotaoHonorariosDoEvento eventId={eventosMarcados.length === 1 ? eventosMarcados[0] : null} onAbrir={() => hon.abrirPainel(eventosMarcados.length === 1 ? eventosMarcados[0] : null)} />}
       />
 
       {/* `div`, não `main` (23/09): o `<main>` é um só e mora no layout. */}

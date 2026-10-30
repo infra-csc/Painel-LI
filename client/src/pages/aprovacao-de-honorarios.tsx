@@ -42,13 +42,16 @@ export default function AprovacaoDeHonorariosPage() {
   usePageTitle("Aprovação de honorários");
   const acesso = useAcessoHonorarios();
   const podeAprovar = !!acesso.data?.podeAprovar;
+  // 30/10 (dono): quem lança a cenotécnica acompanha a tela — vê os pedidos e
+  // os valores das funções dele, sem aprovar nem devolver.
+  const podeVer = podeAprovar || !!acesso.data?.podePedir;
   const [url, setUrl] = useUrlState({ aba: campo.opcao<Aba>("aguardando"), evento: campo.texto("") });
   const aba: Aba = ABAS.some((a) => a.id === url.aba) ? url.aba : "aguardando";
 
   // Sem recorte: a lista de eventos e os totais saem das duas filas inteiras
   // (a de pendentes é a mesma chave que o painel usa sem evento).
-  const pend = useFilaDeAprovacao("pendentes", null, podeAprovar);
-  const dec = useFilaDeAprovacao("decididos", null, podeAprovar);
+  const pend = useFilaDeAprovacao("pendentes", null, podeVer);
+  const dec = useFilaDeAprovacao("decididos", null, podeVer);
   const todos = useMemo(() => [...(pend.data ?? []), ...(dec.data ?? [])], [pend.data, dec.data]);
   const eventos = useMemo(() => {
     const m = new Map<string, Event>();
@@ -62,7 +65,7 @@ export default function AprovacaoDeHonorariosPage() {
   const doEvento = (l: Honorario[] | undefined) => (l ?? []).filter((h) => !url.evento || h.eventId === url.evento);
   const pendentes = doEvento(pend.data);
   const decididos = doEvento(dec.data);
-  const meus = pendentes.filter((h) => h.podeDecidir);
+  const meus = podeAprovar ? pendentes.filter((h) => h.podeDecidir) : pendentes;
   const aprovados = decididos.filter((h) => ehAprovado(h.status));
   const devolvidos = decididos.filter((h) => h.status === "devolvido");
   const falta = soma(aprovados, (h) => h.falta);
@@ -73,7 +76,7 @@ export default function AprovacaoDeHonorariosPage() {
       title="Aprovação de honorários"
       className="gap-x-3 max-sm:static"
       subtitle={eventos.length === 0 ? "valores negociados pela cenotécnica, pedidos na Escalação" : undefined}
-      context={podeAprovar && eventos.length > 0 ? (
+      context={podeVer && eventos.length > 0 ? (
         <>
           <span aria-hidden="true" className="hidden h-5 w-px shrink-0 bg-border sm:block" />
           <EventSearchSelect variante="barra" value={url.evento} onValueChange={(id) => setUrl({ evento: id })} events={eventos} rotuloVazio="Todos os eventos"
@@ -84,14 +87,14 @@ export default function AprovacaoDeHonorariosPage() {
   );
 
   let conteudo: React.ReactNode;
-  if (acesso.isLoading || (podeAprovar && pend.isLoading)) {
+  if (acesso.isLoading || (podeVer && pend.isLoading)) {
     conteudo = (
       <div className="space-y-4" aria-busy="true" aria-label="Carregando honorários">
         <div className="val-osso h-[78px] w-full rounded-xl" />
         <div className={cn(MOLDURA, "space-y-2 p-4")}>{[0, 1, 2, 3].map((i) => <div key={i} className="val-osso h-11 w-full" />)}</div>
       </div>
     );
-  } else if (!podeAprovar) {
+  } else if (!podeVer) {
     conteudo = (
       <EstadoDaValidacao icone={<Lock aria-hidden="true" />} titulo="Tela do aprovador de honorários"
         texto="Só o aprovador da escala das funções de cenotécnica, o aprovador padrão e o administrador decidem os honorários. Se deveria ser você, fale com o administrador."
@@ -113,7 +116,7 @@ export default function AprovacaoDeHonorariosPage() {
     conteudo = (
       <>
         <FaixaDeTotais testId="hon-apr-totais" itens={[
-          { rotulo: "Aguardando a sua decisão", valor: brlCurto(soma(meus, (h) => h.valorPedido)), detalhe: plural(meus.length, "pedido", "pedidos"), destaque: meus.length ? "warning" : undefined },
+          { rotulo: podeAprovar ? "Aguardando a sua decisão" : "Aguardando aprovação", valor: brlCurto(soma(meus, (h) => h.valorPedido)), detalhe: plural(meus.length, "pedido", "pedidos"), destaque: meus.length ? "warning" : undefined },
           { rotulo: "Aprovado", valor: brlCurto(soma(aprovados, (h) => h.valorAprovado ?? 0)), detalhe: plural(aprovados.length, "pedido", "pedidos"), destaque: aprovados.length ? "success" : undefined },
           { rotulo: "Devolvidos para negociar", valor: String(devolvidos.length), detalhe: devolvidos.length ? "com a cenotécnica, na Escalação" : "—", destaque: devolvidos.length ? "primary" : undefined },
           { rotulo: "Liberado pelo Financeiro", valor: brlCurto(soma(aprovados, (h) => h.liberado)), detalhe: falta > 0 ? `faltam ${brlCurto(falta)}` : aprovados.length ? "tudo liberado" : "—" },

@@ -226,6 +226,11 @@ describe("Honorários da cenotécnica — quem vê e quem decide", () => {
     const { honorario } = await lerPedido(c.pede.agent, p.id);
 
     expect((await mutacao(c.pede.agent.post(`/api/honorarios-ceno/${p.id}/aprovar`)).send({ versao: honorario.versao })).status).toBe(403);
+    // 30/10: quem lança acompanha a Aprovação de honorários, sem decidir.
+    const filaDeQuemPede = await c.pede.agent.get("/api/honorarios-ceno/aprovacao");
+    expect(filaDeQuemPede.status).toBe(200);
+    expect(filaDeQuemPede.body.map((h: { id: string }) => h.id)).toContain(p.id);
+    expect(filaDeQuemPede.body.find((h: { id: string }) => h.id === p.id)).toMatchObject({ podeDecidir: false, podeDevolver: false });
     const ok = await mutacao(c.aprova.agent.post(`/api/honorarios-ceno/${p.id}/aprovar`)).send({ versao: honorario.versao });
     expect(ok.status).toBe(200);
     // Já aprovado: quem não decide continua levando 403 (não 409).

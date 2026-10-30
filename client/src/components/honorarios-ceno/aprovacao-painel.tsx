@@ -204,11 +204,14 @@ function CabecalhoPendente({ todos, algum, onTodos, n }: { todos: boolean; algum
     <thead className="apr-cabecalho sticky z-10 border-b border-border bg-surface-muted [&>tr>th:first-child]:rounded-tl-xl [&>tr>th:last-child]:rounded-tr-xl">
       <tr>
         <th scope="col" data-col={n > 0 ? "sel" : "sel-vazio"} className="w-11 py-2.5 pl-3 pr-1 text-left">
-          <span className="inline-flex h-5 items-center gap-2.5">
-            <Checkbox checked={todos ? true : algum ? "indeterminate" : false} disabled={n === 0} onCheckedChange={onTodos}
-              aria-label={todos ? "Desmarcar todos os pedidos do evento" : "Selecionar todos os pedidos do evento"} />
-            <span className="apr-so-cartao whitespace-nowrap text-xs font-medium text-slate-600" aria-hidden="true">{todos ? "Desmarcar todos" : `Selecionar todos (${n})`}</span>
-          </span>
+          {/* 30/10: quem só acompanha (lança, não decide) não vê a caixa. */}
+          {n > 0 && (
+            <span className="inline-flex h-5 items-center gap-2.5">
+              <Checkbox checked={todos ? true : algum ? "indeterminate" : false} onCheckedChange={onTodos}
+                aria-label={todos ? "Desmarcar todos os pedidos do evento" : "Selecionar todos os pedidos do evento"} />
+              <span className="apr-so-cartao whitespace-nowrap text-xs font-medium text-slate-600" aria-hidden="true">{todos ? "Desmarcar todos" : `Selecionar todos (${n})`}</span>
+            </span>
+          )}
         </th>
         <th scope="col" className={TH}>Pessoa</th>
         <th scope="col" className={cn(TH, "w-[140px]")}>Montagem</th>

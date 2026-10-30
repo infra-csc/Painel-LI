@@ -45,7 +45,12 @@ export interface NavTab {
    * a Aprovação de honorários só aparece para quem aprova honorário). Sem o
    * dado (`AcessoExtra`), o item fica escondido.
    */
-  soCom?: keyof AcessoExtra;
+  soCom?: keyof AcessoExtra | (keyof AcessoExtra)[];
+  /**
+   * Abre a tela mesmo SEM a permissão do papel (30/10: quem lança a
+   * cenotécnica vê os Honorários da cenotécnica — a tela mostra só a aba dele).
+   */
+  ouCom?: keyof AcessoExtra;
   /**
    * Número opcional desenhado antes do nome no menu e na busca (o título e a
    * trilha usam só o nome). Decisão de 26/10: os itens dos honorários NÃO têm
@@ -64,6 +69,8 @@ export interface NavTab {
 /** O que o menu sabe além do papel — vem de GET /api/honorarios-ceno/acesso. */
 export interface AcessoExtra {
   aprovaHonorarios?: boolean;
+  /** Lança honorários da cenotécnica (validador/responsável da função ou admin). */
+  pedeHonorarios?: boolean;
 }
 
 export interface NavGroup {
@@ -96,7 +103,7 @@ export const ALL_TABS: NavTab[] = [
   { id: "scaling-suggestion", path: "/scaling-suggestion", label: "Sugestão de escala",   icon: ListPlus,          permission: "canAccessScalingSuggestion" },
   { id: "scaling-validation", path: "/scaling-validation", label: "Validação de escala",  icon: ClipboardCheck,    permission: "canAccessScalingValidation" },
   { id: "scaling-approval",   path: "/scaling-approval",   label: "Aprovação de escala",  icon: Stamp,             permission: "canAccessScalingApproval" },
-  { id: "aprovacao-de-honorarios", path: "/aprovacao-de-honorarios", label: "Aprovação de honorários", icon: CircleDollarSign, permission: "canAccessScalingApproval", soCom: "aprovaHonorarios" },
+  { id: "aprovacao-de-honorarios", path: "/aprovacao-de-honorarios", label: "Aprovação de honorários", icon: CircleDollarSign, permission: "canAccessScalingApproval", soCom: ["aprovaHonorarios", "pedeHonorarios"] },
   { id: "scaling-event-view", path: "/scaling-event-view", label: "Histórico da escala",  icon: History,           permission: "canAccessScalingEventView" },
   { id: "team-inclusion",     path: "/team-inclusion",     label: "Inclusão de equipe",   icon: UserRoundPlus,     permission: "canAccessScreen1" },
   { id: "scaling",            path: "/scaling",            label: "Escalação",            icon: ClipboardList,     permission: "canAccessScreen2" },
@@ -121,7 +128,7 @@ export const ALL_TABS: NavTab[] = [
   { id: "system-settings",    path: "/system-settings",    label: "Tabela de valores",    icon: SlidersHorizontal, permission: "canAccessFinanceiro", sinonimos: ["Valores padrão", "data de corte", "regras da presença", "termo LGPD"] },
   { id: "calculation-rules",  path: "/calculation-rules",  label: "Regras de cálculo",    icon: Calculator,        permission: "canAccessFinanceiro" },
   // 23/10: permissão própria — o perfil Honorários abre só esta tela.
-  { id: "honorarios-ceno",    path: "/honorarios-ceno",    label: "Honorários da cenotécnica", icon: HandCoins,   permission: "canAccessHonorariosCeno", sinonimos: ["liberação de verba", "empreita"] },
+  { id: "honorarios-ceno",    path: "/honorarios-ceno",    label: "Honorários da cenotécnica", icon: HandCoins,   permission: "canAccessHonorariosCeno", ouCom: "pedeHonorarios", sinonimos: ["liberação de verba", "empreita", "aprovados"] },
   { id: "flash-account",      path: "/flash-account",      label: "Cartão Flash",         icon: PiggyBank,         permission: "canAccessFinanceiro", sinonimos: ["Conta corrente Flash"] },
   // Cadastro de contratos por CNPJ (outra frente, 26/10): só aparece com a página no build.
   { id: "contratos",          path: "/contratos",          label: "Contratos (CNPJ)",     icon: FileSignature,     permission: "canAccessFinanceiro", sinonimos: ["contrato", "CNPJ", "razão social"], dependeDaPagina: "contratos" },
@@ -209,7 +216,10 @@ const telaPresente = (t: NavTab) => !t.dependeDaPagina || TELAS_PRESENTES.has(t.
 
 /** Todas as telas que ESTE usuário pode abrir, na ordem do menu. */
 export function visibleTabs(user: User | null, extra: AcessoExtra = {}): NavTab[] {
-  return ALL_TABS.filter((t) => telaPresente(t) && hasPermission(user, t.permission) && (!t.soCom || !!extra[t.soCom]));
+  const tem = (k: keyof AcessoExtra) => !!extra[k];
+  return ALL_TABS.filter((t) => telaPresente(t)
+    && (hasPermission(user, t.permission) || (!!t.ouCom && tem(t.ouCom)))
+    && (!t.soCom || (Array.isArray(t.soCom) ? t.soCom : [t.soCom]).some(tem)));
 }
 
 /** O nome com a etapa, se a tela tiver uma (menu e ⌘K) — hoje nenhuma tem (decisão de 26/10). */

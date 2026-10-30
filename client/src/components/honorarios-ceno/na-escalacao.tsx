@@ -26,12 +26,17 @@ import type { DetailsTab } from "@/components/scaling/inclusion-details/details-
 import { buscarEventosDoPedido, buscarPedidoDoEvento, chaveDoPedido, chaveDosEventos, useAcessoHonorarios, useEventosDoPedido } from "./api";
 import { PedidoPainel } from "./pedido-painel";
 
-/** Botão "Honorários do evento" — some para quem não pede e sem evento escolhido. */
+/**
+ * Botão "Honorários do evento" — some só para quem não pede. Sem UM evento
+ * escolhido (30/10, dono) vira "Honorários" e abre a lista: Eventos e
+ * Aprovados (todos os eventos).
+ */
 export function BotaoHonorariosDoEvento({ eventId, onAbrir }: { eventId: string | null; onAbrir: () => void }) {
   const acesso = useAcessoHonorarios();
   const podePedir = !!acesso.data?.podePedir;
   const eventos = useEventosDoPedido(podePedir && !!eventId);
-  if (!podePedir || !eventId) return null;
+  if (!podePedir) return null;
+  const rotulo = eventId ? "Honorários do evento" : "Honorários";
   const e = eventos.data?.find((x) => x.id === eventId);
   const pendentes = e ? e.semPedido + e.rascunhos + e.devolvidos : 0;
   const detalhe = e
@@ -42,12 +47,12 @@ export function BotaoHonorariosDoEvento({ eventId, onAbrir }: { eventId: string 
       type="button"
       onClick={onAbrir}
       data-testid="button-honorarios-do-evento"
-      title={detalhe ? `Honorários da cenotécnica: ${detalhe}` : "Valores negociados da cenotécnica deste evento"}
-      aria-label={`Honorários do evento${pendentes ? ` (${pendentes} pendentes)` : ""}`}
+      title={detalhe ? `Honorários da cenotécnica: ${detalhe}` : eventId ? "Valores negociados da cenotécnica deste evento" : "Honorários da cenotécnica: escolha o evento ou veja os aprovados de todos"}
+      aria-label={`${rotulo}${pendentes ? ` (${pendentes} pendentes)` : ""}`}
       className="esc-alvo relative inline-flex h-[34px] shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-sm font-medium text-slate-700 shadow-1 transition-colors hover:border-success/40 hover:bg-success-soft hover:text-success focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:px-3"
     >
       <HandCoins className="h-4 w-4 text-success-strong" aria-hidden="true" />
-      <span className="hidden sm:inline">Honorários do evento</span>
+      <span className="hidden sm:inline">{rotulo}</span>
       {pendentes > 0 && (
         <span aria-hidden="true" className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-warning-soft px-1.5 text-2xs font-semibold tabular-nums text-warning">{pendentes}</span>
       )}
@@ -64,7 +69,7 @@ export function HonorariosDoEventoSheet({ aberto, onOpenChange, eventId }: { abe
       <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[1100px]" data-testid="hon-sheet">
         <SheetHeader className="space-y-0.5 border-b border-border px-4 pb-3.5 pt-4 text-left sm:px-6">
           <SheetTitle className="flex items-center gap-2 pr-8 text-base font-semibold">
-            <HandCoins className="h-4 w-4 text-success-strong" aria-hidden="true" /> Honorários do evento
+            <HandCoins className="h-4 w-4 text-success-strong" aria-hidden="true" /> {evento ? "Honorários do evento" : "Honorários da cenotécnica"}
           </SheetTitle>
           <SheetDescription className="text-xs">
             Valor negociado de cada vaga da cenotécnica e das empreitas. O aprovador decide em Aprovação de honorários — nada aqui muda a escala.

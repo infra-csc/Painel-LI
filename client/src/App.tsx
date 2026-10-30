@@ -184,7 +184,7 @@ function Router() {
               </ProtectedRoute>
             </Route>
             <Route path="/aprovacao-de-honorarios">
-              <ProtectedRoute permission="canAccessScalingApproval">
+              <ProtectedRoute permission="canAccessScalingApproval" ouQuemLancaHonorarios>
                 <AprovacaoDeHonorariosPage />
               </ProtectedRoute>
             </Route>
@@ -329,7 +329,7 @@ function Router() {
               </ProtectedRoute>
             </Route>
             <Route path="/honorarios-ceno">
-              <ProtectedRoute permission="canAccessHonorariosCeno">
+              <ProtectedRoute permission="canAccessHonorariosCeno" ouQuemLancaHonorarios>
                 <HonorariosCenoPage />
               </ProtectedRoute>
             </Route>

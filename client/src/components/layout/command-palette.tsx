@@ -59,8 +59,10 @@ export default function CommandPalette({ open, onOpenChange }: { open: boolean; 
 
   useEffect(() => { if (!open) setQuery(""); }, [open]);
 
-  const aprovaHonorarios = !!useAcessoHonorarios(!!user).data?.podeAprovar;
-  const tabs = useMemo(() => visibleTabs(user, { aprovaHonorarios }), [user, aprovaHonorarios]);
+  const acessoHon = useAcessoHonorarios(!!user).data;
+  const aprovaHonorarios = !!acessoHon?.podeAprovar;
+  const pedeHonorarios = !!acessoHon?.podePedir;
+  const tabs = useMemo(() => visibleTabs(user, { aprovaHonorarios, pedeHonorarios }), [user, aprovaHonorarios, pedeHonorarios]);
 
   /** Telas do módulo de Escala que este usuário abre — destino dos eventos. */
   const scalingTargets = useMemo(

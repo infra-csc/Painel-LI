@@ -493,18 +493,20 @@ describe("Honorários — tela Aprovação de honorários", () => {
     expect(await screen.findByTestId("hon-decididos")).toHaveTextContent("Já Aprovado");
   });
 
-  it("quem não aprova honorário vê a tela fechada, sem buscar a fila", async () => {
+  it("quem não aprova nem lança vê a tela fechada, sem buscar a fila", async () => {
     const chamadas: Chamada[] = [];
-    mockarFetch(roteador({ "GET /api/honorarios-ceno/acesso": ACESSO({ podePedir: true }) }, chamadas));
+    mockarFetch(roteador({ "GET /api/honorarios-ceno/acesso": ACESSO({}) }, chamadas));
     renderComTudo(<AprovacaoDeHonorariosPage />, { user: producao, rota: "/aprovacao-de-honorarios" });
     expect(await screen.findByTestId("hon-apr-sem-acesso")).toBeInTheDocument();
     expect(chamadas.some((c) => c.url.includes("/aprovacao"))).toBe(false);
   });
 
   it("o item do menu só aparece para quem aprova honorário, logo depois da Aprovação de escala", () => {
-    const ids = (extra?: { aprovaHonorarios?: boolean }) => visibleTabs(aprovador, extra).map((t) => t.id);
+    const ids = (extra?: { aprovaHonorarios?: boolean; pedeHonorarios?: boolean }) => visibleTabs(aprovador, extra).map((t) => t.id);
     expect(ids()).not.toContain("aprovacao-de-honorarios");
     expect(ids({ aprovaHonorarios: false })).not.toContain("aprovacao-de-honorarios");
+    // 30/10 (dono): quem lança a cenotécnica também vê (só visualiza).
+    expect(ids({ pedeHonorarios: true })).toContain("aprovacao-de-honorarios");
     const comAcesso = ids({ aprovaHonorarios: true });
     expect(comAcesso).toContain("aprovacao-de-honorarios");
     expect(comAcesso.indexOf("aprovacao-de-honorarios")).toBe(comAcesso.indexOf("scaling-approval") + 1);
