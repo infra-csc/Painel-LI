@@ -464,14 +464,14 @@ export default function Sidebar() {
           <Link
             href="/"
             onClick={closeMobile}
-            aria-label="Trupp — Logística Interna, página inicial"
+            aria-label="Trupp — Operação de Eventos, página inicial"
             className={cn("flex items-center gap-2.5 min-w-0 rounded-lg no-underline", FOCO)}
           >
             <img src="/selo-app.svg" alt="" className="block w-8 h-8 shrink-0" />
             {!compact && (
               <span className="flex flex-col leading-tight min-w-0">
                 <span className="text-sm font-bold text-primary tracking-tight">Trupp</span>
-                <span className="text-2xs text-muted-foreground truncate">Logística Interna</span>
+                <span className="text-2xs text-muted-foreground truncate">Operação de Eventos</span>
               </span>
             )}
           </Link>

@@ -135,7 +135,7 @@ export default function AuthPage() {
   return (
     <AuthLayout rodape={<>Problemas para acessar? Fale com o administrador do sistema.</>}>
       <AuthHeader
-        titulo="Logística Interna"
+        titulo="Operação de Eventos"
         descricao={isDev ? "Entre com o seu e-mail e a sua senha." : "Entre com a sua conta Microsoft pelo Portal Norte."}
         selo={isDev && (
           <span className="inline-flex items-center gap-1.5 h-6 px-2 mb-5 rounded-full bg-warning-soft text-2xs font-semibold text-warning ring-1 ring-inset ring-warning/20">
@@ -222,7 +222,7 @@ export default function AuthPage() {
           <ol className="m-0 p-0 list-none space-y-3">
             {[
               "Abra o Portal Norte e entre com a sua conta Microsoft corporativa.",
-              "De lá, abra a Logística Interna: você chega aqui já autenticado.",
+              "De lá, abra a Trupp: você chega aqui já autenticado.",
             ].map((passo, i) => (
               <li key={i} className="flex items-start gap-3 text-sm text-foreground/85 leading-snug">
                 <span className="flex items-center justify-center w-6 h-6 shrink-0 rounded-full bg-brand-soft text-2xs font-bold text-primary tabular-nums">{i + 1}</span>

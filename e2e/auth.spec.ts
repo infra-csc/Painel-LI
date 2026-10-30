@@ -54,7 +54,7 @@ test.describe("Sair e tela /auth", () => {
     await page.getByRole("menuitem", { name: "Sair" }).click();
 
     // A casca some e a tela de login (formulário direto, só em dev) aparece.
-    await expect(page.getByRole("heading", { level: 1, name: "Logística Interna" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Operação de Eventos" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Entrar" })).toBeVisible();
     await expect(menu(page)).toHaveCount(0);
     // A sessão no servidor foi derrubada de verdade.

@@ -50,7 +50,7 @@ export async function gerarPdfDaRoomingList(r: RoomingList) {
   const util = W - 2 * M;
   doc.setProperties({
     title: `${r.comValores ? "USO INTERNO — " : ""}${r.hotelDefinido ? `Rooming list — ${r.hotel} — ${r.evento}` : `Rooming list — ${r.evento}`}`,
-    subject: "Rooming list", creator: "Painel de Logística Interna",
+    subject: "Rooming list", creator: "Trupp · Operação de Eventos",
   });
 
   // ── Cabeçalho ──────────────────────────────────────────────────────────

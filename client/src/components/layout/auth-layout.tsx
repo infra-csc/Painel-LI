@@ -34,7 +34,10 @@ export function AuthLayout({ children, rodape }: { children: ReactNode; rodape?:
       <div className="casca-grade relative hidden lg:flex lg:w-[44%] 2xl:w-[40%] flex-col justify-between p-12 xl:p-16 text-white">
         <div className="flex items-center gap-3">
           <MarcaDoApp tamanho={40} />
-          <p className="m-0 text-lg font-bold tracking-tight">Trupp</p>
+          <div className="leading-tight">
+            <p className="m-0 text-lg font-bold tracking-tight">Trupp</p>
+            <p className="m-0 text-xs text-white/70">Operação de Eventos</p>
+          </div>
         </div>
 
         <div className="max-w-[440px] xl:max-w-[520px]">
