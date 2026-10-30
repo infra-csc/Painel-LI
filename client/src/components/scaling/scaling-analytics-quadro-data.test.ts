@@ -1,6 +1,7 @@
 /**
- * Quadro de prazos — UMA etapa por vaga (dono, 16/10: "não faz sentido a mesma
- * escalação estar em duas colunas, ela tem que travar na coluna").
+ * Quadro de prazos — UMA etapa por vaga até a escala confirmada (dono, 16/10:
+ * "não faz sentido a mesma escalação estar em duas colunas, ela tem que travar
+ * na coluna"); Passagem e Hotel são tarefas paralelas (30/10, Viva Esporte Serra).
  */
 import { describe, it, expect } from "vitest";
 import type { TeamInclusion } from "@shared/schema";
@@ -67,16 +68,18 @@ describe("uma etapa por vaga: a primeira que ela ainda não cumpriu", () => {
     expect(etapaAtualDaVaga(v.local, ctx)).toBe("concluida");
   });
 
-  it("invariante: soma das células + concluídas = total, e nenhuma vaga em duas colunas", () => {
+  it("até a escala confirmada, uma coluna por vaga; Passagem e Hotel contam cada tarefa por si", () => {
     const v = cenario();
     const vagas = Object.values(v);
     const q = quadroDoEvento(vagas, ctx);
     const contagem = Object.fromEntries(ETAPAS_DO_QUADRO.map((e) => [e, q.colunas[e].paradas.length]));
-    expect(contagem).toEqual({ validacao: 1, aprovacao: 1, escalacao: 1, escalado: 2, passagem: 1, hotel: 2 });
+    // Hotel: semPassagem (sem os dois) também conta — a reserva não espera a passagem.
+    expect(contagem).toEqual({ validacao: 1, aprovacao: 1, escalacao: 1, escalado: 2, passagem: 1, hotel: 3 });
     expect(q.concluidas.length).toBe(2);
-    const ids = [...ETAPAS_DO_QUADRO.flatMap((e) => q.colunas[e].paradas), ...q.concluidas].map((i) => i.id);
-    expect(ids.length).toBe(vagas.length);
-    expect(new Set(ids).size).toBe(vagas.length);
+    const ateEscalado = ETAPAS_DO_QUADRO.filter((e) => e !== "passagem" && e !== "hotel");
+    const ids = ateEscalado.flatMap((e) => q.colunas[e].paradas).map((i) => i.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(q.colunas.hotel.paradas.map((i) => i.id)).toContain(v.semPassagem.id);
     // A vaga sem nome do print: só em Escalação.
     expect(q.colunas.escalado.paradas.map((i) => i.id)).not.toContain(v.semNome.id);
   });
@@ -90,6 +93,20 @@ describe("uma etapa por vaga: a primeira que ela ainda não cumpriu", () => {
     expect(q.colunas.passagem.passaram.map((i) => i.id).sort()).toEqual([v.semHotel.id, v.pronta.id].sort());
     expect(q.colunas.hotel.passaram.map((i) => i.id)).toEqual([v.pronta.id]);
     expect(q.colunas.passagem.ninguemPrecisa).toBe(false);
+  });
+
+  it("hotel reservado com a passagem pendente: a coluna Hotel já conta a vaga como cumprida (30/10)", () => {
+    comPassagem.clear();
+    comHotel.clear();
+    const a = vaga({ collaboratorId: "s1", status: "escalado", needsTicket: true, needsAccommodation: true });
+    const b = vaga({ collaboratorId: "s2", status: "escalado", needsTicket: true, needsAccommodation: true });
+    comHotel.add(a.id);
+    comHotel.add(b.id);
+    const q = quadroDoEvento([a, b], ctx);
+    expect(q.colunas.passagem.paradas.length).toBe(2);
+    expect(q.colunas.hotel.paradas).toEqual([]);
+    expect(q.colunas.hotel.antes).toEqual([]);
+    expect(q.colunas.hotel.passaram.map((i) => i.id).sort()).toEqual([a.id, b.id].sort());
   });
 
   it("ninguém precisa: o evento sem nenhuma vaga com passagem ou hotel", () => {

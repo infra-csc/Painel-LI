@@ -172,7 +172,7 @@ export function QuadroDePrazos({ eventos, ctx, hoje, dias, podeEditar, onVerVaga
     <div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[940px] border-collapse text-left">
-          <caption className="sr-only">Vagas paradas em cada etapa e o prazo de cada uma, por evento. Cada vaga aparece só na etapa em que está parada.</caption>
+          <caption className="sr-only">Vagas paradas em cada etapa e o prazo de cada uma, por evento. Cada vaga aparece só na etapa em que está parada; passagem e hotel são tarefas paralelas, contadas cada uma por si.</caption>
           <thead>
             <tr className="border-b border-border bg-surface-muted/60 text-2xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
               <th scope="col" className="px-4 py-2">Evento</th>
@@ -250,7 +250,7 @@ export function QuadroDePrazos({ eventos, ctx, hoje, dias, podeEditar, onVerVaga
       </div>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-border px-4 py-2.5 text-2xs text-muted-foreground">
-        <span className="font-medium text-slate-700">Cada vaga aparece só na etapa em que está parada.</span>
+        <span className="font-medium text-slate-700">Cada vaga aparece só na etapa em que está parada; passagem e hotel correm em paralelo.</span>
         <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2.5 w-2.5 rounded-sm border border-danger/25 bg-danger-soft" />prazo passou com vaga parada ali</span>
         <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2.5 w-2.5 rounded-sm border border-warning/25 bg-warning-soft" />vence em até 3 dias</span>
         <span>— nenhuma parada, ainda há vagas antes</span>

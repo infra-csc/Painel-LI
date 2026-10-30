@@ -403,8 +403,9 @@ export function gargalos(linhas: TeamInclusion[], ctx: AnalyticsContext, hoje: D
 // primeira não cumprida — e cada célula conta só quem está parado nela:
 //   Validação → Aprovação → Escalação (sem nome) → Escalado (com nome, falta
 //   confirmar) → Passagem (só quem precisa) → Hotel (só quem precisa) → Concluída.
-// Passagem vem antes de Hotel porque as datas do quarto saem da passagem (regra
-// do Espelho). Invariante (com teste): soma das células + concluídas = total.
+// Até a escala confirmada é uma etapa por vaga (soma das células = total).
+// Passagem e Hotel (30/10) são tarefas PARALELAS: a vaga confirmada aparece em
+// cada coluna que ainda lhe falta — veja quadroDoEvento.
 //
 // Escalação × Escalado: nos dados, "nome confirmado" JÁ É a escalação completa
 // (status confirmado → "Escalado"); não existe vaga confirmada e incompleta. O
@@ -474,16 +475,36 @@ export interface QuadroDoEvento {
 const precisaDa = (etapa: EtapaDoQuadro, i: TeamInclusion): boolean =>
   etapa === "passagem" ? !!i.needsTicket : etapa === "hotel" ? !!i.needsAccommodation : true;
 
+/** A vaga já tem a tarefa da coluna de logística (passagem emitida / hotel reservado). */
+const cumpriu = (etapa: "passagem" | "hotel", i: TeamInclusion, ctx: AnalyticsContext): boolean =>
+  etapa === "passagem" ? !!ctx.temPassagem?.(i) : !!ctx.temHotel?.(i);
+
 export function quadroDoEvento(vagas: TeamInclusion[], ctx: AnalyticsContext): QuadroDoEvento {
   const atual = vagas.map((i) => ({ i, e: etapaAtualDaVaga(i, ctx) }));
   const colunas = Object.fromEntries(ETAPAS_DO_QUADRO.map((etapa) => {
     const ordem = ORDEM[etapa];
+    // 30/10 (Viva Esporte Serra: hotel reservado, passagem pendente — a coluna
+    // Hotel dizia "10 antes"): Passagem e Hotel são tarefas PARALELAS da
+    // logística, cada uma de um time. Depois da escala confirmada, cada coluna
+    // olha só a sua tarefa — a vaga sem passagem e sem hotel aparece nas duas.
+    if (etapa === "passagem" || etapa === "hotel") {
+      const naLogistica = atual.filter((x) => ORDEM[x.e] >= ORDEM.passagem);
+      const precisam = naLogistica.filter((x) => precisaDa(etapa, x.i));
+      const coluna: ColunaDoQuadro = {
+        etapa,
+        paradas: precisam.filter((x) => !cumpriu(etapa, x.i, ctx)).map((x) => x.i),
+        antes: atual.filter((x) => ORDEM[x.e] < ORDEM.passagem).map((x) => x.i),
+        passaram: precisam.filter((x) => cumpriu(etapa, x.i, ctx)).map((x) => x.i),
+        ninguemPrecisa: !vagas.some((i) => precisaDa(etapa, i)),
+      };
+      return [etapa, coluna];
+    }
     const coluna: ColunaDoQuadro = {
       etapa,
       paradas: atual.filter((x) => x.e === etapa).map((x) => x.i),
       antes: atual.filter((x) => ORDEM[x.e] < ordem).map((x) => x.i),
-      passaram: atual.filter((x) => ORDEM[x.e] > ordem && precisaDa(etapa, x.i)).map((x) => x.i),
-      ninguemPrecisa: (etapa === "passagem" || etapa === "hotel") && !vagas.some((i) => precisaDa(etapa, i)),
+      passaram: atual.filter((x) => ORDEM[x.e] > ordem).map((x) => x.i),
+      ninguemPrecisa: false,
     };
     return [etapa, coluna];
   })) as Record<EtapaDoQuadro, ColunaDoQuadro>;
