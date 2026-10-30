@@ -14,10 +14,15 @@
  * tabela) ou "Outro valor" digitado na célula (grava ao sair); as empreitas
  * abaixo, cada uma com as vagas que agrupa; e "Enviar para aprovação" em
  * lote. A vaga da casa (funcionário) fica numa nota: não recebe honorário.
+ *
+ * 30/10 (quem lança: "não consigo ter controle das OCs que eu abrir"): sem
+ * evento, duas abas — Eventos e "Aprovados (todos os eventos)"
+ * (aprovados-todos.tsx). "Abrir no evento" de lá abre o evento já na linha
+ * da pessoa; "voltar" volta à aba de onde veio, com os filtros.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  AlertTriangle, ArrowRight, ChevronDown, ChevronLeft, ChevronRight, CloudOff, HardHat, History, Inbox, Lock, Pencil, Plus, Send, Trash2, Undo2, Users,
+  AlertTriangle, ArrowRight, BadgeCheck, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, CloudOff, Crosshair, HardHat, History, Inbox, Lock, Pencil, Plus, Send, Trash2, Undo2, Users, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -42,6 +47,7 @@ import { AvisoDaLinha, BarraDaVerba, EtapaBadge, FaixaDeTotais, ValorComDiaria, 
 import { CampoDeValor, IndicadorDeSalvamento, SelectDoTipo, useSalvamento } from "./linha-editavel";
 import { DetalhesDialog, type AlvoDoFormulario } from "./detalhes-dialog";
 import { HistoricoSheet } from "./historico-sheet";
+import { AprovadosDeTodosOsEventos, FILTROS_PADRAO, type FiltrosDosAprovados } from "./aprovados-todos";
 
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
@@ -628,7 +634,12 @@ interface ItemDoPedido { chave: string; situacao: SituacaoNaFila; meu: boolean }
 
 const chaveDaLinha = (l: LinhaDoPedido) => l.vaga?.id ?? l.honorario?.id ?? "";
 
-function PedidoDoEvento({ eventId, onTrocarEvento }: { eventId: string; onTrocarEvento: () => void }) {
+function PedidoDoEvento({ eventId, onTrocarEvento, foco: focoInicial, voltarPara }: {
+  eventId: string; onTrocarEvento: () => void;
+  /** 30/10: id do pedido em foco (vindo de "Aprovados") — a lista mostra só ele até "Ver todas". */
+  foco?: string | null;
+  voltarPara?: string;
+}) {
   const q = usePedidoDoEvento(eventId);
   const { remover } = useMutacoesDoPedido();
   const { toast } = useToast();
@@ -645,6 +656,7 @@ function PedidoDoEvento({ eventId, onTrocarEvento }: { eventId: string; onTrocar
   // até a pessoa trocar de aba.
   const [recorte, setRecorte] = useState<{ aba: AbaDoPedido; soMeus: boolean; fixados: Set<string> }>({ aba: "todas", soMeus: false, fixados: new Set() });
   const modo: ModoDaLista = useMediaQuery("(min-width: 1280px)") ? "tabela" : "cartao";
+  const [foco, setFoco] = useState<string | null>(focoInicial ?? null);
 
   const d = q.data;
   const todas = useMemo(() => [
@@ -704,8 +716,12 @@ function PedidoDoEvento({ eventId, onTrocarEvento }: { eventId: string; onTrocar
   const filtrando = recorte.aba !== "todas" || recorte.soMeus;
 
   const vagas = d.linhas;
-  const vagasVisiveis = filtrando ? vagas.filter((l) => visivel(chaveDaLinha(l))) : vagas;
-  const empreitasVisiveis = filtrando ? d.empreitas.filter((h) => visivel(h.id)) : d.empreitas;
+  // Em foco (vindo de "Aprovados"): só a linha do pedido. Se ele não está mais aqui, a lista inteira.
+  const linhaEmFoco = foco ? vagas.find((l) => l.honorario?.id === foco) ?? null : null;
+  const empreitaEmFoco = foco ? d.empreitas.find((h) => h.id === foco) ?? null : null;
+  const emFoco = linhaEmFoco ? (linhaEmFoco.honorario?.nome ?? linhaEmFoco.sugestao?.nome ?? "") : empreitaEmFoco?.nome ?? null;
+  const vagasVisiveis = emFoco != null ? (linhaEmFoco ? [linhaEmFoco] : []) : filtrando ? vagas.filter((l) => visivel(chaveDaLinha(l))) : vagas;
+  const empreitasVisiveis = emFoco != null ? (empreitaEmFoco ? [empreitaEmFoco] : []) : filtrando ? d.empreitas.filter((h) => visivel(h.id)) : d.empreitas;
   const cb: Callbacks = {
     meuId,
     onDetalhes: (x) => setAlvo({ modo: "vaga", linha: x }),
@@ -724,7 +740,7 @@ function PedidoDoEvento({ eventId, onTrocarEvento }: { eventId: string; onTrocar
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
           <button type="button" onClick={onTrocarEvento} className="val-alvo -ml-1 inline-flex h-7 items-center gap-1 rounded-md px-1 text-xs font-medium text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" /> Todos os eventos
+            <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" /> {voltarPara ?? "Todos os eventos"}
           </button>
           <h2 className="text-[15px] font-semibold leading-6 text-foreground">{d.evento.name}</h2>
           <p className="text-xs text-muted-foreground">
@@ -776,13 +792,22 @@ function PedidoDoEvento({ eventId, onTrocarEvento }: { eventId: string; onTrocar
           testId="hon-pedido-vazio" />
       ) : (
         <>
+          {emFoco != null && (
+            <p role="status" className="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-lg border border-primary/20 bg-brand-soft px-3.5 py-2 text-xs text-slate-700" data-testid="hon-pedido-foco">
+              <Crosshair className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
+              <span className="min-w-0 flex-1">Mostrando só <span className="font-semibold text-foreground">{emFoco}</span>, aberto pelos Aprovados.</span>
+              <button type="button" onClick={() => setFoco(null)} className="val-alvo inline-flex shrink-0 items-center gap-1 rounded font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" data-testid="hon-pedido-foco-limpar">
+                <X className="h-3 w-3" aria-hidden="true" /> Ver todas as linhas
+              </button>
+            </p>
+          )}
           <AbasDoPedido
             aba={recorte.aba} onAba={(a) => mudarRecorte(a, recorte.soMeus)} n={nPorAba}
             devolvidos={universo.filter((i) => i.situacao === "devolvido").length}
             soMeus={recorte.soMeus} onSoMeus={(v) => mudarRecorte(recorte.aba, v)} nMeus={itens.filter((i) => i.meu).length}
           />
 
-          {filtrando && vagasVisiveis.length === 0 && empreitasVisiveis.length === 0 ? (
+          {emFoco == null && filtrando && vagasVisiveis.length === 0 && empreitasVisiveis.length === 0 ? (
             <div className="val-entra flex flex-col items-center gap-1 rounded-xl border border-dashed border-slate-300 bg-card px-6 py-8 text-center" role="status" data-testid="hon-aba-vazia">
               <p className="text-sm font-semibold text-foreground">
                 {recorte.soMeus && recorte.aba === "todas" ? "Você ainda não lançou nada neste evento" : vazioDaAba?.titulo}
@@ -807,7 +832,7 @@ function PedidoDoEvento({ eventId, onTrocarEvento }: { eventId: string; onTrocar
                 </section>
               )}
 
-              {(!filtrando || empreitasVisiveis.length > 0) && (
+              {((!filtrando && emFoco == null) || empreitasVisiveis.length > 0) && (
                 <section aria-labelledby="hon-empreitas" className="space-y-2 pt-2">
                   <div className="flex items-center justify-between gap-2">
                     <h3 id="hon-empreitas" className="flex flex-wrap items-baseline gap-x-2 text-[13px] font-semibold text-foreground">
@@ -875,9 +900,51 @@ function PedidoDoEvento({ eventId, onTrocarEvento }: { eventId: string; onTrocar
   );
 }
 
-/** A aba inteira: acesso → lista de eventos ou o evento escolhido. */
+type ListaSemEvento = "eventos" | "aprovados";
+const ABAS_SEM_EVENTO: { id: ListaSemEvento; rotulo: string; icone: typeof CalendarDays }[] = [
+  { id: "eventos", rotulo: "Eventos", icone: CalendarDays },
+  { id: "aprovados", rotulo: "Aprovados (todos os eventos)", icone: BadgeCheck },
+];
+
+/** Eventos | Aprovados (todos os eventos) — as abas de quem lança sem evento escolhido (30/10). */
+function AbasSemEvento({ aba, onAba }: { aba: ListaSemEvento; onAba: (a: ListaSemEvento) => void }) {
+  return (
+    <div className="val-rolagem-x border-b border-border">
+      <div role="tablist" aria-label="Honorários sem evento escolhido" className="flex min-w-max items-end gap-1">
+        {ABAS_SEM_EVENTO.map((a, i) => {
+          const on = aba === a.id;
+          const Icone = a.icone;
+          return (
+            <button key={a.id} id={`hon-lista-tab-${a.id}`} type="button" role="tab" aria-selected={on} aria-controls="hon-lista-painel" tabIndex={on ? 0 : -1}
+              data-testid={`hon-lista-tab-${a.id}`}
+              onClick={() => onAba(a.id)}
+              onKeyDown={(e) => {
+                if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+                e.preventDefault();
+                const prox = ABAS_SEM_EVENTO[(i + 1) % ABAS_SEM_EVENTO.length];
+                onAba(prox.id);
+                document.getElementById(`hon-lista-tab-${prox.id}`)?.focus();
+              }}
+              className={cn("relative -mb-px inline-flex h-11 items-center gap-2 rounded-t-md px-3 text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                on ? "text-primary" : "text-muted-foreground hover:text-foreground")}>
+              <Icone className="h-4 w-4 shrink-0" aria-hidden="true" />
+              {a.rotulo}
+              <span aria-hidden="true" className={cn("absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-primary transition-transform duration-200 ease-out motion-reduce:transition-none", on ? "scale-x-100" : "scale-x-0")} />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** A aba inteira: acesso → lista de eventos (ou os aprovados de todos) ou o evento escolhido. */
 export function PedidoPainel({ eventId, onEscolherEvento }: { eventId: string | null; onEscolherEvento: (id: string) => void }) {
   const acesso = useAcessoHonorarios();
+  // 30/10: a aba e os filtros dos Aprovados sobrevivem à ida ao evento e à volta.
+  const [lista, setLista] = useState<ListaSemEvento>("eventos");
+  const [filtros, setFiltros] = useState<FiltrosDosAprovados>(FILTROS_PADRAO);
+  const [foco, setFoco] = useState<{ eventId: string; honorarioId: string } | null>(null);
   if (acesso.isLoading) return <Esqueleto linhas={4} rotulo="Carregando…" />;
   if (!acesso.data?.podePedir) {
     return (
@@ -886,6 +953,21 @@ export function PedidoPainel({ eventId, onEscolherEvento }: { eventId: string | 
         testId="hon-sem-acesso" />
     );
   }
-  if (!eventId) return <EventosDoPedido onEscolher={onEscolherEvento} />;
-  return <PedidoDoEvento key={eventId} eventId={eventId} onTrocarEvento={() => onEscolherEvento("")} />;
+  if (!eventId) {
+    return (
+      <div className="space-y-4">
+        <AbasSemEvento aba={lista} onAba={setLista} />
+        <div id="hon-lista-painel" role="tabpanel" aria-labelledby={`hon-lista-tab-${lista}`}>
+          {lista === "eventos"
+            ? <EventosDoPedido onEscolher={(id) => { setFoco(null); onEscolherEvento(id); }} />
+            : <AprovadosDeTodosOsEventos filtros={filtros} onFiltros={(f) => setFiltros((x) => ({ ...x, ...f }))} visao="quem-lanca"
+                podeInformarOc={!!acesso.data?.podeInformarOc}
+                onAbrirNoEvento={(h) => { setFoco({ eventId: h.eventId, honorarioId: h.id }); onEscolherEvento(h.eventId); }} />}
+        </div>
+      </div>
+    );
+  }
+  const focoAqui = foco?.eventId === eventId ? foco.honorarioId : null;
+  return <PedidoDoEvento key={`${eventId}:${focoAqui ?? ""}`} eventId={eventId} foco={focoAqui} voltarPara={lista === "aprovados" ? "Aprovados (todos os eventos)" : undefined}
+    onTrocarEvento={() => { setFoco(null); onEscolherEvento(""); }} />;
 }

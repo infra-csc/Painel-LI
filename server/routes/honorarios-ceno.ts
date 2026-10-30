@@ -32,17 +32,17 @@ import { z } from "zod";
 import { storage } from "../storage";
 import { effectiveUserId } from "../simulation";
 import { createAuditLog, primeiraMensagemDoZod } from "./_compartilhado";
-import { ehPerfilHonorarios, normalizeRole, podeLiberarHonorarios } from "@shared/roles";
+import { ehPerfilHonorarios, isFinanceRole, normalizeRole, podeLiberarHonorarios } from "@shared/roles";
 import { DEFAULT_APPROVER_SETTING_KEY } from "@shared/scaling-validation-rules";
 import { hojeISO } from "@shared/hoje-sp";
 import type { User } from "@shared/schema";
 import {
-  HONORARIO_LOTE_MAX, HONORARIO_NOME_MAX, HONORARIO_OC_MAX, HONORARIO_TEXTO_MAX, HONORARIO_STATUS_LABEL,
+  HONORARIO_LOTE_MAX, HONORARIO_NOME_MAX, HONORARIO_OC_MAX, HONORARIO_STATUS, HONORARIO_TEXTO_MAX, HONORARIO_STATUS_LABEL,
   diasDoPeriodo, faltaLiberar, faltaParaEnviar, podeDecidirHonorario, podeDevolverHonorario,
   podeEditarHonorario, podeLiberarHonorario, podeRemoverHonorario, posicaoSugerida, setorDaVaga,
   validarAjuste, validarDadosDoPedido, validarLiberacao, validarMotivo, vagaRecebeHonorario, ehAprovado,
   vagaSaiuDosHonorarios, AVISO_DA_VAGA_LABEL, TIPO_DO_VALOR_LABEL, ehTipoDeTabela, ehTipoDoValor, nomeDaVagaSemColaborador,
-  posicaoDoTipo, honorarioNaFila, type HonorarioStatus, type HonorarioNaFila, type PedidoParaFila,
+  posicaoDoTipo, honorarioNaFila, temOc, textoDaOc, validarOcInformada, type HonorarioStatus, type HonorarioNaFila, type PedidoParaFila,
 } from "@shared/honorarios-ceno";
 import { CENO_FREELA_TIPOS, cenoEmpreitaTotalCents, isCenoFreelaTipo, type CenoFreelaTipo } from "@shared/cenotecnica-empreita";
 import * as dados from "../storage/honorarios-ceno";
@@ -54,6 +54,11 @@ interface Acesso {
   user: User;
   admin: boolean;
   financeiro: boolean;
+  /**
+   * Coloca/corrige a OC/DP da liberação (30/10): o DP (financial) e o admin.
+   * O perfil Honorários (controladoria) libera, mas a OC é do DP.
+   */
+  informaOc: boolean;
   aprovadorPadrao: boolean;
   funcoesCeno: { id: string; name: string }[];
   /** Funções de cenotécnica em que a pessoa pode pedir honorário. */
@@ -106,6 +111,7 @@ async function acessoDe(user: User): Promise<Acesso> {
     admin: normalizeRole(user.role) === "admin",
     // Libera a verba: admin, RH e o perfil Honorários (23/10).
     financeiro: podeLiberarHonorarios(user.role),
+    informaOc: isFinanceRole(user.role),
     aprovadorPadrao: !soLibera && !!padrao && padrao === user.id,
     funcoesCeno,
     pedeEm,
@@ -356,11 +362,14 @@ const loteSchema = z.object({ acao: z.enum(["aprovar", "devolver"]), itens: iten
 const liberarSchema = z.object({
   versao: z.number().int(),
   data: z.string(),
-  oc: z.string().max(HONORARIO_OC_MAX, `OC/DP com até ${HONORARIO_OC_MAX} caracteres`),
+  // 30/10: a OC/DP é opcional (o DP informa depois) — ausente ou vazia = "sem OC".
+  oc: z.string().max(HONORARIO_OC_MAX, `OC/DP com até ${HONORARIO_OC_MAX} caracteres`).optional(),
   valor: z.number().int(),
   observacao: textoOpcional(HONORARIO_TEXTO_MAX),
 }).strict();
 const estornarSchema = z.object({ versao: z.number().int(), motivo: z.string() }).strict();
+/** `ocAnterior`: a OC que a tela leu ("" = sem OC) — se mudou no meio, 409. */
+const informarOcSchema = z.object({ oc: z.string(), ocAnterior: z.string().optional() }).strict();
 
 function corpo<T>(schema: z.ZodType<T>, req: Request, res: Response): T | null {
   const r = schema.safeParse(req.body ?? {});
@@ -402,7 +411,7 @@ export function registrarHonorariosCeno(app: Express): void {
     if (!user) return;
     const a = await acessoDe(user);
     naoArmazenar(res);
-    res.json({ podePedir: podePedir(a), podeAprovar: podeAprovar(a), podeLiberar: a.financeiro, admin: a.admin });
+    res.json({ podePedir: podePedir(a), podeAprovar: podeAprovar(a), podeLiberar: a.financeiro, podeInformarOc: a.informaOc, admin: a.admin });
   });
 
   // Contagens para o sino e os badges do menu. Nunca 403: quem não participa recebe zeros.
@@ -576,6 +585,31 @@ export function registrarHonorariosCeno(app: Express): void {
     const lista: HonorarioNaFila[] = vagas.map((v) => honorarioNaFila(v, porVaga.get(v.id) ?? null, empreitaDaVaga.get(v.id) ?? null, user.id));
     naoArmazenar(res);
     res.json(lista);
+  });
+
+  // "Aprovados — todos os eventos" (30/10, quem lança: "senão não consigo ter
+  // controle das OCs que eu abrir"). SÓ LEITURA: os pedidos APROVADOS
+  // (aprovado e aprovado com ajuste) das funções pelas quais a pessoa lança —
+  // o mesmo recorte do pedido (pedeNaLinha) — de TODOS os eventos, com o que o
+  // Financeiro já liberou: as liberações que valem (sem as estornadas), só
+  // data, OC/DP ("" = sem OC) e valor. Nada de dado bancário/CPF (o pedido
+  // não tem). 30/10: também o DP e o admin (quem controla as OCs), com todas
+  // as funções.
+  app.get("/api/honorarios-ceno/aprovados", async (req, res) => {
+    const user = await usuarioDe(req, res);
+    if (!user) return;
+    const a = await acessoDe(user);
+    if (!podePedir(a) && !a.informaOc) return negar(res);
+    const aprovados = HONORARIO_STATUS.filter(ehAprovado);
+    const linhas = (await dados.listarHonorarios([dados.filtros.status(aprovados)])).filter((h) => a.informaOc || pedeNaLinha(a, h));
+    const libs = await dados.liberacoesDe(linhas.map((h) => h.id));
+    const porHonorario = new Map<string, { id: string; data: string; oc: string; valor: number }[]>();
+    for (const l of libs) {
+      if (l.estornadaEm) continue;
+      porHonorario.set(l.honorarioId, [...(porHonorario.get(l.honorarioId) ?? []), { id: l.id, data: String(l.data), oc: l.oc, valor: l.valor }]);
+    }
+    naoArmazenar(res);
+    res.json(linhas.map((h) => ({ ...visao(a, h), liberacoes: porHonorario.get(h.id) ?? [] })));
   });
 
   // Criar o pedido de uma vaga ou uma empreita (nasce como rascunho).
@@ -960,14 +994,16 @@ export function registrarHonorariosCeno(app: Express): void {
       return res.status(409).json({ message: `Este pedido está "${HONORARIO_STATUS_LABEL[atual.status as HonorarioStatus] ?? atual.status}" — só se libera verba do que foi aprovado.`, atual: visao(a, atual) });
     }
     const falta = faltaLiberar(atual.valorAprovado, atual.liberado);
-    const erro = validarLiberacao({ data: b.data, oc: b.oc, valor: b.valor }, falta);
+    const oc = (b.oc ?? "").trim();
+    const erro = validarLiberacao({ data: b.data, oc, valor: b.valor }, falta);
     if (erro) return res.status(falta <= 0 ? 409 : 400).json({ message: erro, atual: visao(a, atual) });
     const aprovado = atual.valorAprovado ?? 0;
-    const r = await dados.registrarLiberacao(atual.id, b.versao, { data: b.data, oc: b.oc.trim(), valor: b.valor, observacao: b.observacao?.trim() || null }, ator(user),
+    // Sem OC: grava "" (a coluna é NOT NULL) e o histórico diz "sem OC".
+    const r = await dados.registrarLiberacao(atual.id, b.versao, { data: b.data, oc, valor: b.valor, observacao: b.observacao?.trim() || null }, ator(user),
       (liberadoAgora) => faltaLiberar(aprovado, liberadoAgora),
-      (depois) => `OC/DP ${b.oc.trim()} · ${brl(b.valor)} · ${depois >= aprovado ? "verba liberada por completo" : `liberação parcial — faltam ${brl(aprovado - depois)}`}`);
+      (depois) => `${textoDaOc(oc)} · ${brl(b.valor)} · ${depois >= aprovado ? "verba liberada por completo" : `liberação parcial — faltam ${brl(aprovado - depois)}`}`);
     if (!r) return responderCorrida(res, a, atual.id, "Este pedido mudou enquanto você registrava a liberação.");
-    await createAuditLog("liberar_verba", "honorario_ceno", atual.id, { ...resumoParaAuditoria(r.honorario), oc: b.oc.trim(), valorLiberado: b.valor, data: b.data }, user.id, user.name, undefined, req);
+    await createAuditLog("liberar_verba", "honorario_ceno", atual.id, { ...resumoParaAuditoria(r.honorario), oc: oc || null, valorLiberado: b.valor, data: b.data }, user.id, user.name, undefined, req);
     res.status(201).json(visao(a, (await dados.getHonorario(atual.id))!));
   });
 
@@ -986,10 +1022,48 @@ export function registrarHonorariosCeno(app: Express): void {
     const lib = await dados.getLiberacao(req.params.liberacaoId);
     if (!lib || lib.honorarioId !== atual.id) return res.status(404).json({ message: "Liberação não encontrada." });
     if (lib.estornadaEm) return res.status(409).json({ message: `Esta liberação já foi estornada${lib.estornadaPorNome ? ` por ${lib.estornadaPorNome}` : ""}.`, atual: visao(a, atual) });
-    const linha = await dados.estornarLiberacao(atual.id, b.versao, lib.id, b.motivo.trim(), ator(user), `Estorno da OC/DP ${lib.oc} · ${brl(lib.valor)}`);
+    const linha = await dados.estornarLiberacao(atual.id, b.versao, lib.id, b.motivo.trim(), ator(user), `Estorno da liberação ${textoDaOc(lib.oc)} · ${brl(lib.valor)}`);
     if (!linha) return responderCorrida(res, a, atual.id, "Este pedido mudou enquanto você estornava.");
-    await createAuditLog("estornar_liberacao", "honorario_ceno", atual.id, { ...resumoParaAuditoria(linha), oc: lib.oc, valorEstornado: lib.valor }, user.id, user.name, undefined, req);
+    await createAuditLog("estornar_liberacao", "honorario_ceno", atual.id, { ...resumoParaAuditoria(linha), oc: lib.oc || null, valorEstornado: lib.valor }, user.id, user.name, undefined, req);
     res.json(visao(a, (await dados.getHonorario(atual.id))!));
+  });
+
+  // OC/DP informada DEPOIS da liberação (30/10 — "quem coloca a OC é o
+  // RH/DP, inclusive depois de liberado"). DP e admin; o perfil Honorários
+  // (controladoria) só libera. Liberação estornada não aceita OC (409).
+  // Registra no histórico do pedido e na auditoria.
+  app.patch("/api/honorarios-ceno/:id/liberacoes/:liberacaoId/oc", async (req, res) => {
+    const user = await usuarioDe(req, res);
+    if (!user) return;
+    const a = await acessoDe(user);
+    if (!a.informaOc) return negar(res, "Só o DP e o administrador informam a OC/DP da liberação.");
+    const atual = await dados.getHonorario(req.params.id);
+    if (!atual) return res.status(404).json({ message: "Pedido não encontrado." });
+    const b = corpo(informarOcSchema, req, res);
+    if (!b) return;
+    const erro = validarOcInformada(b.oc);
+    if (erro) return res.status(400).json({ message: erro });
+    const lib = await dados.getLiberacao(req.params.liberacaoId);
+    if (!lib || lib.honorarioId !== atual.id) return res.status(404).json({ message: "Liberação não encontrada." });
+    if (lib.estornadaEm) return res.status(409).json({ message: "Esta liberação foi estornada — não recebe OC.", atual: visao(a, atual) });
+    const oc = b.oc.trim();
+    const anterior = lib.oc.trim();
+    if (oc === anterior) return res.json({ honorario: visao(a, atual), liberacao: lib });
+    const quando = String(lib.data).slice(0, 10).split("-").reverse().slice(0, 2).join("/");
+    const quem = user.name ?? "Usuário";
+    const detalhe = temOc(anterior)
+      ? `OC ${anterior} trocada por ${oc} na liberação de ${quando} (${brl(lib.valor)}) por ${quem}`
+      : `OC ${oc} informada na liberação de ${quando} (${brl(lib.valor)}) por ${quem}`;
+    const nova = await dados.informarOcDaLiberacao(atual.id, lib.id, oc, b.ocAnterior, ator(user), detalhe);
+    if (!nova) {
+      const agora = await dados.getLiberacao(lib.id);
+      return res.status(409).json({
+        message: agora?.estornadaEm ? "Esta liberação foi estornada — não recebe OC." : `A OC desta liberação mudou enquanto você editava (agora: ${textoDaOc(agora?.oc)}). Recarregue.`,
+        atual: visao(a, atual),
+      });
+    }
+    await createAuditLog("informar_oc_liberacao", "honorario_ceno", atual.id, { ...resumoParaAuditoria(atual), liberacaoId: lib.id, oc, valorLiberado: lib.valor, data: String(lib.data) }, user.id, user.name, { oc: anterior || null }, req);
+    res.json({ honorario: visao(a, (await dados.getHonorario(atual.id))!), liberacao: nova });
   });
 
   // Histórico + liberações de um pedido (quem vê a linha vê o histórico).

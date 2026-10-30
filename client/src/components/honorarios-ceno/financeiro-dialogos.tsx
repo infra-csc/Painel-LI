@@ -2,9 +2,12 @@
  * Diálogos do Financeiro (16/10): registrar a liberação da verba (data, OC/DP
  * e valor — aceita parcial e mostra o que falta) e estornar uma liberação
  * lançada errado (com motivo; nada se apaga).
+ *
+ * 30/10 (dono): a OC/DP deixou de ser obrigatória na liberação — o DP a
+ * informa depois, pelo `InformarOcDialog` (Liberados e "Aprovados").
  */
 import { useState } from "react";
-import { Banknote, Loader2, RotateCcw } from "lucide-react";
+import { Banknote, FileDigit, Loader2, RotateCcw } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,9 +19,9 @@ import { useToast } from "@/hooks/use-toast";
 import { isApiError } from "@/lib/queryClient";
 import { todayIso } from "@/lib/dates";
 import { apiErrorMessage, cn } from "@/lib/utils";
-import { HONORARIO_OC_MAX, HONORARIO_TEXTO_MAX, faltaLiberar, validarLiberacao, validarMotivo } from "@shared/honorarios-ceno";
+import { HONORARIO_OC_MAX, HONORARIO_TEXTO_MAX, faltaLiberar, temOc, textoDaOc, validarLiberacao, validarMotivo, validarOcInformada } from "@shared/honorarios-ceno";
 import { useMutacoesDoFinanceiro, type Honorario, type Liberacao } from "./api";
-import { BarraDaVerba, OrigemDaLinha, brl, useFocoDeVolta } from "./pecas";
+import { BarraDaVerba, OrigemDaLinha, brl, dataBr, useFocoDeVolta } from "./pecas";
 
 export function LiberacaoDialog({ h, onClose }: { h: Honorario | null; onClose: () => void }) {
   const { liberar } = useMutacoesDoFinanceiro();
@@ -45,7 +48,7 @@ export function LiberacaoDialog({ h, onClose }: { h: Honorario | null; onClose: 
       toast({
         variant: "success",
         title: r.falta > 0 ? "Liberação parcial registrada" : "Verba liberada por completo",
-        description: `${h.nome} · OC/DP ${oc.trim()} · ${brl(valor)}${r.falta > 0 ? ` — faltam ${brl(r.falta)}` : ""}`,
+        description: `${h.nome} · ${textoDaOc(oc)} · ${brl(valor)}${r.falta > 0 ? ` — faltam ${brl(r.falta)}` : ""}${temOc(oc) ? "" : ". O DP informa a OC depois."}`,
       });
       onClose();
     } catch (err) {
@@ -84,8 +87,9 @@ export function LiberacaoDialog({ h, onClose }: { h: Honorario | null; onClose: 
               <Input id="hon-lib-data" type="date" className="h-10 rounded-lg bg-card" value={data} onChange={(e) => { setErro(null); setData(e.target.value); }} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="hon-lib-oc">Nº da OC/DP</Label>
-              <Input id="hon-lib-oc" className="h-10 rounded-lg bg-card tabular-nums" maxLength={HONORARIO_OC_MAX} value={oc} placeholder="Ex.: 45123" onChange={(e) => { setErro(null); setOc(e.target.value); }} />
+              <Label htmlFor="hon-lib-oc">Nº da OC/DP <span className="font-normal text-muted-foreground">(opcional)</span></Label>
+              <Input id="hon-lib-oc" className="h-10 rounded-lg bg-card tabular-nums" maxLength={HONORARIO_OC_MAX} value={oc} placeholder="Ex.: 45123" aria-describedby="hon-lib-oc-dica" onChange={(e) => { setErro(null); setOc(e.target.value); }} />
+              <p id="hon-lib-oc-dica" className="text-2xs text-muted-foreground">Sem OC agora? Libere assim — o DP informa depois.</p>
             </div>
           </div>
           <div className="space-y-1.5">
@@ -132,7 +136,7 @@ export function EstornoDialog({ alvo, onClose }: { alvo: { h: Honorario; l: Libe
     if (!alvo || validarMotivo(motivo)) return;
     try {
       await estornar.mutateAsync({ id: alvo.h.id, liberacaoId: alvo.l.id, versao: alvo.h.versao, motivo: motivo.trim() });
-      toast({ title: "Liberação estornada", description: `OC/DP ${alvo.l.oc} · ${brl(alvo.l.valor)} voltou para "a liberar".` });
+      toast({ title: "Liberação estornada", description: `${textoDaOc(alvo.l.oc)} · ${brl(alvo.l.valor)} voltou para "a liberar".` });
       onClose();
     } catch (e) {
       toast({ variant: "destructive", title: "Não foi possível estornar", description: apiErrorMessage(e, "Tente de novo.") });
@@ -144,7 +148,7 @@ export function EstornoDialog({ alvo, onClose }: { alvo: { h: Honorario; l: Libe
       open={!!alvo}
       onOpenChange={(o) => { if (!o && !estornar.isPending) onClose(); }}
       title="Estornar esta liberação?"
-      description={alvo ? `OC/DP ${alvo.l.oc} · ${brl(alvo.l.valor)} sai da soma e o valor volta a ficar a liberar. O registro continua no histórico.` : undefined}
+      description={alvo ? `Liberação ${textoDaOc(alvo.l.oc)} · ${brl(alvo.l.valor)} sai da soma e o valor volta a ficar a liberar. O registro continua no histórico.` : undefined}
       tone="danger"
       icon={RotateCcw}
       cancelLabel="Voltar"
@@ -158,5 +162,76 @@ export function EstornoDialog({ alvo, onClose }: { alvo: { h: Honorario; l: Libe
         <Textarea id="hon-estorno-motivo" rows={2} maxLength={HONORARIO_TEXTO_MAX} value={motivo} onChange={(e) => setMotivo(e.target.value)} className="rounded-lg bg-card text-sm" placeholder="Ex.: OC digitada errada" />
       </div>
     </ConfirmDialog>
+  );
+}
+
+/** O que o diálogo da OC precisa: o pedido e a liberação (com a OC lida — "" = sem OC). */
+export interface AlvoDaOc {
+  honorarioId: string;
+  nome: string;
+  eventName?: string | null;
+  liberacao: { id: string; data: string; oc: string; valor: number };
+}
+
+/**
+ * Informar (ou corrigir) a OC/DP de uma liberação já registrada (30/10 — "quem
+ * coloca a OC é o RH/DP, inclusive depois de liberado"). Só DP e admin chegam
+ * aqui (a tela esconde o botão de quem não pode; a API recusa com 403).
+ * Manda a OC lida: se outra pessoa mudou no meio, a API responde 409.
+ */
+export function InformarOcDialog({ alvo, onClose }: { alvo: AlvoDaOc | null; onClose: () => void }) {
+  const { informarOc } = useMutacoesDoFinanceiro();
+  const { toast } = useToast();
+  const [para, setPara] = useState<string | null>(null);
+  const [oc, setOc] = useState("");
+  const [erro, setErro] = useState<string | null>(null);
+  const devolverFoco = useFocoDeVolta(!!alvo);
+  if (alvo && para !== alvo.liberacao.id) { setPara(alvo.liberacao.id); setOc(alvo.liberacao.oc.trim()); setErro(null); }
+  if (!alvo) { if (para !== null) setPara(null); return null; }
+  const corrigindo = temOc(alvo.liberacao.oc);
+  const salvar = async () => {
+    const e = validarOcInformada(oc);
+    if (e) { setErro(e); return; }
+    if (oc.trim() === alvo.liberacao.oc.trim()) { onClose(); return; }
+    try {
+      await informarOc.mutateAsync({ id: alvo.honorarioId, liberacaoId: alvo.liberacao.id, oc: oc.trim(), ocAnterior: alvo.liberacao.oc });
+      toast({ variant: "success", title: corrigindo ? "OC corrigida" : "OC informada", description: `${alvo.nome} · OC/DP ${oc.trim()} na liberação de ${dataBr(alvo.liberacao.data)} (${brl(alvo.liberacao.valor)}).` });
+      onClose();
+    } catch (err) {
+      if (isApiError(err) && (err.status === 409 || err.status === 404)) {
+        toast({ title: "Esta liberação mudou", description: apiErrorMessage(err, "A lista foi atualizada.") });
+        onClose();
+        return;
+      }
+      setErro(apiErrorMessage(err, "Não foi possível salvar. Tente de novo."));
+    }
+  };
+  return (
+    <Dialog open={!!alvo} onOpenChange={(o) => { if (!o && !informarOc.isPending) onClose(); }}>
+      <DialogContent className="max-w-md gap-0 p-0" onOpenAutoFocus={(e) => { e.preventDefault(); document.getElementById("hon-informar-oc")?.focus(); }} onCloseAutoFocus={devolverFoco} data-testid="hon-informar-oc-dialogo">
+        <DialogHeader className="space-y-1 border-b border-border px-6 pb-4 pt-5 text-left">
+          <DialogTitle className="flex items-center gap-2 pr-8 text-base font-semibold">
+            <FileDigit className="h-4 w-4 text-primary" aria-hidden="true" /> {corrigindo ? "Corrigir a OC/DP" : "Informar a OC/DP"}
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            {alvo.nome}{alvo.eventName ? ` · ${alvo.eventName}` : ""} — liberação de {dataBr(alvo.liberacao.data)} · {brl(alvo.liberacao.valor)}
+          </DialogDescription>
+        </DialogHeader>
+        <form className="space-y-1.5 px-6 py-5" onSubmit={(e) => { e.preventDefault(); void salvar(); }}>
+          <Label htmlFor="hon-informar-oc">Nº da OC/DP</Label>
+          <Input id="hon-informar-oc" className="h-10 rounded-lg bg-card tabular-nums" maxLength={HONORARIO_OC_MAX} value={oc} placeholder="Ex.: 45123"
+            onChange={(e) => { setErro(null); setOc(e.target.value); }} />
+          <p className="text-2xs text-muted-foreground">Fica no histórico do pedido{corrigindo ? `, com a OC anterior (${alvo.liberacao.oc.trim()})` : ""}.</p>
+          {erro && <p role="alert" className="rounded-lg border border-danger/25 bg-danger-soft px-3 py-2 text-xs text-danger">{erro}</p>}
+        </form>
+        <DialogFooter className="gap-2 border-t border-border bg-surface-muted/60 px-6 py-3 sm:gap-2">
+          <Button type="button" variant="outline" onClick={onClose} disabled={informarOc.isPending}>Cancelar</Button>
+          <Button type="button" onClick={() => void salvar()} disabled={informarOc.isPending || !oc.trim()}>
+            {informarOc.isPending ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : null}
+            {informarOc.isPending ? "Salvando…" : corrigindo ? "Salvar a OC" : "Informar OC"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

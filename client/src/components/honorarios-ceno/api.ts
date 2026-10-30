@@ -106,6 +106,19 @@ export interface HonorarioDoFinanceiro extends Honorario {
   liberacoes: Liberacao[];
 }
 
+/** Liberação que vale (sem estornadas), como a aba "Aprovados" recebe: "" em `oc` = sem OC. */
+export interface LiberacaoResumida {
+  id: string;
+  data: string;
+  oc: string;
+  valor: number;
+}
+
+/** "Aprovados — todos os eventos" (30/10): o aprovado com o que já foi liberado. */
+export interface HonorarioAprovado extends Honorario {
+  liberacoes: LiberacaoResumida[];
+}
+
 export interface EntradaDoHistorico {
   id: string;
   acao: string;
@@ -211,6 +224,8 @@ export interface AcessoHonorarios {
   podePedir: boolean;
   podeAprovar: boolean;
   podeLiberar: boolean;
+  /** 30/10: coloca/corrige a OC/DP da liberação — DP e admin (o perfil Honorários só libera). */
+  podeInformarOc?: boolean;
   admin: boolean;
 }
 
@@ -267,6 +282,15 @@ export function useHonorariosDoFinanceiro(eventId: string | null, enabled = true
   return useQuery<HonorarioDoFinanceiro[]>({
     queryKey: [CHAVE, "financeiro", eventId ?? ""],
     queryFn: ({ signal }) => fetchJson<HonorarioDoFinanceiro[]>(`/api/honorarios-ceno/financeiro${eventId ? `?eventId=${encodeURIComponent(eventId)}` : ""}`, signal),
+    enabled,
+  });
+}
+
+/** "Aprovados — todos os eventos" (30/10): quem lança (as funções dele), o DP e o admin. */
+export function useAprovadosDeTodosOsEventos(enabled: boolean) {
+  return useQuery<HonorarioAprovado[]>({
+    queryKey: [CHAVE, "aprovados"],
+    queryFn: ({ signal }) => fetchJson<HonorarioAprovado[]>("/api/honorarios-ceno/aprovados", signal),
     enabled,
   });
 }
@@ -426,7 +450,7 @@ export function useMutacoesDoAprovador() {
 export function useMutacoesDoFinanceiro() {
   const invalidar = useInvalidarModulo();
   const liberar = useMutation({
-    mutationFn: ({ id, ...b }: { id: string; versao: number; data: string; oc: string; valor: number; observacao?: string | null }) =>
+    mutationFn: ({ id, ...b }: { id: string; versao: number; data: string; oc?: string; valor: number; observacao?: string | null }) =>
       json<Honorario>(apiRequest("POST", `/api/honorarios-ceno/${id}/liberacoes`, b)),
     onSettled: invalidar,
   });
@@ -435,5 +459,11 @@ export function useMutacoesDoFinanceiro() {
       json<Honorario>(apiRequest("POST", `/api/honorarios-ceno/${id}/liberacoes/${liberacaoId}/estornar`, b)),
     onSettled: invalidar,
   });
-  return { liberar, estornar };
+  /** 30/10: o DP informa (ou corrige) a OC/DP de uma liberação já registrada. */
+  const informarOc = useMutation({
+    mutationFn: ({ id, liberacaoId, ...b }: { id: string; liberacaoId: string; oc: string; ocAnterior: string }) =>
+      json<{ honorario: Honorario; liberacao: Liberacao }>(apiRequest("PATCH", `/api/honorarios-ceno/${id}/liberacoes/${liberacaoId}/oc`, b)),
+    onSettled: invalidar,
+  });
+  return { liberar, estornar, informarOc };
 }

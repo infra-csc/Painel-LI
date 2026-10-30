@@ -6,7 +6,7 @@ import {
   totalPorSetorEPosicao, vagaRecebeHonorario, validarAjuste, validarDadosDoPedido, validarLiberacao,
   validarMotivo, valorPorDiaria, avisoDaVaga, vagaSaiuDosHonorarios, type LinhaDoRelatorio, type VagaAtual,
   avisoDaVagaNaEmpreita, nomeDaVagaSemColaborador, posicaoDoTipo, posicaoPelaFuncao, rotuloDoValor, setorDaVaga,
-  STATUS_DE_VAGA_ATIVA, CHAVE_DAS_VAGAS_SEM_NOME,
+  STATUS_DE_VAGA_ATIVA, CHAVE_DAS_VAGAS_SEM_NOME, temOc, textoDaOc, validarOcInformada,
   ratearEmpreita, honorariosNasVagas, valorDoHonorarioNaVaga, type HonorarioParaPlanejado, type HonorarioNaVaga,
 } from "./honorarios-ceno";
 
@@ -175,7 +175,15 @@ describe("validação", () => {
     expect(validarLiberacao({ data: "2026-10-30", oc: "45123", valor: 60_000 }, 100_000)).toBeNull();
     expect(validarLiberacao({ data: "2026-10-30", oc: "45123", valor: 120_000 }, 100_000)).toMatch(/passa/);
     expect(validarLiberacao({ data: "", oc: "45123", valor: 1 }, 100)).toMatch(/data/);
-    expect(validarLiberacao({ data: "2026-10-30", oc: " ", valor: 1 }, 100)).toMatch(/OC/);
+    // 30/10: a OC/DP deixou de ser obrigatória (o DP informa depois); só o tamanho vale.
+    expect(validarLiberacao({ data: "2026-10-30", oc: " ", valor: 1 }, 100)).toBeNull();
+    expect(validarLiberacao({ data: "2026-10-30", valor: 1 }, 100)).toBeNull();
+    expect(validarLiberacao({ data: "2026-10-30", oc: "9".repeat(41), valor: 1 }, 100)).toMatch(/OC/);
+    expect(validarOcInformada("  ")).toMatch(/OC/);
+    expect(validarOcInformada(" 45123 ")).toBeNull();
+    expect(textoDaOc("")).toBe("sem OC");
+    expect(textoDaOc(" 45123 ")).toBe("OC/DP 45123");
+    expect(temOc(" ")).toBe(false);
     expect(validarLiberacao({ data: "2026-10-30", oc: "1", valor: 1 }, 0)).toMatch(/todo liberado/);
   });
 });

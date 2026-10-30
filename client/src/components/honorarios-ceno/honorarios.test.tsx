@@ -230,7 +230,7 @@ describe("Honorários — Financeiro", () => {
 
     await user.click(screen.getByRole("button", { name: "Registrar liberação de Pessoa Um" }));
     const dialogo = await screen.findByRole("dialog");
-    await user.type(within(dialogo).getByLabelText("Nº da OC/DP"), "45123");
+    await user.type(within(dialogo).getByLabelText(/^Nº da OC\/DP/), "45123");
     const valor = within(dialogo).getByLabelText("Valor liberado");
     await user.clear(valor);
     await user.type(valor, "400");
@@ -260,7 +260,7 @@ describe("Honorários — Financeiro", () => {
 
     await user.click(await screen.findByRole("button", { name: "Registrar liberação de Pessoa Um" }));
     let dialogo = await screen.findByRole("dialog");
-    await user.type(within(dialogo).getByLabelText("Nº da OC/DP"), "45123");
+    await user.type(within(dialogo).getByLabelText(/^Nº da OC\/DP/), "45123");
     const valor = within(dialogo).getByLabelText("Valor liberado");
     await user.clear(valor);
     await user.type(valor, "400");
@@ -269,7 +269,7 @@ describe("Honorários — Financeiro", () => {
 
     await user.click(await screen.findByRole("button", { name: "Registrar liberação de Pessoa Um" }));
     dialogo = await screen.findByRole("dialog");
-    expect(within(dialogo).getByLabelText("Nº da OC/DP")).toHaveValue("");
+    expect(within(dialogo).getByLabelText(/^Nº da OC\/DP/)).toHaveValue("");
     expect(within(dialogo).getByLabelText("Valor liberado")).toHaveValue("600,00");
     expect(within(dialogo).queryByText("Passa do que falta liberar.")).not.toBeInTheDocument();
   });
@@ -283,7 +283,7 @@ describe("Honorários — Financeiro", () => {
     const botao = await screen.findByRole("button", { name: "Registrar liberação de Pessoa Um" });
     await user.click(botao);
     const dialogo = await screen.findByRole("dialog");
-    await waitFor(() => expect(within(dialogo).getByLabelText("Nº da OC/DP")).toHaveFocus());
+    await waitFor(() => expect(within(dialogo).getByLabelText(/^Nº da OC\/DP/)).toHaveFocus());
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     await waitFor(() => expect(screen.getByRole("button", { name: "Registrar liberação de Pessoa Um" })).toHaveFocus());

@@ -489,11 +489,27 @@ export function validarAjuste(valorPedidoCents: number, novoCents: number, motiv
   return validarMotivo(motivo, "o motivo do ajuste");
 }
 
-/** Liberação de verba: data, OC/DP e valor até o que falta liberar. */
-export function validarLiberacao(l: { data: string; oc: string; valor: number }, faltaCents: number): string | null {
+/**
+ * OC/DP da liberação (30/10, dono): deixou de ser obrigatória — o Financeiro
+ * libera sem OC e o DP informa depois. A coluna é NOT NULL: "sem OC" é a
+ * string vazia (ou só espaços); toda leitura passa por aqui.
+ */
+export const temOc = (oc: string | null | undefined): boolean => !!(oc ?? "").trim();
+/** "OC/DP 45123" ou "sem OC" — para histórico, toasts e listas. */
+export const textoDaOc = (oc: string | null | undefined): string => (temOc(oc) ? `OC/DP ${(oc ?? "").trim()}` : "sem OC");
+
+/** OC informada DEPOIS da liberação (o DP): aqui ela é obrigatória. */
+export function validarOcInformada(oc: string | null | undefined): string | null {
+  const t = (oc ?? "").trim();
+  if (!t) return "Informe o número da OC/DP.";
+  if (t.length > HONORARIO_OC_MAX) return `OC/DP com até ${HONORARIO_OC_MAX} caracteres.`;
+  return null;
+}
+
+/** Liberação de verba: data e valor até o que falta liberar; a OC/DP é opcional (30/10). */
+export function validarLiberacao(l: { data: string; oc?: string | null; valor: number }, faltaCents: number): string | null {
   if (!ehDataIso(l.data)) return "Informe a data da liberação.";
   const oc = (l.oc ?? "").trim();
-  if (!oc) return "Informe o número da OC/DP.";
   if (oc.length > HONORARIO_OC_MAX) return `OC/DP com até ${HONORARIO_OC_MAX} caracteres.`;
   if (!Number.isInteger(l.valor) || l.valor <= 0) return "Informe o valor liberado.";
   if (faltaCents <= 0) return "Este pedido já está todo liberado.";

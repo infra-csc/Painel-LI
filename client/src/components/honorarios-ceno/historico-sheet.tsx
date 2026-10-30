@@ -6,13 +6,13 @@
  */
 import type { ReactNode } from "react";
 import {
-  ArrowLeftRight, ArrowRight, Banknote, CheckCircle2, CircleDashed, CloudOff, FilePen, History, Pencil, RotateCcw, Send, Undo2,
+  ArrowLeftRight, ArrowRight, Banknote, CheckCircle2, CircleDashed, CloudOff, FileDigit, FilePen, History, Pencil, RotateCcw, Send, Undo2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { apiErrorMessage, cn } from "@/lib/utils";
-import { faltaLiberar, valorPorDiaria } from "@shared/honorarios-ceno";
+import { faltaLiberar, temOc, textoDaOc, valorPorDiaria } from "@shared/honorarios-ceno";
 import { useHistoricoDoHonorario, type EntradaDoHistorico, type Honorario, type Liberacao } from "./api";
 import { AvisoDaLinha, BarraDaVerba, EtapaBadge, OrigemDaLinha, OrigemDoValor, VagasDaEmpreitaLista, brl, useFocoDeVolta, dataBr, diariasTexto, periodoCurto, type VisaoDaEtapa } from "./pecas";
 
@@ -25,6 +25,7 @@ const ACOES: Record<string, { rotulo: string; icone: LucideIcon; tom: string }> 
   devolvido: { rotulo: "Devolvido para negociar", icone: Undo2, tom: "bg-brand-soft text-primary" },
   liberacao: { rotulo: "Verba liberada", icone: Banknote, tom: "bg-success-soft text-success" },
   liberacao_estornada: { rotulo: "Liberação estornada", icone: RotateCcw, tom: "bg-danger-soft text-danger" },
+  oc_informada: { rotulo: "OC/DP informada", icone: FileDigit, tom: "bg-brand-soft text-primary" },
   colaborador_trocado: { rotulo: "Colaborador da vaga trocado", icone: ArrowLeftRight, tom: "bg-warning-soft text-warning" },
   colaborador_escalado: { rotulo: "Vaga escalada — o nome entrou no pedido", icone: ArrowLeftRight, tom: "bg-muted text-muted-foreground" },
   vagas_da_empreita: { rotulo: "Vagas da empreita alteradas", icone: Pencil, tom: "bg-brand-soft text-primary" },
@@ -66,13 +67,13 @@ function Entrada({ e, ultima }: { e: EntradaDoHistorico; ultima: boolean }) {
   );
 }
 
-function LinhaDaLiberacao({ l, onEstornar }: { l: Liberacao; onEstornar?: (l: Liberacao) => void }) {
+function LinhaDaLiberacao({ l, onEstornar, onInformarOc }: { l: Liberacao; onEstornar?: (l: Liberacao) => void; onInformarOc?: (l: Liberacao) => void }) {
   const estornada = !!l.estornadaEm;
   return (
     <li className={cn("flex items-start justify-between gap-3 px-3.5 py-2.5", estornada && "bg-surface-muted/70")}>
       <div className="min-w-0">
         <p className={cn("text-sm font-medium tabular-nums text-foreground", estornada && "text-muted-foreground line-through")}>
-          OC/DP {l.oc} · {dataBr(l.data)}
+          {temOc(l.oc) ? textoDaOc(l.oc) : <span className="font-normal italic text-warning">sem OC</span>} · {dataBr(l.data)}
         </p>
         <p className="text-2xs text-muted-foreground">
           {estornada ? `Estornada por ${l.estornadaPorNome ?? "—"}${l.motivoEstorno ? ` — “${l.motivoEstorno}”` : ""}` : `Registrada por ${l.porNome}`}
@@ -81,6 +82,11 @@ function LinhaDaLiberacao({ l, onEstornar }: { l: Liberacao; onEstornar?: (l: Li
       </div>
       <div className="flex shrink-0 items-center gap-1">
         <span className={cn("text-sm font-semibold tabular-nums", estornada ? "text-muted-foreground line-through" : "text-foreground")}>{brl(l.valor)}</span>
+        {onInformarOc && !estornada && (
+          <Button type="button" variant="ghost" size="sm" className="val-alvo h-8 px-2 text-xs text-primary hover:bg-brand-soft hover:text-primary" onClick={() => onInformarOc(l)}>
+            {temOc(l.oc) ? "Editar OC" : "Informar OC"}
+          </Button>
+        )}
         {onEstornar && !estornada && (
           <Button type="button" variant="ghost" size="sm" className="val-alvo h-8 px-2 text-xs text-muted-foreground hover:bg-danger-soft hover:text-danger" onClick={() => onEstornar(l)}>
             Estornar
@@ -125,7 +131,7 @@ export function ResumoDosValores({ h }: { h: Honorario }) {
   );
 }
 
-export function HistoricoSheet({ id, aberto, onOpenChange, visao = "pedido", acoes, onEstornar }: {
+export function HistoricoSheet({ id, aberto, onOpenChange, visao = "pedido", acoes, onEstornar, onInformarOc }: {
   id: string | null;
   aberto: boolean;
   onOpenChange: (o: boolean) => void;
@@ -134,6 +140,8 @@ export function HistoricoSheet({ id, aberto, onOpenChange, visao = "pedido", aco
   acoes?: (h: Honorario) => ReactNode;
   /** Financeiro: estornar uma liberação. */
   onEstornar?: (h: Honorario, l: Liberacao) => void;
+  /** DP/admin (30/10): informar ou corrigir a OC/DP de uma liberação. */
+  onInformarOc?: (h: Honorario, l: Liberacao) => void;
 }) {
   const q = useHistoricoDoHonorario(aberto ? id : null);
   const devolverFoco = useFocoDeVolta(aberto);
@@ -201,7 +209,7 @@ export function HistoricoSheet({ id, aberto, onOpenChange, visao = "pedido", aco
                 <section aria-labelledby="hon-libs" className="space-y-2">
                   <h3 id="hon-libs" className="text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">Liberações</h3>
                   <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
-                    {q.data!.liberacoes.map((l) => <LinhaDaLiberacao key={l.id} l={l} onEstornar={onEstornar ? (x) => onEstornar(h, x) : undefined} />)}
+                    {q.data!.liberacoes.map((l) => <LinhaDaLiberacao key={l.id} l={l} onEstornar={onEstornar ? (x) => onEstornar(h, x) : undefined} onInformarOc={onInformarOc ? (x) => onInformarOc(h, x) : undefined} />)}
                   </ul>
                 </section>
               )}
