@@ -23,6 +23,7 @@ import type { MirrorResponse } from "@shared/operational-mirror-types";
 import { SeletorDeEvento } from "./context-bar";
 import { ImportarPlanilha } from "./import";
 import { fmtDate } from "./mirror-shared";
+import { diasDoEventoCurto } from "@/components/events/events-shared";
 
 export interface MirrorHeaderProps {
   events: Event[] | undefined;
@@ -54,6 +55,7 @@ export function MirrorHeader({
   events, eventId, setEventId, ev, totalPessoas, canEditMirror,
   recalcPending, onRecalc, onExport, onImportado,
 }: MirrorHeaderProps) {
+  const diasPorEvento = new Map((events ?? []).map((e) => [e.id, e] as const));
   const [importando, setImportando] = useState(false);
   const recalcular = (
     <>
@@ -75,7 +77,12 @@ export function MirrorHeader({
           eventos={(events ?? []).map((e) => ({ id: e.id, name: e.name, startDate: e.startDate, endDate: e.endDate }))}
           valor={eventId}
           aoEscolher={setEventId}
-          formatarPeriodo={(e) => (e.startDate ? periodoCurto(e.startDate, e.endDate) : "sem datas")}
+          // Dia(s) do evento (30/10) ao lado do período, quando informados.
+          formatarPeriodo={(e) => {
+            if (!e.startDate) return "sem datas";
+            const dias = diasDoEventoCurto(diasPorEvento.get(e.id) ?? {});
+            return dias ? `${periodoCurto(e.startDate, e.endDate)} · evento ${dias}` : periodoCurto(e.startDate, e.endDate);
+          }}
           // Datas, pessoas e local na 2ª linha do próprio seletor: cabem em
           // 1366 sem empurrar as ações para uma segunda fileira.
           detalhe={ev ? [periodoCurto(ev.startDate, ev.endDate), `${totalPessoas} ${totalPessoas === 1 ? "pessoa" : "pessoas"}`, ev.location].filter(Boolean).join(" · ") : undefined}

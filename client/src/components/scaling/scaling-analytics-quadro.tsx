@@ -30,7 +30,7 @@ import {
   type DiasDosPrazos, type EtapaComPrazo, type SituacaoDoPrazo,
 } from "@shared/prazos-da-escala";
 import {
-  ETAPAS_DO_QUADRO, O_QUE_FALTA, quadroDoEvento,
+  ETAPAS_DO_QUADRO, O_QUE_FALTA, quadroDoEvento, rotuloDaDataDoEvento,
   type AnalyticsContext, type ColunaDoQuadro, type EventoAnalisado, type QuadroDoEvento,
 } from "./scaling-analytics-data";
 import { DetalheDaEtapa, type AlvoDoDetalhe } from "./scaling-analytics-quadro-detalhe";
@@ -46,7 +46,6 @@ export function useDiasDosPrazos(): DiasDosPrazos {
 const dm = (d: Date | null) =>
   d ? `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}` : "—";
 
-const dmIso = (iso: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : "—");
 
 type Tom = SituacaoDoPrazo | "neutro";
 
@@ -176,7 +175,7 @@ export function QuadroDePrazos({ eventos, ctx, hoje, dias, podeEditar, onVerVaga
           <thead>
             <tr className="border-b border-border bg-surface-muted/60 text-2xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
               <th scope="col" className="px-4 py-2">Evento</th>
-              <th scope="col" className="px-3 py-2 text-center" title="Dia da prova — o domingo dentro do período cadastrado do evento (ou o sábado)">
+              <th scope="col" className="px-3 py-2 text-center" title="Dia do evento — os Dia(s) do evento do cadastro (os prazos contam do último); sem eles, o fim de semana mais perto do fim do período">
                 Data
               </th>
               {ETAPAS_COM_PRAZO.map((etapa) => (
@@ -214,8 +213,12 @@ export function QuadroDePrazos({ eventos, ctx, hoje, dias, podeEditar, onVerVaga
                       {q.concluidas.length > 0 && <> · {q.concluidas.length} {plural(q.concluidas.length, "concluída", "concluídas")}</>}
                     </span>
                   </th>
-                  <td className="whitespace-nowrap px-3 py-2 text-center align-top text-sm font-semibold tabular-nums text-foreground">
-                    {dmIso(e.dataEvento)}
+                  <td
+                    className="whitespace-nowrap px-3 py-2 text-center align-top text-sm font-semibold tabular-nums text-foreground"
+                    title={e.dataEventoInicio ? "Dias do evento informados no cadastro; os prazos contam do último dia." : undefined}
+                    data-testid={`quadro-data-${e.eventId}`}
+                  >
+                    {rotuloDaDataDoEvento(e)}
                   </td>
                   {/* Registros: o total cadastrado — não há meta de vagas, então não existe "falta"; o prazo é informativo. */}
                   <td className={TD_DA_CELULA} data-testid={`quadro-registro-${e.eventId}`}>

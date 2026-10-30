@@ -171,10 +171,10 @@ describe("texto para colar", () => {
 });
 
 describe("período do evento", () => {
-  // O sistema NÃO guarda o dia da prova: o evento é uma janela ("08/09 a
-  // 14/09") e o dia em que se corre é conhecimento de quem organiza. Escolher
-  // o primeiro dia como "a data do evento" inventaria precisão que o dado não
-  // tem — então sai a janela inteira.
+  // Sem os Dia(s) do evento no cadastro (30/10), o evento é uma janela
+  // ("08/09 a 14/09") e o dia em que se corre é conhecimento de quem
+  // organiza: escolher o primeiro dia inventaria precisão — sai a janela
+  // inteira. Com os dias informados, saem eles.
   const comDatas: AnalyticsContext = {
     ...ctx,
     getEventDates: (id) => (id === "dog" ? { startDate: "2026-09-08", endDate: "2026-09-14" } : undefined),
@@ -212,6 +212,16 @@ describe("período do evento", () => {
     const rel = montarRelatorioDeCobertura(varias(2, { scheduleStartDate: "2025-11-10", scheduleEndDate: "2025-11-16" }), passado, HOJE);
     expect(rel.jaPassaram).toBe(1);
     expect(rel.disponiveis).toHaveLength(0);
+  });
+
+  it("com os Dia(s) do evento no cadastro (30/10), saem eles — não a janela inteira", () => {
+    const serra: AnalyticsContext = {
+      ...ctx,
+      getEventDates: () => ({ startDate: "2026-11-01", endDate: "2026-11-08", diaEventoInicio: "2026-11-05", diaEventoFim: "2026-11-06" }),
+    };
+    const txt = textoDoRelatorio(montarRelatorioDeCobertura(varias(1, { scheduleStartDate: "2026-11-02", scheduleEndDate: "2026-11-08" }), serra, HOJE), HOJE);
+    expect(txt).toContain("— 05/11 a 06/11");
+    expect(txt).not.toContain("01/11 a 08/11");
   });
 });
 

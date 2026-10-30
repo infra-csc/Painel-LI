@@ -257,10 +257,13 @@ export const upload = multer({
 // server/scaling-validation.ts usa as MESMAS funções, e importá-las de cá
 // fecharia um ciclo (é routes.ts que registra as rotas de escala).
 
-// ── Catálogos: cache curto no navegador ────────────────────────────────────
-// Os catálogos usam max-age curto em vez de revalidação (ETag desligado em
-// registerRoutes).
-export const cacheDeCatalogo = (res: Response) => res.set("Cache-Control", "private, max-age=60");
+// ── Catálogos: sem cópia velha no navegador ────────────────────────────────
+// 30/10: era "max-age=60" — depois de salvar um evento (ou função, empresa,
+// valores), a recarga da lista vinha da cópia do NAVEGADOR e mostrava o
+// antes por até 1 minuto. O TanStack Query já guarda a lista em memória; o
+// navegador só precisa não servir cópia sem perguntar (ETag segue desligado
+// em registerRoutes: a resposta vem inteira, e os catálogos são pequenos).
+export const cacheDeCatalogo = (res: Response) => res.set("Cache-Control", "private, no-cache");
 
 // ── Autorização por papel ─────────────────────────────────────────────────
 // A autenticação é garantida pelo middleware global de server/index.ts (toda

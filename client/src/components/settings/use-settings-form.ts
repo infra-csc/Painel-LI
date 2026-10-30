@@ -98,9 +98,10 @@ export function useSettingsForm() {
     // handleSaveAll (que exibe a mensagem do servidor) — antes eram dois.
   });
 
-  // GET /api/function-values sai com Cache-Control max-age=60 (catálogo): a
+  // GET /api/function-values saía com Cache-Control max-age=60 (catálogo): a
   // recarga comum devolvia a cópia do NAVEGADOR, de antes do salvamento, e a
-  // tabela continuava "alterada". Depois de salvar, busca sem essa cópia.
+  // tabela continuava "alterada". Desde 30/10 o catálogo é no-cache; a busca
+  // sem cópia fica como garantia.
   const recarregarValoresPorFuncao = async () => {
     try {
       const frescos = await fetchJson<FunctionValue[]>(`/api/function-values?salvo=${Date.now()}`);

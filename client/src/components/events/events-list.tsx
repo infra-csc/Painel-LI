@@ -16,7 +16,7 @@ import type { Event } from "@shared/schema";
 import { cn } from "@/lib/utils";
 import { getEventStatus } from "@/lib/event-status";
 import { EventRowActions, type EventRowActionsProps } from "./event-row-actions";
-import { EventStatusBadge, FolhinhaDeData, formatPeriod, quandoAcontece } from "./events-shared";
+import { EventStatusBadge, FolhinhaDeData, diasDoEventoCurto, formatPeriod, quandoAcontece } from "./events-shared";
 
 export type EventCardProps = Omit<EventRowActionsProps, "event"> & {
   ev: Event;
@@ -28,6 +28,7 @@ export function EventCard({ ev, escalacoes: esc, ...acoes }: EventCardProps) {
   const ds = getEventStatus(ev);
   const excluido = ds === "excluído";
   const quando = quandoAcontece(ev);
+  const diasEv = diasDoEventoCurto(ev);
   const obs = ev.observations?.trim();
   return (
     <article
@@ -77,6 +78,8 @@ export function EventCard({ ev, escalacoes: esc, ...acoes }: EventCardProps) {
           <CalendarDays className="h-3.5 w-3.5 mt-[3px] shrink-0 text-muted-foreground" aria-hidden="true" />
           <div className="min-w-0 leading-5">
             <span className="block text-sm text-foreground tabular-nums">{formatPeriod(ev.startDate, ev.endDate)}</span>
+            {/* Dia(s) do evento (30/10): só quando informados no cadastro. */}
+            {diasEv && <span className="block text-xs leading-4 text-slate-600 tabular-nums" data-testid={`dias-do-evento-${ev.id}`}>Evento {diasEv}</span>}
             {quando && <span className={cn("block text-xs leading-4", ds === "em andamento" ? "text-primary font-medium" : "text-muted-foreground")}>{quando}</span>}
           </div>
         </div>

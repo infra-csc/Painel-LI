@@ -178,6 +178,8 @@ export function eventoFake(parcial: Partial<Event> = {}): Event {
     paymentCompanyCnpj: null,
     aeroportoIata: null,
     ocultarValoresColaborador: true,
+    diaEventoInicio: null,
+    diaEventoFim: null,
     createdAt: CRIADO_EM,
     ...parcial,
   };

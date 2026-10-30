@@ -23,6 +23,11 @@
  *
  * Nada de regra mudou: o mesmo esquema, as mesmas permissões, as mesmas
  * mutações e o mesmo "Descartar alterações?".
+ *
+ * 30/10 — "Dia(s) do evento" (de / até) logo abaixo do período: os dias em
+ * que o evento acontece de fato (o período inclui montagem e desmontagem).
+ * Opcionais; a regra é a mesma do servidor (shared/dia-da-prova.ts →
+ * erroDosDiasDoEvento): dentro do período, até ≥ de, só "de" = um dia.
  */
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -55,6 +60,7 @@ import { MensagemDeErro } from "@/components/forms/mensagem-de-erro";
 import { campoComErro } from "@/lib/campo-com-erro";
 import { getEventStatus } from "@/lib/event-status";
 import { EventStatusBadge, duracaoEmDias, quandoAcontece } from "@/components/events/events-shared";
+import { erroDosDiasDoEvento } from "@shared/dia-da-prova";
 
 const STATUS_DO_FORMULARIO = ["planejado", "concluído", "excluído"] as const;
 type StatusDoFormulario = (typeof STATUS_DO_FORMULARIO)[number];
@@ -68,6 +74,9 @@ const eventSchema = z.object({
   location: z.string().min(1, "Local obrigatório"),
   startDate: z.string().min(1, "Data início obrigatória"),
   endDate: z.string().min(1, "Data fim obrigatória"),
+  // Dia(s) do evento (30/10): opcionais; "" = não informado.
+  diaEventoInicio: z.string().optional(),
+  diaEventoFim: z.string().optional(),
   status: z.enum(STATUS_DO_FORMULARIO).optional(),
   observations: z.string().optional(),
   paymentCompanyName: z.string().optional(),
@@ -80,7 +89,10 @@ const eventSchema = z.object({
   // e não sofre com o deslocamento de fuso de new Date("YYYY-MM-DD").
   if (d.startDate && d.endDate && d.endDate < d.startDate) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["endDate"], message: "A data fim não pode ser anterior à data início." });
+    return;
   }
+  const erroDosDias = erroDosDiasDoEvento(d);
+  if (erroDosDias) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [erroDosDias.campo], message: erroDosDias.mensagem });
 });
 type EventFormData = z.infer<typeof eventSchema>;
 
@@ -152,7 +164,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
   const form = useForm<EventFormData>({
     resolver: zodResolver(eventSchema),
     mode: "onBlur",
-    defaultValues: { name: "", location: "", startDate: "", endDate: "", status: "planejado", observations: "", paymentCompanyName: "TATICA MARKETING ESPORTIVO LTDA", paymentCompanyCnpj: "06.103.531/0001-96" },
+    defaultValues: { name: "", location: "", startDate: "", endDate: "", diaEventoInicio: "", diaEventoFim: "", status: "planejado", observations: "", paymentCompanyName: "TATICA MARKETING ESPORTIVO LTDA", paymentCompanyCnpj: "06.103.531/0001-96" },
   });
 
   const cName = form.watch("paymentCompanyName") ?? "";
@@ -163,6 +175,9 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
   const inicio = form.watch("startDate");
   const fim = form.watch("endDate");
   const dias = inicio && fim ? duracaoEmDias(inicio, fim) : null;
+  const diaDe = form.watch("diaEventoInicio");
+  const diaAte = form.watch("diaEventoFim");
+  const diasDoEvento = diaDe ? duracaoEmDias(diaDe, diaAte || diaDe) : null;
 
   useEffect(() => {
     if (event) {
@@ -170,6 +185,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
       form.reset({
         name: event.name, location: event.location,
         startDate: event.startDate, endDate: event.endDate,
+        diaEventoInicio: event.diaEventoInicio ?? "", diaEventoFim: event.diaEventoFim ?? "",
         status: statusDoFormulario(event.status),
         observations: obs,
         paymentCompanyName: event.paymentCompanyName || "",
@@ -177,7 +193,7 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
       });
       setObsLen(obs.length);
     } else {
-      form.reset({ name: "", location: "", startDate: "", endDate: "", status: "planejado", observations: "", paymentCompanyName: "TATICA MARKETING ESPORTIVO LTDA", paymentCompanyCnpj: "06.103.531/0001-96" });
+      form.reset({ name: "", location: "", startDate: "", endDate: "", diaEventoInicio: "", diaEventoFim: "", status: "planejado", observations: "", paymentCompanyName: "TATICA MARKETING ESPORTIVO LTDA", paymentCompanyCnpj: "06.103.531/0001-96" });
       setObsLen(0);
     }
     // `open` na lista: garante que reabrir o modal para o MESMO evento recarregue
@@ -329,7 +345,8 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                   <section className={SECAO} aria-labelledby="evt-sec-periodo">
                     <TituloDaSecao icone={CalendarRange} extra={dias ? (
                       <span className="pas-entra text-xs text-muted-foreground tabular-nums" data-testid="duracao-evento">
-                        {dias === 1 ? "1 dia de evento" : `${dias} dias de evento`}
+                        {/* 30/10: "de evento" passou a ser dos Dia(s) do evento, abaixo. */}
+                        {dias === 1 ? "1 dia no período" : `${dias} dias no período`}
                       </span>
                     ) : undefined}>
                       <span id="evt-sec-periodo">Período</span>
@@ -351,6 +368,44 @@ export default function EventModal({ open, onClose, event }: EventModalProps) {
                           <MensagemDeErro id="event-end-date" erro={fieldState.error?.message} />
                         </div>
                       )} />
+                    </div>
+
+                    {/* Dia(s) do evento (30/10): os dias reais, dentro do período. */}
+                    <div role="group" aria-labelledby="evt-dias-titulo" aria-describedby="evt-dias-ajuda"
+                      className="mt-4 border-t border-border pt-3.5" data-testid="dias-do-evento">
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                        <p id="evt-dias-titulo" className="m-0 text-xs font-semibold text-foreground">
+                          Dia(s) do evento <span className="font-normal text-muted-foreground">· opcional</span>
+                        </p>
+                        {diasDoEvento && (
+                          <span className="pas-entra text-xs text-muted-foreground tabular-nums" data-testid="duracao-dias-do-evento">
+                            {diasDoEvento === 1 ? "1 dia de evento" : `${diasDoEvento} dias de evento`}
+                          </span>
+                        )}
+                      </div>
+                      <p id="evt-dias-ajuda" className="m-0 mt-0.5 mb-2.5 text-xs leading-5 text-muted-foreground">
+                        Os dias em que o evento acontece; o período acima inclui montagem e desmontagem.
+                      </p>
+                      <div className="grid grid-cols-2 gap-x-3 sm:gap-x-4 gap-y-3">
+                        <FormField control={form.control} name="diaEventoInicio" render={({ field, fieldState }) => (
+                          <div className="min-w-0">
+                            <label htmlFor="event-dia-inicio" className={LABEL}>De</label>
+                            <Input id="event-dia-inicio" type="date" min={inicio || undefined} max={fim || undefined} data-testid="input-event-dia-inicio"
+                              className={cn(IC, "tabular-nums")} disabled={leitura}
+                              {...campoComErro("event-dia-inicio", fieldState.error?.message)} {...field} value={field.value ?? ""} />
+                            <MensagemDeErro id="event-dia-inicio" erro={fieldState.error?.message} />
+                          </div>
+                        )} />
+                        <FormField control={form.control} name="diaEventoFim" render={({ field, fieldState }) => (
+                          <div className="min-w-0">
+                            <label htmlFor="event-dia-fim" className={LABEL}>Até</label>
+                            <Input id="event-dia-fim" type="date" min={diaDe || inicio || undefined} max={fim || undefined} data-testid="input-event-dia-fim"
+                              className={cn(IC, "tabular-nums")} disabled={leitura}
+                              {...campoComErro("event-dia-fim", fieldState.error?.message)} {...field} value={field.value ?? ""} />
+                            <MensagemDeErro id="event-dia-fim" erro={fieldState.error?.message} />
+                          </div>
+                        )} />
+                      </div>
                     </div>
                   </section>
 

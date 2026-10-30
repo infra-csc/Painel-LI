@@ -24,6 +24,7 @@ import type { TeamInclusion } from "@shared/schema";
 import { diaLocal, inicioDoDia } from "./scaling-period";
 import { ehSugestao, vagasVivas, type AnalyticsContext } from "./scaling-analytics-data";
 import { getScalingStatusKey } from "./scaling-status";
+import { diasInformados } from "@shared/dia-da-prova";
 
 export interface FuncaoFaltando {
   nome: string;
@@ -49,6 +50,9 @@ export interface EventoNoRelatorio {
    * não tem.
    *
    * Cai no período das vagas quando o evento não tem datas cadastradas.
+   *
+   * 30/10: quando o cadastro tem os Dia(s) do evento, saem ELES (Serra:
+   * "05/11 a 06/11", não "01/11 a 08/11") — agora a precisão existe no dado.
    */
   ini: Date | null;
   fim: Date | null;
@@ -151,6 +155,7 @@ export function montarRelatorioDeCobertura(
     const datasDoEvento = ctx.getEventDates?.(eventId);
     const dataEvento = diaLocal(datasDoEvento?.startDate);
     const fimEvento = diaLocal(datasDoEvento?.endDate) ?? dataEvento;
+    const informados = diasInformados(datasDoEvento);
 
     const ultimoDia = fimEvento
       ?? (fins.length > 0 ? new Date(Math.max(...fins.map((d) => d.getTime()))) : null);
@@ -160,8 +165,8 @@ export function montarRelatorioDeCobertura(
       jaTerminou,
       eventId,
       nome: ctx.getEventName(eventId),
-      ini: dataEvento ?? (inicios.length ? new Date(Math.min(...inicios.map((d) => d.getTime()))) : null),
-      fim: fimEvento ?? (fins.length ? new Date(Math.max(...fins.map((d) => d.getTime()))) : null),
+      ini: informados?.de ?? dataEvento ?? (inicios.length ? new Date(Math.min(...inicios.map((d) => d.getTime()))) : null),
+      fim: informados?.ate ?? fimEvento ?? (fins.length ? new Date(Math.max(...fins.map((d) => d.getTime()))) : null),
       total: doEvento.length,
       abertas: abertas.length,
       funcoes: Array.from(porFuncao.entries())

@@ -34,8 +34,17 @@ export type BaseDaData = "escala" | "evento";
 
 export const BASE_LABEL: Record<BaseDaData, string> = { escala: "Data da escala", evento: "Data do evento" };
 
-/** Datas do evento de uma linha — a tela passa o que já tem carregado. */
-export type DatasDoEvento = (eventId: string | null | undefined) => { startDate?: string | null; endDate?: string | null } | undefined;
+/**
+ * Datas do evento de uma linha — a tela passa o que já tem carregado (o
+ * `Event` serve). Os dias do evento (30/10) mandam no dia da prova quando
+ * informados.
+ */
+export type DatasDoEvento = (eventId: string | null | undefined) => {
+  startDate?: string | null;
+  endDate?: string | null;
+  diaEventoInicio?: string | null;
+  diaEventoFim?: string | null;
+} | undefined;
 
 export interface PeriodConfig {
   preset: PeriodPreset;
@@ -115,8 +124,9 @@ export function periodoDaLinha(row: PeriodRow, opcoes?: { base?: BaseDaData; dat
   if (opcoes?.base === "evento" && opcoes.datasDoEvento) {
     const ev = opcoes.datasDoEvento(row.eventId);
     // O cadastro guarda a janela de montagem + prova (dono, 22/09): o que vale
-    // aqui é o DIA DA PROVA — último domingo do período (ou sábado).
-    const prova = janelaDaProva(ev?.startDate, ev?.endDate);
+    // aqui é o DIA DA PROVA — os dias do evento informados no cadastro (30/10)
+    // ou, sem eles, o fim de semana mais perto do fim do período.
+    const prova = janelaDaProva(ev?.startDate, ev?.endDate, ev);
     if (prova) return { ini: prova.de, fim: prova.ate };
   }
   const ini = diaLocal(row.scheduleStartDate);

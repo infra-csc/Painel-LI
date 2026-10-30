@@ -142,7 +142,7 @@ export default function ScalingPeriodFilter<T extends PeriodRow>({ valor, onChan
               })}
             </div>
             <span className="text-2xs text-muted-foreground">
-              A escala começa dias antes (montagem). A data do evento é o dia da prova — o domingo do período, ou o sábado.
+              A escala começa dias antes (montagem). A data do evento são os dias do evento do cadastro; sem eles, o fim de semana do período.
             </span>
           </div>
         )}

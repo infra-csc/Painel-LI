@@ -120,6 +120,14 @@ export const events = pgTable("events", {
   // abaixo). Vale na Fase 1 (portal do colaborador); hoje só fica registrado.
   // Migração: scripts/migrations/2026-10-26-honorarios-fase-0.sql (+ ensure-schema).
   ocultarValoresColaborador: boolean("ocultar_valores_colaborador").notNull().default(true),
+  // Dia(s) do evento (30/10): os dias REAIS da prova/ativação, dentro do
+  // período acima (que inclui montagem e desmontagem). Opcionais; só o
+  // primeiro preenchido = um dia (o servidor grava os dois iguais). Quando
+  // existem, mandam no "dia da prova" (shared/dia-da-prova.ts: os prazos D-N
+  // do Quadro contam do ÚLTIMO dia). Regras do cadastro: erroDosDiasDoEvento.
+  // Migração: scripts/migrations/2026-10-30-dias-do-evento.sql (+ ensure-schema).
+  diaEventoInicio: date("dia_evento_inicio"),
+  diaEventoFim: date("dia_evento_fim"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -783,6 +791,18 @@ export const userApprovalSchema = z.object({
   role: z.enum(PAPEIS_CANONICOS).optional()
 });
 
+/**
+ * Dia do evento no corpo (30/10): "AAAA-MM-DD", vazio ou null. O formulário
+ * manda "" no campo apagado — vira null (o Postgres recusaria "" num `date`).
+ * `undefined` continua `undefined`: no PUT parcial, campo ausente não apaga.
+ * As regras (dentro do período, até ≥ de) ficam na rota — dependem do
+ * período gravado quando o PUT não o manda.
+ */
+const diaDoEventoNoCorpo = z
+  .union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida."), z.literal(""), z.null()])
+  .optional()
+  .transform((v) => (v === undefined ? undefined : v || null));
+
 export const insertEventSchema = createInsertSchema(events).omit({
   id: true,
   eventNumber: true, // tem valor default com sequence
@@ -790,6 +810,9 @@ export const insertEventSchema = createInsertSchema(events).omit({
   createdAt: true,
   aeroportoIata: true, // só a busca de passagens grava (09/10)
   ocultarValoresColaborador: true, // só o DP muda, por rota própria (26/10)
+}).extend({
+  diaEventoInicio: diaDoEventoNoCorpo,
+  diaEventoFim: diaDoEventoNoCorpo,
 });
 
 // Schema for updating events (allows status field)
@@ -799,6 +822,9 @@ export const updateEventSchema = createInsertSchema(events).omit({
   createdAt: true,
   aeroportoIata: true, // só a busca de passagens grava (09/10)
   ocultarValoresColaborador: true, // só o DP muda, por rota própria (26/10)
+}).extend({
+  diaEventoInicio: diaDoEventoNoCorpo,
+  diaEventoFim: diaDoEventoNoCorpo,
 }).partial();
 
 export const insertFunctionSchema = createInsertSchema(functions).omit({

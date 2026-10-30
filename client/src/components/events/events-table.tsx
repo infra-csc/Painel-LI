@@ -29,7 +29,7 @@ import { useLarguraUtil } from "@/components/common/use-largura-util";
 import { getEventStatus } from "@/lib/event-status";
 import { EventRowActions, type EventRowActionsProps } from "./event-row-actions";
 import { EventCard } from "./events-list";
-import { EventStatusBadge, formatPeriod, quandoAcontece, type SortDir, type SortKey } from "./events-shared";
+import { EventStatusBadge, diasDoEventoCurto, formatPeriod, quandoAcontece, type SortDir, type SortKey } from "./events-shared";
 
 /** Chaves das colunas: as ordenáveis são `SortKey`; as demais só identificam a coluna. */
 type ColKey = SortKey | "location" | "esc" | "acoes";
@@ -104,9 +104,12 @@ export function EventsTable({ events, escalacoes, sortKey, sortDir, handleSort, 
       cell: ev => {
         const ds = getEventStatus(ev);
         const quando = quandoAcontece(ev);
+        const diasEv = diasDoEventoCurto(ev);
         return (
           <div className="leading-5">
             <span className="block text-sm text-foreground tabular-nums whitespace-nowrap">{formatPeriod(ev.startDate, ev.endDate)}</span>
+            {/* Dia(s) do evento (30/10): só quando informados no cadastro. */}
+            {diasEv && <span className="block text-xs leading-[18px] whitespace-nowrap text-slate-600 tabular-nums" data-testid={`dias-do-evento-${ev.id}`}>Evento {diasEv}</span>}
             {quando && <span className={cn("block text-xs leading-[18px] whitespace-nowrap", ds === "em andamento" ? "text-primary font-medium" : "text-muted-foreground")}>{quando}</span>}
           </div>
         );

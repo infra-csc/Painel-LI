@@ -18,6 +18,7 @@ import { eq, and, ne, desc, sql as drizzleSql } from "drizzle-orm";
 import { ZodError } from "zod";
 import { isFinanceRole, normalizeRole } from "@shared/roles";
 import { erroDoCnpj } from "@shared/cnpj";
+import { erroDosDiasDoEvento, normalizarDiasDoEvento } from "@shared/dia-da-prova";
 import { createAuditLog, cacheDeCatalogo, requireRoles, CADASTRO_ROLES, FINANCE_ROLES } from "./_compartilhado";
 
 export function registrarEventos(app: Express): void {
@@ -50,6 +51,11 @@ export function registrarEventos(app: Express): void {
     if (!currentUser) return;
     try {
       const eventData = insertEventSchema.parse(req.body);
+      // Dia(s) do evento (30/10): opcionais, dentro do período, até ≥ de; só
+      // o primeiro informado = um dia (grava os dois iguais).
+      const erroDosDias = erroDosDiasDoEvento(eventData);
+      if (erroDosDias) return res.status(400).json({ message: erroDosDias.mensagem, campo: erroDosDias.campo });
+      Object.assign(eventData, normalizarDiasDoEvento(eventData.diaEventoInicio, eventData.diaEventoFim));
       // Empresa pagadora é decisão do financeiro (rota dedicada abaixo)
       const { paymentCompanyName: _pc, paymentCompanyCnpj: _cnpj, ...semPagadora } = eventData;
       const event = await storage.createEvent(semPagadora);
@@ -134,6 +140,21 @@ export function registrarEventos(app: Express): void {
       // e pode REATIVAR um evento excluído.
       if (eventData.status === "excluído" && oldEvent.status !== "excluído" && normalizeRole(currentUser.role) !== "admin") {
         return res.status(403).json({ message: "Só o administrador pode excluir eventos. Você pode editar ou reativar." });
+      }
+      // Dia(s) do evento (30/10): a regra vale para o evento COMO VAI FICAR —
+      // o período e os dias que o PUT não manda são os gravados. Mudar só o
+      // período para fora dos dias já informados também é recusado.
+      const mexeNosDias = eventData.diaEventoInicio !== undefined || eventData.diaEventoFim !== undefined;
+      if (mexeNosDias || eventData.startDate !== undefined || eventData.endDate !== undefined) {
+        const final = {
+          startDate: eventData.startDate ?? oldEvent.startDate,
+          endDate: eventData.endDate ?? oldEvent.endDate,
+          diaEventoInicio: eventData.diaEventoInicio !== undefined ? eventData.diaEventoInicio : oldEvent.diaEventoInicio,
+          diaEventoFim: eventData.diaEventoFim !== undefined ? eventData.diaEventoFim : oldEvent.diaEventoFim,
+        };
+        const erroDosDias = erroDosDiasDoEvento(final);
+        if (erroDosDias) return res.status(400).json({ message: erroDosDias.mensagem, campo: erroDosDias.campo });
+        if (mexeNosDias) Object.assign(eventData, normalizarDiasDoEvento(final.diaEventoInicio, final.diaEventoFim));
       }
       const updatedEvent = await storage.updateEvent(eventId, eventData);
 

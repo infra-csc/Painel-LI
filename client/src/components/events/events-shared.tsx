@@ -37,6 +37,19 @@ export function formatPeriod(s: string, e: string) {
   return sm ? `${format(d1, "dd")}–${format(d2, "dd/MM/yy")}` : `${format(d1, "dd/MM")} – ${format(d2, "dd/MM/yy")}`;
 }
 
+/**
+ * Os Dia(s) do evento informados no cadastro (30/10), curtos: "05/11",
+ * "05–06/11" ou "30/11–01/12". null quando não foram informados — aí a lista
+ * mostra só o período, como antes.
+ */
+export function diasDoEventoCurto(ev: Partial<Pick<Event, "diaEventoInicio" | "diaEventoFim">>): string | null {
+  const d1 = parseLocalDate(ev.diaEventoInicio ?? ev.diaEventoFim ?? "");
+  const d2 = parseLocalDate(ev.diaEventoFim ?? ev.diaEventoInicio ?? "");
+  if (!d1 || !d2) return null;
+  if (d1.toDateString() === d2.toDateString()) return format(d1, "dd/MM");
+  return d1.getMonth() === d2.getMonth() ? `${format(d1, "dd")}–${format(d2, "dd/MM")}` : `${format(d1, "dd/MM")}–${format(d2, "dd/MM")}`;
+}
+
 /** Quantos dias o evento dura (início e fim contam). `null` com data inválida. */
 export function duracaoEmDias(s: string, e: string): number | null {
   const d1 = parseLocalDate(s), d2 = parseLocalDate(e);

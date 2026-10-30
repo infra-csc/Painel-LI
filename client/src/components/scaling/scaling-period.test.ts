@@ -193,3 +193,23 @@ describe("base da data: escala ou evento", () => {
   });
 });
 
+
+describe("filtro 'Data do evento' com os Dia(s) do evento do cadastro (30/10)", () => {
+  // Viva Esporte Serra: período 01/11 (dom) → 08/11 (dom); evento 05 e 06/11 (qui/sex).
+  const serra = { startDate: "2026-11-01", endDate: "2026-11-08", diaEventoInicio: "2026-11-05", diaEventoFim: "2026-11-06" };
+  const vaga = { eventId: "serra", scheduleStartDate: "2026-11-02", scheduleEndDate: "2026-11-08" };
+
+  it("a linha mede pelos dias informados (05–06/11), não pelo domingo do período", () => {
+    expect(periodoDaLinha(vaga, { base: "evento", datasDoEvento: () => serra })).toEqual({ ini: new Date(2026, 10, 5), fim: new Date(2026, 10, 6) });
+    const ate07 = cfg({ preset: "custom", de: "2026-11-07", ate: "2026-11-08" });
+    expect(fazTesteDePeriodo({ ...ate07, base: "evento" }, HOJE, () => serra)(vaga)).toBe(false);
+    const dia06 = cfg({ preset: "custom", de: "2026-11-06", ate: "2026-11-06" });
+    expect(fazTesteDePeriodo({ ...dia06, base: "evento" }, HOJE, () => serra)(vaga)).toBe(true);
+  });
+
+  it("sem dias informados, Cariacica (06/12 dom → 12/12 sáb) mede pelo sábado do fim", () => {
+    const cariacica = { startDate: "2026-12-06", endDate: "2026-12-12" };
+    expect(periodoDaLinha({ ...vaga, eventId: "c" }, { base: "evento", datasDoEvento: () => cariacica }))
+      .toEqual({ ini: new Date(2026, 11, 12), fim: new Date(2026, 11, 12) });
+  });
+});

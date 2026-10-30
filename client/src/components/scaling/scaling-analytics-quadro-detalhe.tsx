@@ -26,7 +26,7 @@ import {
   type DiasDosPrazos, type EtapaComPrazo, type SituacaoDoPrazo,
 } from "@shared/prazos-da-escala";
 import {
-  DIAS_ESPERA_ATRASADA, O_QUE_FALTA, diasParadaNaEtapa, etapaAtualDaVaga, textoDaEtapaAtual,
+  DIAS_ESPERA_ATRASADA, O_QUE_FALTA, diasParadaNaEtapa, etapaAtualDaVaga, rotuloDaDataDoEvento, textoDaEtapaAtual,
   type AnalyticsContext, type EventoAnalisado, type QuadroDoEvento,
 } from "./scaling-analytics-data";
 
@@ -35,7 +35,6 @@ const BUSCA_A_PARTIR_DE = 15;
 
 const dm = (d: Date | null) =>
   d ? `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}` : "—";
-const dmIso = (iso: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : "sem data");
 const plural = (n: number, um: string, varios: string) => (n === 1 ? um : varios);
 
 type Situacao = SituacaoDoPrazo | "informativo" | "nenhuma_chegou";
@@ -135,7 +134,7 @@ export function DetalheDaEtapa({ evento, quadro, etapa, ctx, dias, hoje, onFecha
             </DialogTitle>
             <DialogDescription asChild>
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-slate-600">
-                <span>Evento em <span className="font-semibold tabular-nums text-foreground">{dmIso(evento.dataEvento)}</span></span>
+                <span>Evento em <span className="font-semibold tabular-nums text-foreground">{evento.dataEvento ? rotuloDaDataDoEvento(evento) : "sem data"}</span></span>
                 <span>
                   Prazo <span className="font-semibold tabular-nums text-foreground">{dm(prazo)}</span>{" "}
                   <span className="tabular-nums text-muted-foreground">(D-{dias[etapa]})</span>

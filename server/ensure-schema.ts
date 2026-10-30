@@ -941,6 +941,11 @@ const PASSOS: Passo[] = [
   // dobrado (2 diárias no dia). Regra em shared/dobra-de-turno.ts
   // (scripts/migrations/2026-10-29-dobra-de-turno.sql).
   { descricao: "budget_actual.dias_dobra (dias com dobra de turno)", sql: `ALTER TABLE budget_actual ADD COLUMN IF NOT EXISTS dias_dobra text[]` },
+  // 30/10 — Dia(s) do evento: os dias REAIS da prova, dentro do período
+  // cadastrado (que inclui montagem e desmontagem). Regra do dia da prova em
+  // shared/dia-da-prova.ts (scripts/migrations/2026-10-30-dias-do-evento.sql).
+  { descricao: "events.dia_evento_inicio (primeiro dia real do evento)", sql: `ALTER TABLE events ADD COLUMN IF NOT EXISTS dia_evento_inicio date` },
+  { descricao: "events.dia_evento_fim (último dia real do evento)", sql: `ALTER TABLE events ADD COLUMN IF NOT EXISTS dia_evento_fim date` },
   // 25/09 — usuário fixo 'system' em users: team_inclusion_logs.user_id
   // aponta para ele quando a vaga muda sem ator humano. Sem a linha, a FK
   // (declarada no schema; criada NOT VALID pela migração de 25/09) recusa o

@@ -17,11 +17,13 @@
  */
 import type { TeamInclusion } from "@shared/schema";
 import { diaLocal, ehFimDeSemana, pegaFimDeSemana, inicioDoDia } from "./scaling-period";
-import { diaDaProvaISO } from "@shared/dia-da-prova";
+import { diaDaProvaISO, diasInformados } from "@shared/dia-da-prova";
 import { getScalingStatusKey } from "./scaling-status";
 import type { EtapaComPrazo } from "@shared/prazos-da-escala";
 
 const MS_DIA = 86_400_000;
+
+const isoLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 export interface AnalyticsContext {
   temNome: (i: TeamInclusion) => boolean;
@@ -35,7 +37,13 @@ export interface AnalyticsContext {
    * montar. Quem pede gente fala a data do evento ("Primavera São Paulo, dia
    * 12"), então é ela que sai no relatório.
    */
-  getEventDates?: (eventId: string | null) => { startDate?: string | null; endDate?: string | null } | undefined;
+  getEventDates?: (eventId: string | null) => {
+    startDate?: string | null;
+    endDate?: string | null;
+    /** Dia(s) do evento informados no cadastro (30/10) — mandam no dia da prova. */
+    diaEventoInicio?: string | null;
+    diaEventoFim?: string | null;
+  } | undefined;
   /**
    * A vaga já tem passagem registrada (18/09: "principalmente a emissão de
    * passagens"). Registrar é emitir para o time — a marca "emitida" separada
@@ -211,6 +219,12 @@ export interface EventoAnalisado {
   logistica: Logistica;
   /** Data do EVENTO (não da escala) — base dos prazos de cada etapa. */
   dataEvento: string | null;
+  /**
+   * Primeiro dia do evento quando os dias foram INFORMADOS no cadastro e são
+   * mais de um (30/10: Serra 05–06/11) — a tela mostra "05–06/11". null nos
+   * demais casos (um dia só, ou dia deduzido): a data é só `dataEvento`.
+   */
+  dataEventoInicio: string | null;
   /** As vagas vivas do evento — o Quadro trava cada uma na etapa em que está parada. */
   vagas: TeamInclusion[];
 }
@@ -245,6 +259,8 @@ export function analisarPorEvento(linhas: TeamInclusion[], ctx: AnalyticsContext
     const logistica = contarLogistica(doEvento, ctx);
     const passagensFaltando = logistica.passagens.precisam - logistica.passagens.emitidas;
     const buckets = doEvento.map((i) => bucketDaLinha(i, ctx));
+    const datas = ctx.getEventDates?.(eventId);
+    const informados = diasInformados(datas);
     const quantos = (k: BucketKey) => buckets.filter((b) => b === k).length;
 
     out.push({
@@ -260,8 +276,10 @@ export function analisarPorEvento(linhas: TeamInclusion[], ctx: AnalyticsContext
       critico: (abertas > 0 || etapas.validacao + etapas.aprovacao > 0 || passagensFaltando > 0) && !jaTerminou && prazoDias !== null && prazoDias <= DIAS_PRAZO_CRITICO,
       etapas,
       logistica,
-      // O DIA DA PROVA, não o início da montagem (22/09) — é dele que os prazos contam.
-      dataEvento: diaDaProvaISO(ctx.getEventDates?.(eventId)?.startDate, ctx.getEventDates?.(eventId)?.endDate),
+      // O DIA DA PROVA, não o início da montagem (22/09) — é dele que os
+      // prazos contam. Com os dias do evento informados (30/10), o ÚLTIMO deles.
+      dataEvento: diaDaProvaISO(datas?.startDate, datas?.endDate, datas),
+      dataEventoInicio: informados && informados.de.getTime() !== informados.ate.getTime() ? isoLocal(informados.de) : null,
       naEscalacao: { semNome: quantos("vaga"), salvo: quantos("salvo"), gestor: quantos("gestor") },
       vagas: doEvento,
       completaPct: Math.round((etapas.completa / doEvento.length) * 100),
@@ -542,3 +560,16 @@ export function textoDeFimDeSemana(n: number, total: number): string {
 }
 
 export { ehFimDeSemana };
+
+/**
+ * A data do evento como a tela mostra: "06/11" ou, com os dias informados no
+ * cadastro (30/10), "05–06/11" / "30/11–01/12". "—" sem data.
+ */
+export function rotuloDaDataDoEvento(e: Pick<EventoAnalisado, "dataEvento" | "dataEventoInicio">): string {
+  const dm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+  if (!e.dataEvento) return "—";
+  if (!e.dataEventoInicio) return dm(e.dataEvento);
+  return e.dataEventoInicio.slice(5, 7) === e.dataEvento.slice(5, 7)
+    ? `${e.dataEventoInicio.slice(8, 10)}–${dm(e.dataEvento)}`
+    : `${dm(e.dataEventoInicio)}–${dm(e.dataEvento)}`;
+}

@@ -137,3 +137,39 @@ describe("Quadro de prazos — detalhe da célula", () => {
     expect(within(modal).queryByTestId("detalhe-copiar")).not.toBeInTheDocument();
   });
 });
+
+describe("Quadro de prazos — Dia(s) do evento (30/10)", () => {
+  // Viva Esporte: período de montagem a desmontagem; o evento é quinta e sexta.
+  const DATAS: Record<string, { startDate: string; endDate: string; diaEventoInicio?: string | null; diaEventoFim?: string | null }> = {
+    serra: { startDate: "2026-11-01", endDate: "2026-11-08", diaEventoInicio: "2026-11-05", diaEventoFim: "2026-11-06" },
+    cariacica: { startDate: "2026-12-06", endDate: "2026-12-12" },
+    fundao: { startDate: "2026-11-29", endDate: "2026-12-06" },
+  };
+  const ctxViva: AnalyticsContext = {
+    ...ctx,
+    getEventName: (id) => `Viva Esporte - ${id}`,
+    getEventDates: (id) => (id ? DATAS[id] : undefined),
+  };
+  const vagas = Object.keys(DATAS).map((eventId) => v({ eventId, scheduleStartDate: DATAS[eventId].startDate, scheduleEndDate: DATAS[eventId].endDate }));
+
+  it("com os dias informados, a DATA é 05–06/11 e os prazos contam do último dia (06/11)", () => {
+    const eventos = analisarPorEvento(vagas, ctxViva, HOJE);
+    const serra = eventos.find((e) => e.eventId === "serra")!;
+    expect(serra.dataEvento).toBe("2026-11-06");
+    expect(serra.dataEventoInicio).toBe("2026-11-05");
+    renderComTudo(
+      <QuadroDePrazos eventos={eventos} ctx={ctxViva} hoje={HOJE} dias={DIAS_PADRAO} podeEditar={false} onVerVagasDoEvento={vi.fn()} />,
+      { user: usuarioFake({ role: "admin" }), rota: "/scaling?aba=analises" },
+    );
+    expect(screen.getByTestId("quadro-data-serra")).toHaveTextContent(/^05–06\/11$/);
+    // Registros D-58: 06/11 − 58 = 09/09 (do domingo 08/11 seria 11/09).
+    expect(screen.getByTestId("quadro-registro-serra")).toHaveTextContent("09/09");
+  });
+
+  it("sem dias informados, Cariacica deduz o sábado do fim (12/12) e não cai na data do Fundão (06/12)", () => {
+    const eventos = analisarPorEvento(vagas, ctxViva, HOJE);
+    expect(eventos.find((e) => e.eventId === "cariacica")?.dataEvento).toBe("2026-12-12");
+    expect(eventos.find((e) => e.eventId === "fundao")?.dataEvento).toBe("2026-12-06");
+    expect(eventos.find((e) => e.eventId === "cariacica")?.dataEventoInicio).toBeNull();
+  });
+});
