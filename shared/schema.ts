@@ -539,6 +539,8 @@ export const teamInclusionLogs = pgTable("team_inclusion_logs", {
 }, (t) => [
   // Histórico da vaga, mais recente primeiro (23/09)
   index("team_inclusion_logs_inclusion_created_idx").on(t.teamInclusionId, t.createdAt.desc()),
+  // Atividade recente dos Painéis (30/10): as últimas mudanças de todas as vagas, por data.
+  index("team_inclusion_logs_created_idx").on(t.createdAt.desc()),
 ]);
 
 // System Activity Logs table - for public audit trail

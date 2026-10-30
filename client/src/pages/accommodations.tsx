@@ -65,7 +65,11 @@ export default function Accommodations() {
   const queryClient = useQueryClient();
 
   // ── Estado da tela ──
-  const [filters, setFilters] = useState<AccommodationFilters>(DEFAULT_FILTERS);
+  // 30/10: os Painéis abrem a Hospedagem já no evento (?event=<id>).
+  const [filters, setFilters] = useState<AccommodationFilters>(() => {
+    const evento = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("event") : null;
+    return evento ? { ...DEFAULT_FILTERS, eventId: evento } : DEFAULT_FILTERS;
+  });
   const [blocoAtivo, setBlocoAtivo] = useState<BlocoDaFila | null>(null);
   const [sortConfig, setSortConfig] = useState<AccSortConfig | null>({ field: "id", direction: "desc" });
   const [selectedInclusion, setSelectedInclusion] = useState<TeamInclusion | null>(null);

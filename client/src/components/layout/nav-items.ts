@@ -29,7 +29,7 @@ import {
   UserPlus, CalendarDays, Calendar, Briefcase, IdCard, ListPlus, ClipboardCheck, Stamp, History,
   UserRoundPlus, ClipboardList, Ticket, BedDouble, Table2, Luggage, CalendarClock, Wallet,
   ChartColumn, Receipt, PiggyBank, Calculator, SlidersHorizontal, FileSearch, UserCog, Eye, Inbox, PlaneTakeoff, HandCoins, CircleDollarSign,
-  LayoutDashboard, FileSignature, Fingerprint, FileCheck2,
+  LayoutDashboard, FileSignature, Fingerprint, FileCheck2, Gauge, Activity, Hotel, Users,
 } from "lucide-react";
 import { hasPermission, type RolePermissions } from "@/lib/role-utils";
 
@@ -82,6 +82,12 @@ export interface NavGroup {
 }
 
 export const ALL_TABS: NavTab[] = [
+  // ── Painéis (30/10): acompanhar mudanças da escala, passagens e hotéis para agir rápido ──
+  { id: "paineis",            path: "/paineis",            label: "Visão geral",          icon: Gauge,             permission: "canAccessScreen3", sinonimos: ["dashboard", "painel", "atrasados", "fora do prazo"] },
+  { id: "paineis-atividade",  path: "/paineis/atividade",  label: "Atividade recente",    icon: Activity,          permission: "canAccessScreen3", sinonimos: ["últimas inclusões", "pedidos de ajuste", "notificações", "novidades"] },
+  { id: "paineis-escala",     path: "/paineis/escala",     label: "Painel da escala",     icon: Users,             permission: "canAccessScreen3", sinonimos: ["comparar eventos", "escala lado a lado", "atrasados da escala"] },
+  { id: "paineis-passagens",  path: "/paineis/passagens",  label: "Painel de passagens",  icon: Ticket,            permission: "canAccessScreen3", sinonimos: ["passagens fora do prazo", "emitidas", "preço de passagem"] },
+  { id: "paineis-hospedagem", path: "/paineis/hospedagem", label: "Painel de hospedagem", icon: Hotel,             permission: "canAccessScreen3", sinonimos: ["hotéis atrasados", "room nights", "comparar hotéis"] },
   { id: "user-registration",  path: "/user-registration",  label: "Cadastro de usuários", icon: UserPlus,          permission: "canCreateUsers" },
   { id: "events",             path: "/events",             label: "Eventos",              icon: CalendarDays,      permission: "canAccessCadastros" },
   { id: "calendar",           path: "/calendar",           label: "Calendário",           icon: Calendar,          permission: "canAccessCalendar" },
@@ -138,6 +144,8 @@ export const CLASSE_DO_TONE: Record<ToneDoGrupo, string> = {
 };
 
 export const MENU_GROUPS: NavGroup[] = [
+  // 30/10: painéis para pegar inclusões, mudanças e atrasos o quanto antes.
+  { title: "Painéis", tone: "warning", ids: ["paineis", "paineis-atividade", "paineis-escala", "paineis-passagens", "paineis-hospedagem"] },
   { title: "Cadastros", tone: "primary", ids: ["user-registration", "events", "calendar", "functions", "collaborators"] },
   {
     title: "Operacional",

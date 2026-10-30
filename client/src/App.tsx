@@ -58,6 +58,12 @@ const PortalDoColaborador    = lazy(() => import("@/pages/colaborador"));
 const PresencaNoEventoPage   = lazy(() => import("@/pages/presenca-no-evento"));
 // 28/10 (Honorários, Fase 2 manual): OC, nota fiscal e pagamento — só o DP (admin + financial).
 const OrdensDeCompraPage     = lazy(() => import("@/pages/ordens-de-compra"));
+// 30/10: Painéis — visão geral, atividade recente, escala, passagens e hospedagem.
+const PaineisPage            = lazy(() => import("@/pages/paineis"));
+const PaineisAtividadePage   = lazy(() => import("@/pages/paineis-atividade"));
+const PaineisEscalaPage      = lazy(() => import("@/pages/paineis-escala"));
+const PaineisPassagensPage   = lazy(() => import("@/pages/paineis-passagens"));
+const PaineisHospedagemPage  = lazy(() => import("@/pages/paineis-hospedagem"));
 
 import ProtectedRoute from "@/components/layout/protected-route";
 import { useAuth } from "@/hooks/use-auth";
@@ -195,6 +201,31 @@ function Router() {
             <Route path="/scaling">
               <ProtectedRoute permission="canAccessScreen2">
                 <Scaling />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/paineis/atividade">
+              <ProtectedRoute permission="canAccessScreen3">
+                <PaineisAtividadePage />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/paineis/escala">
+              <ProtectedRoute permission="canAccessScreen3">
+                <PaineisEscalaPage />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/paineis/passagens">
+              <ProtectedRoute permission="canAccessScreen3">
+                <PaineisPassagensPage />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/paineis/hospedagem">
+              <ProtectedRoute permission="canAccessScreen3">
+                <PaineisHospedagemPage />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/paineis">
+              <ProtectedRoute permission="canAccessScreen3">
+                <PaineisPage />
               </ProtectedRoute>
             </Route>
             <Route path="/tickets">

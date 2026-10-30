@@ -946,6 +946,8 @@ const PASSOS: Passo[] = [
   // shared/dia-da-prova.ts (scripts/migrations/2026-10-30-dias-do-evento.sql).
   { descricao: "events.dia_evento_inicio (primeiro dia real do evento)", sql: `ALTER TABLE events ADD COLUMN IF NOT EXISTS dia_evento_inicio date` },
   { descricao: "events.dia_evento_fim (último dia real do evento)", sql: `ALTER TABLE events ADD COLUMN IF NOT EXISTS dia_evento_fim date` },
+  // 30/10: a Atividade recente dos Painéis lê as últimas mudanças de todas as vagas por data.
+  { descricao: "índice team_inclusion_logs_created_idx", sql: `CREATE INDEX IF NOT EXISTS team_inclusion_logs_created_idx ON team_inclusion_logs (created_at DESC)` },
   // 25/09 — usuário fixo 'system' em users: team_inclusion_logs.user_id
   // aponta para ele quando a vaga muda sem ator humano. Sem a linha, a FK
   // (declarada no schema; criada NOT VALID pela migração de 25/09) recusa o

@@ -44,3 +44,23 @@ describe("useScalingFilters — Limpar tira o ?fila= da URL (28/10)", () => {
     expect(historico).toEqual(["/scaling?honorarios=devolvidos&t=5"]);
   });
 });
+
+describe("useScalingFilters — link dos Painéis (30/10)", () => {
+  it("?eventId=&fila=&q= abre a Fila no evento, no bloco e com a busca; limpar tira tudo da URL", async () => {
+    const { result, historico } = montar("/scaling?eventId=ev-1&fila=prontas&q=4821");
+    await waitFor(() => expect(result.current.eventosMarcados).toEqual(["ev-1"]));
+    expect(result.current.fila).toBe("prontas");
+    expect(result.current.busca).toBe("4821");
+    expect(result.current.aba).toBe("fila");
+    act(() => result.current.limpaFiltros());
+    await waitFor(() => expect(historico.at(-1)).toBe("/scaling"));
+    expect(result.current.eventosMarcados).toEqual([]);
+  });
+
+  it("só ?eventId= abre em Todas, sem busca", async () => {
+    const { result } = montar("/scaling?eventId=ev-2");
+    await waitFor(() => expect(result.current.eventosMarcados).toEqual(["ev-2"]));
+    expect(result.current.fila).toBeNull();
+    expect(result.current.busca).toBe("");
+  });
+});

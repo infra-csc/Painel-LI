@@ -15,6 +15,9 @@ test.describe("Login por papel", () => {
     await expect(menu(page).getByRole("button", { name: "Honorários", exact: true })).toBeVisible();
     await expect(menu(page).getByRole("button", { name: "Financeiro" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: `Conta de ${USUARIO.admin.nome}` })).toBeVisible();
+    // 30/10: grupo Painéis (admin, Compras e Produção).
+    await expect(menu(page).getByRole("link", { name: "Visão geral", exact: true })).toBeVisible();
+    await expect(menu(page).getByRole("link", { name: "Atividade recente", exact: true })).toBeVisible();
   });
 
   // 27/10: a Área de Função vê só a "Presença no evento" do grupo Honorários (das funções dela).
@@ -26,6 +29,8 @@ test.describe("Login por papel", () => {
     await expect(menu(page).getByRole("link", { name: "Pré-aprovação de valores" })).toHaveCount(0);
     await expect(menu(page).getByRole("link", { name: "Notas fiscais" })).toHaveCount(0);
     await expect(menu(page).getByRole("link", { name: "Cadastro de usuários" })).toHaveCount(0);
+    // Painéis são de admin, Compras e Produção (30/10).
+    await expect(menu(page).getByRole("link", { name: "Atividade recente", exact: true })).toHaveCount(0);
     await expect(page.getByRole("button", { name: `Conta de ${USUARIO.function_area.nome}` })).toBeVisible();
   });
 

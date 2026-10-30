@@ -34,7 +34,7 @@ import { getRoleLabel, type UserRole } from "@/lib/role-utils";
 import { useShellMode } from "./use-shell-mode";
 import { useShellData } from "./use-shell-data";
 import { useAcessoHonorarios } from "@/components/honorarios-ceno/api";
-import { visibleGroups, tabById, subgroupEdges, classeDeCorDaTela, rotuloComEtapa, textoDeBusca, type NavTab } from "./nav-items";
+import { visibleGroups, tabById, tabByPath, subgroupEdges, classeDeCorDaTela, rotuloComEtapa, textoDeBusca, type NavTab } from "./nav-items";
 import { getFavorites, setFavorites, getClosedGroups, setClosedGroups, SHELL_PREFS_EVENT } from "./shell-prefs";
 import { combo } from "./shortcuts";
 import { FOCO } from "./shell-styles";
@@ -114,6 +114,18 @@ function RailBtn({ icon: Icon, label, tip, onClick }: { icon: LucideIcon; label:
       <TooltipContent side="right" sideOffset={8}>{tip}</TooltipContent>
     </Tooltip>
   );
+}
+
+/**
+ * Item ativo do menu (30/10): a tela exata vence o prefixo — em
+ * /paineis/escala só "Painel da escala" acende, não também "Visão geral"
+ * (/paineis). Sem tela exata (ex.: /busca-de-passagens/resultados), vale o prefixo.
+ */
+function telaAtiva(path: string, currentPath: string): boolean {
+  const atual = currentPath.split("?")[0];
+  const exata = tabByPath(atual);
+  if (exata) return exata.path === path;
+  return atual === path || atual.startsWith(`${path}/`);
 }
 
 export default function Sidebar() {
@@ -219,7 +231,7 @@ export default function Sidebar() {
 
   /** Uma linha do menu (expandido ou gaveta). */
   const renderItem = (tab: NavTab, opts: { big?: boolean; showStar?: boolean }) => {
-    const isActive = currentPath === tab.path || currentPath.startsWith(`${tab.path}/`);
+    const isActive = telaAtiva(tab.path, currentPath);
     const count = badgeOf(tab.id);
     const fav = favorites.includes(tab.id);
     return (
@@ -532,7 +544,7 @@ export default function Sidebar() {
               <div key={group.title} className="flex flex-col gap-1">
                 {gi > 0 && <div aria-hidden="true" className="h-px bg-border mx-2 mb-1" />}
                 {items.map((tab, ti) => {
-                  const isActive = currentPath === tab.path || currentPath.startsWith(`${tab.path}/`);
+                  const isActive = telaAtiva(tab.path, currentPath);
                   const count = badgeOf(tab.id);
                   const { start, end } = subgroupEdges(group, items, ti);
                   return (

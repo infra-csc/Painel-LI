@@ -63,8 +63,9 @@ const FILAS_VALIDAS: string[] = ["trabalho", "escalar", "gestor", "troca", "pron
  */
 export function urlSemFila(caminho: string, busca: string): string | null {
   const p = new URLSearchParams(busca);
-  if (!p.has("fila")) return null;
-  for (const k of ["fila", "t", "honorarios"]) p.delete(k);
+  // 30/10: o link dos Painéis (`?eventId=&q=`) também sai — recarregar refiltrava.
+  if (!p.has("fila") && !p.has("eventId") && !p.has("q")) return null;
+  for (const k of ["fila", "t", "honorarios", "eventId", "q"]) p.delete(k);
   const resto = p.toString();
   return resto ? `${caminho}?${resto}` : caminho;
 }
@@ -120,9 +121,18 @@ export function useScalingFilters() {
 
   // Aviso do sininho abre direto o bloco (15/09): /scaling?fila=troca. O "t" do
   // link muda a cada clique, então funciona mesmo já estando na tela.
+  // Painéis (30/10): /scaling?eventId=X[&fila=escalar][&q=4821] abre a Fila já
+  // no evento (e no bloco/na vaga) — "cada linha leva à tela de trabalho já filtrada".
   useEffect(() => {
-    const alvo = new URLSearchParams(buscaDaUrl).get("fila");
-    if (alvo && FILAS_VALIDAS.includes(alvo)) acoes.irParaFila(alvo as QueueKey);
+    const p = new URLSearchParams(buscaDaUrl);
+    const alvo = p.get("fila");
+    const fila = alvo && FILAS_VALIDAS.includes(alvo) ? (alvo as QueueKey) : null;
+    const eventId = p.get("eventId");
+    if (eventId) {
+      setF((prev) => ({ ...prev, aba: "fila", flags: {}, eventos: { [eventId]: true }, fila, busca: p.get("q") ?? "" }));
+      return;
+    }
+    if (fila) acoes.irParaFila(fila);
   }, [buscaDaUrl, acoes]);
 
   /**

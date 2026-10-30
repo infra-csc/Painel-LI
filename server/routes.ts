@@ -54,6 +54,7 @@ import { registrarHonorariosPagamento } from "./routes/honorarios-pagamento";
 import { registrarArquivosDeCompra } from "./routes/arquivos-de-compra";
 import { registrarRetornoM4 } from "./routes/retorno-m4";
 import { registrarVoltarAoPlanejado } from "./routes/voltar-ao-planejado";
+import { registrarPaineis } from "./routes/paineis";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Toda rota registrada daqui em diante (inclusive as de scaling-validation e
@@ -91,6 +92,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registrarHospedagem(app);
   registrarAvisosDeAlteracao(app);
   registrarEspelhoOperacional(app);
+  // Painéis (30/10): atividade recente — o que mudou na escala, passagens e hotéis.
+  registrarPaineis(app);
 
   // ── Transversais ──────────────────────────────────────────────────────────
   registrarFinanceiroLegado(app);
