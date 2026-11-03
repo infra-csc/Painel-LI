@@ -49,6 +49,7 @@
  */
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
+import { and, eq } from "drizzle-orm";
 import { db } from "./db";
 import { storage, type FunctionManagerRole } from "./storage";
 import {
@@ -62,6 +63,7 @@ import {
   type ScalingChangeRequest,
   type InsertAvisoDeAlteracao,
   type User,
+  budgetActual as budgetActualTable,
 } from "@shared/schema";
 import { montarAvisoDeAlteracao, oQueRever } from "@shared/aviso-de-alteracao";
 import {
@@ -1370,6 +1372,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
           tickets: isSuggestionInclusion(inclusion) ? null : await storage.getTicketsByInclusionId(inclusion.id),
         });
         if (!window.allowed) return res.status(403).json({ message: window.message });
+        if (!await assertTrocaDeFuncaoPermitida(inclusion, proposed, res)) return;
         // Quem não é validador só pede ajuste de vaga JÁ escalada (na Validação
         // de Escala o pedido continua sendo do validador).
         if (pedeNaEscalacao && !window.postScaling) {
@@ -1753,6 +1756,29 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
    * mudaria a data de um voo pago sem ninguém saber. Responde 409 (conflito de
    * estado, o mesmo código que a tela já trata como "recarregue") com o motivo.
    */
+  /**
+   * Troca de função no pedido (03/11): a função tem de existir e a vaga não pode
+   * já estar no Realizado — a prestação guarda a função dela, com diária e
+   * alimentação calculadas por ela, e a troca não se propaga para lá.
+   */
+  async function assertTrocaDeFuncaoPermitida(inclusion: TeamInclusion, proposed: ProposedChanges | null | undefined, res: Response): Promise<boolean> {
+    const nova = proposed?.functionId;
+    if (!nova || nova === inclusion.functionId) return true;
+    if (!await storage.getFunction(nova)) { res.status(400).json({ message: "A função escolhida não existe." }); return false; }
+    if (inclusion.collaboratorId) {
+      const [noRealizado] = await db.select({ id: budgetActualTable.id }).from(budgetActualTable).where(and(
+        eq(budgetActualTable.eventId, inclusion.eventId),
+        eq(budgetActualTable.collaboratorId, inclusion.collaboratorId),
+        eq(budgetActualTable.functionId, inclusion.functionId),
+      )).limit(1);
+      if (noRealizado) {
+        res.status(409).json({ message: "Esta vaga já está no Realizado: a função não muda mais por pedido. Fale com o DP." });
+        return false;
+      }
+    }
+    return true;
+  }
+
   async function assertChangeWindowOpen(inclusion: TeamInclusion, actor: User, res: Response): Promise<boolean> {
     const win = changeRequestWindow(inclusion, {
       isAdmin: isAdmin(actor),
@@ -1935,6 +1961,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         // logística pode ter comprado a passagem — aprovar depois disso mudaria
         // datas de um voo pago sem ninguém saber.
         if (postScaling && !await assertChangeWindowOpen(inclusion, actor, res)) return;
+        if (!await assertTrocaDeFuncaoPermitida(inclusion, proposed, res)) return;
         const patch: Partial<InsertTeamInclusion> = postScaling
           ? { ...proposedToPatch(proposed), updatedBy: actor.id }
           : (() => {
@@ -2089,6 +2116,7 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         // Mesma reconferência da aprovação: só o "reajustar" mexe na vaga, mas
         // negar depois da compra também precisa da mensagem certa.
         if (postScaling && kind === "reajustar" && !await assertChangeWindowOpen(inclusion, actor, res)) return;
+        if (kind === "reajustar" && !await assertTrocaDeFuncaoPermitida(inclusion, changesToApply, res)) return;
         if (postScaling && then === "reenviar_validacao") {
           return res.status(400).json({
             message: "A pessoa já está escalada: este pedido não volta para a validação. Aprove com ajustes ou negue.",

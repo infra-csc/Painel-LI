@@ -6,6 +6,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useFuncoesDoCatalogo } from "@/lib/nome-da-funcao";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -62,6 +64,8 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
   const [workDays, setWorkDays] = useState<string[]>([]);
   const [travel, setTravel] = useState<TravelDraft>(EMPTY_TRAVEL);
   const [observations, setObservations] = useState("");
+  const [funcaoId, setFuncaoId] = useState("");
+  const funcoes = useFuncoesDoCatalogo();
   const [reason, setReason] = useState("");
   const [error, setError] = useState<ErroForm | null>(null);
 
@@ -90,6 +94,7 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
     setWorkDays(days);
     setTravel(travelFromInclusion(inc));
     setObservations(inc.observations ?? "");
+    setFuncaoId(inc.functionId ?? "");
     setReason("");
     setError(null);
   }, [open, inclusionId]);
@@ -99,6 +104,7 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
   // proposedChanges completo a partir do rascunho; o diff decide o que vai.
   const full: ProposedChanges = useMemo(() => ({
     v: 1,
+    ...(funcaoId ? { functionId: funcaoId } : {}),
     workDays: workDays.length ? workDays : undefined,
     // Sempre 1 por dia: o número deixou de ser digitável.
     dailyRates: workDays.length || undefined,
@@ -119,7 +125,7 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
     needsTicket: travel.needsTicket,
     needsAccommodation: travel.needsAccommodation,
     observations: observations.trim() === "" ? null : observations.trim(),
-  }), [workDays, travel, observations]);
+  }), [funcaoId, workDays, travel, observations]);
 
   const diff = useMemo(() => (inclusion ? diffInclusion(inclusion, full) : []), [inclusion, full]);
 
@@ -199,6 +205,20 @@ export function AdjustRequestDialog({ open, onOpenChange, inclusion, event, func
             <section className="space-y-1.5" aria-labelledby="adj-vaga-hoje">
               <h3 id="adj-vaga-hoje" className={SECTION_TITLE}>A vaga hoje</h3>
               <VagaCard row={vaga} functionName={nomeFuncao} className="bg-surface-muted/60 p-3" />
+            </section>
+          )}
+          {(funcoes.data?.length ?? 0) > 0 && (
+            <section className="space-y-1.5" data-testid="adj-funcao">
+              <Label htmlFor="adj-funcao-campo" className="text-sm font-semibold text-foreground">Função da vaga</Label>
+              <Select value={funcaoId} onValueChange={setFuncaoId} disabled={mutation.isPending}>
+                <SelectTrigger id="adj-funcao-campo" className="w-full sm:max-w-[320px]"><SelectValue placeholder="Escolha a função" /></SelectTrigger>
+                <SelectContent>
+                  {[...(funcoes.data ?? [])].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")).map((f) => (
+                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {funcaoId !== (vaga?.functionId ?? "") && <p className="m-0 text-2xs text-muted-foreground">A diária e a alimentação passam a seguir a nova função quando o aprovador aceitar.</p>}
             </section>
           )}
           <section className="space-y-2" aria-labelledby="adj-passo-1">

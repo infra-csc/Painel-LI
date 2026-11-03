@@ -12,6 +12,8 @@ import { MotivoDesabilitado } from "@/components/common/motivo-desabilitado";
 
 /** Rascunho editável dos campos propostos (usado no "Reajustar" do aprovador). */
 export interface ProposedDraft {
+  /** Função pedida (03/11) — o aprovador lê no de/para; o reajuste não a perde. */
+  functionId?: string;
   workDays: string[];
   dailyRates: string;
   travel: TravelDraft;
@@ -50,6 +52,7 @@ export function draftFromProposed(proposed: ProposedChanges | null, base?: TeamI
   const dailyRates = p.dailyRates !== undefined ? p.dailyRates : (base?.dailyRates ?? days.length);
   const observations = p.observations !== undefined ? (p.observations ?? "") : (base?.observations ?? "");
   return {
+    ...(p.functionId ? { functionId: p.functionId } : {}),
     workDays: days,
     dailyRates: dailyRates === null || dailyRates === undefined ? "" : String(dailyRates),
     travel,
@@ -62,6 +65,7 @@ export function draftFromProposed(proposed: ProposedChanges | null, base?: TeamI
 export function fullFromDraft(d: ProposedDraft): ProposedChanges {
   return {
     v: 1,
+    ...(d.functionId ? { functionId: d.functionId } : {}),
     workDays: d.workDays.length ? d.workDays : undefined,
     dailyRates: d.dailyRates.trim() === "" ? undefined : Number(d.dailyRates),
     flightDepartureDate: orNull(d.travel.flightDepartureDate),

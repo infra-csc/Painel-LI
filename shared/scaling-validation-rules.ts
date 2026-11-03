@@ -383,6 +383,8 @@ export const saiDeOpcionalSchema = z.string().trim().superRefine((v, ctx) => {
 
 export const proposedChangesSchema = z.object({
   v: z.literal(1),
+  // Trocar a função da vaga (03/11, dono: ativação local → ativação casa). Só em ajuste.
+  functionId: z.string().trim().min(1).max(64).optional(),
   workDays: z.array(ymd).min(1, "Informe ao menos um dia de trabalho").optional(),
   dailyRates: z.number().int("Diárias devem ser um número inteiro").min(0, "Diárias não podem ser negativas").optional(),
   flightDepartureDate: ymd.nullable().optional(),
@@ -408,6 +410,7 @@ export type ProposedChanges = z.infer<typeof proposedChangesSchema>;
 
 /** Campos de proposedChanges que existem na vaga (team_inclusions) — para o "de/para". */
 export const PROPOSED_FIELD_LABELS: Record<Exclude<keyof ProposedChanges, "v" | "quantity">, string> = {
+  functionId: "Função",
   workDays: "Dias de trabalho",
   dailyRates: "Diárias",
   // A perna vem PRIMEIRO em todo campo de viagem (04/09). "Horário sugerido
@@ -469,6 +472,7 @@ export function parseProposedChanges(
       throw new Error("Pedido de inclusão precisa informar os dias de trabalho da vaga nova (workDays)");
     }
     if (data.quantity === undefined) data.quantity = 1;
+    if (data.functionId !== undefined) throw new Error("Pedido de inclusão já escolhe a função — não troca função");
   }
   if (requestType === "ajuste") {
     if (data.quantity !== undefined) {

@@ -3,6 +3,7 @@
  * 25/09, extraídas de change-request-dialogs.tsx: casca do diálogo, passos
  * numerados, foco no erro, campo de motivo, a mutation e o banner do aprovador.
  */
+import { nomeDaFuncaoNoCache } from "@/lib/nome-da-funcao";
 import { useEffect, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Label } from "@/components/ui/label";
@@ -166,6 +167,7 @@ export function fmtValue(field: ProposedField, v: unknown): string {
   // No de/para, campo vazio precisa se dizer: um travessão no lugar do "de"
   // some no meio da frase e o aprovador não sabe se havia valor antes.
   if (v === null || v === undefined || v === "") return "não definido";
+  if (field === "functionId") return nomeDaFuncaoNoCache(v);
   if (field === "workDays" && Array.isArray(v)) return v.map((d) => ymd(d as string).split("-").reverse().slice(0, 2).join("/")).join(", ");
   if (field === "needsTicket" || field === "needsAccommodation") return v ? "Sim" : "Não";
   if (field === "transportModeIda" || field === "transportModeVolta") return TRANSPORT_MODE_LABELS[v as TransportMode] ?? String(v);

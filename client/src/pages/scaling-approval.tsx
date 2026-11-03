@@ -20,6 +20,7 @@
  * Escalação) nas abas Aguardando, Paradas e Decididas (a linha) e na Fila (o
  * "vaga #N" do pedido). Ver `components/scaling-approval/detalhe-da-vaga`.
  */
+import { useFuncoesDoCatalogo } from "@/lib/nome-da-funcao";
 import { useMemo, useState } from "react";
 import { CheckCircle2, CloudOff, Inbox, SearchX, Stamp } from "lucide-react";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
@@ -57,6 +58,8 @@ import type { StalledRow } from "@/components/scaling-approval/types";
 
 export default function ScalingApprovalPage() {
   usePageTitle("Aprovação de escala");
+  // O de/para de "Função" (03/11) lê o nome da lista em cache.
+  useFuncoesDoCatalogo();
   const { user } = useAuth();
   const isAdmin = normalizeRole(user?.role) === "admin";
   const canAccess = hasPermission(user, "canAccessScalingApproval");

@@ -1,3 +1,4 @@
+import { nomeDaFuncaoNoCache } from "@/lib/nome-da-funcao";
 import { Clock, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateBr, formatDayMonthBr } from "@/lib/dates";
@@ -154,6 +155,7 @@ export function formatProposedValue(field: ProposedField, v: unknown): string {
   // No de/para, campo vazio precisa se dizer: um travessão some no meio da
   // frase e o aprovador não sabe se havia valor antes.
   if (v === null || v === undefined || v === "") return "não definido";
+  if (field === "functionId") return nomeDaFuncaoNoCache(v);
   switch (field) {
     case "workDays":
       return Array.isArray(v) ? v.map((d) => formatDayMonthBr(ymd(d))).join(", ") : String(v);
