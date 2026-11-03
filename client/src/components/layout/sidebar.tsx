@@ -467,12 +467,12 @@ export default function Sidebar() {
             aria-label="Trupp — Operação de Eventos, página inicial"
             className={cn("flex items-center gap-2.5 min-w-0 rounded-lg no-underline", FOCO)}
           >
-            <img src="/selo-app.svg" alt="" className="block w-8 h-8 shrink-0" />
-            {!compact && (
-              <span className="flex flex-col leading-tight min-w-0">
-                <span className="text-sm font-bold text-primary tracking-tight">Trupp</span>
-                <span className="text-2xs text-muted-foreground truncate">Operação de Eventos</span>
-              </span>
+            {/* Menu aberto: o logo inteiro, sem assinatura, para a marca aparecer mais.
+                Recolhido: só o selo, que cabe no trilho. */}
+            {compact ? (
+              <img src="/selo-app.svg" alt="" className="block w-8 h-8 shrink-0" />
+            ) : (
+              <img src="/logo-trupp.svg" alt="" className="block h-9 w-auto shrink-0" />
             )}
           </Link>
           {drawer && (
