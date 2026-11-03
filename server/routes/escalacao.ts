@@ -26,6 +26,7 @@ import { assertEventEditable } from "../event-guard";
 import { HttpError } from "../http";
 import { log } from "../vite";
 import { isAtendimentoFunction } from "@shared/atendimento";
+import { vagaJaNoRealizado } from "../vaga-no-realizado";
 import { isPercursoFunction } from "@shared/calculation-rules";
 import { isCenotecnicaFunction } from "@shared/alimentacao";
 import { isCenoFreelaTipo } from "@shared/cenotecnica-empreita";
@@ -970,6 +971,10 @@ export function registrarEscalacao(app: Express): void {
         if (!await podeEditarVagaAsync(actor, current, func)) {
           return res.status(403).json({ message: "Sem permissão para marcar os dias desta vaga." });
         }
+      }
+      // Já no Realizado (03/11): a prestação guarda a janta dela, e a marca não chega ao pagamento.
+      if (await vagaJaNoRealizado(current)) {
+        return res.status(409).json({ message: "Esta vaga já está no Realizado: lance a janta do dia de carregamento direto na prestação." });
       }
       const diasDeTrabalho = diasDeTrabalhoDaVaga(current);
       const fora = (pedido as string[]).filter((d) => !diasDeTrabalho.includes(d));

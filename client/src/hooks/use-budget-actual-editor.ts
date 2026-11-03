@@ -404,7 +404,14 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
     // ── Viagem: pré-preenche com o que já existe (passagem > sugerido) ──────
     const travel = deriveTravel(item);
     setTravelManual({});
-    setAlimManual(false);
+    // Sem logística (03/11): janta acima da regra foi lançada à mão — mudar os
+    // dias avisa em vez de zerar em silêncio.
+    const diasAoAbrir = dayEntries.filter(d => d.active).map(d => d.date);
+    const titularDoItem = item.splitParentId ? (actualsPorGrupo.get(item.splitParentId) ?? []).find((a) => a.id === item.splitParentId) : undefined;
+    const vagaDoItem = getItemInclusion(item) ?? (titularDoItem ? getItemInclusion(titularDoItem) : undefined);
+    const pelaRegra = calcAlimentacaoRealizado(item, diasAoAbrir, travel.chegadaIda, travel.partidaVolta, travel.dataChegadaIda, travel.dataPartidaVolta);
+    setAlimManual(valemRegrasDe2910(fimDoEvento) && !vagaDoItem?.needsTicket
+      && (item.weekdayDinner > pelaRegra.weekdayDinner || item.weekendDinner > pelaRegra.weekendDinner));
     setExtraDayEdge(null);
     // Baseline: ao ABRIR, a alimentação gravada é mantida como está (não
     // sobrescreve o que o RH já ajustou). O recálculo automático só vale

@@ -19,7 +19,8 @@ import { mobilidadeCoerente } from "@shared/comparativo";
 import { dataIsoValida, normalizarDiasMeiaExtra } from "@shared/meia-diaria";
 import { mesmosDiasDeDobra, motivoComDobras, normalizarDiasDobra, separarMeiaEDobra } from "@shared/dobra-de-turno";
 import { baseComDobras, ehFimDeSemana } from "@shared/presenca";
-import { diariasQueFicam } from "@shared/dividir-diarias";
+import { diariasQueFicam, jantaQueFica } from "@shared/dividir-diarias";
+import { valemRegrasDe2910 } from "@shared/regras-de-29-10";
 import { lerConfiguracaoDoBanco, montarPrestacao } from "../presenca-servico";
 import { aplicarConferenciaAutomatica, logsDaConferenciaAutomatica } from "../conferencia-automatica-servico";
 import { lerDataDeCorteDoBanco } from "./honorarios-fluxo";
@@ -346,12 +347,14 @@ export function registrarOrcamentoRealizado(app: Express): void {
         const util = (l: string[]) => l.filter((d) => !ehFimDeSemana(d)).length;
         const fds = (l: string[]) => l.filter((d) => ehFimDeSemana(d)).length;
         const ficamDaBase = diasDaBase.filter((d) => ficam.has(d));
+        // Sem logística, a janta é a do dia de carregamento: fica com quem mantém esse dia.
+        const carregamentoDaBase = m?.inclusao && !m.inclusao.needsTicket && valemRegrasDe2910(m.evento.endDate) ? m.inclusao.diasCarregamento : null;
         const parte = (v: number, de: number, ficaram: number) => (de > 0 ? Math.round((v * ficaram) / de) : 0);
         const nova = {
           weekdayLunch: parte(b.weekdayLunch, util(diasDaBase), util(ficamDaBase)),
-          weekdayDinner: parte(b.weekdayDinner, util(diasDaBase), util(ficamDaBase)),
+          weekdayDinner: jantaQueFica({ totalCents: b.weekdayDinner, dias: diasDaBase.filter((d) => !ehFimDeSemana(d)), ficam: ficamDaBase.filter((d) => !ehFimDeSemana(d)), carregamento: carregamentoDaBase }),
           weekendLunch: parte(b.weekendLunch, fds(diasDaBase), fds(ficamDaBase)),
-          weekendDinner: parte(b.weekendDinner, fds(diasDaBase), fds(ficamDaBase)),
+          weekendDinner: jantaQueFica({ totalCents: b.weekendDinner, dias: diasDaBase.filter(ehFimDeSemana), ficam: ficamDaBase.filter(ehFimDeSemana), carregamento: carregamentoDaBase }),
           mobility: parte(b.mobility || 0, diasDaBase.length, ficamDaBase.length),
         };
         baseDoPai = {
@@ -412,6 +415,9 @@ export function registrarOrcamentoRealizado(app: Express): void {
       if (!atual) return res.status(404).json({ message: "Item não encontrado" });
       if (!ehConferenciaAutomatica(atual)) return res.status(409).json({ message: "Só a conferência automática pode ser reaberta." });
       if (atual.ocNumero) return res.status(409).json({ message: "Esta prestação já tem OC — não dá para reabrir a conferência." });
+      // O crédito do Flash saiu com o comparativo aprovado: reabrir aqui o deixaria defasado.
+      const comparativo = await storage.getBudgetComparison(atual.eventId);
+      if (comparativo?.status === "aprovado") return res.status(409).json({ message: "O comparativo deste evento já foi aprovado. Reabra o comparativo antes de reabrir a conferência." });
       const agora = new Date();
       const [linha] = await db.update(budgetActualTable)
         .set({ rhStatus: "pendente", rhComment: null, rhActionBy: null, rhActionAt: null, updatedAt: agora, updatedBy: finUser.id })
@@ -469,6 +475,8 @@ export function registrarOrcamentoRealizado(app: Express): void {
         weekendLunch: 'Almoço (FdS)',
         weekendDinner: 'Jantar (FdS)',
         mobility: 'Mobilidade',
+        transport: 'Transporte',
+        costAssistance: 'Ajuda de custo',
       };
 
       // Validação + allowlist: workflow muda apenas pelas rotas dedicadas
@@ -556,6 +564,11 @@ export function registrarOrcamentoRealizado(app: Express): void {
             existingFields[field] = { from: prevVal, to: Number(newVal), label };
             changed = true;
           }
+        }
+        // Só o total mudou: também é ajuste (o selo de automática sai). Com outro campo, o total só acompanha.
+        if (!changed && parsed.totalValue !== undefined && Number(parsed.totalValue) !== Number(prev.totalValue ?? 0)) {
+          existingFields.totalValue = { from: prev.totalValue ?? 0, to: Number(parsed.totalValue), label: "Total" };
+          changed = true;
         }
 
         if (changed) {

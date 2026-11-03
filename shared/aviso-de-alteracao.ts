@@ -78,6 +78,7 @@ export function textoDoValor(campo: string, v: unknown, nomeDoEvento?: (id: stri
     return (TRANSPORT_MODE_LABELS as Record<string, string>)[String(v)] ?? String(v);
   }
   if ((campo === "idaVemDoEventoId" || campo === "voltaSegueParaEventoId") && nomeDoEvento) return nomeDoEvento(String(v)) || "outro evento";
+  if (campo === "functionId") return nomeDoEvento?.(String(v)) || "outra função";
   return String(v);
 }
 

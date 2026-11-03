@@ -49,7 +49,11 @@
  */
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne } from "drizzle-orm";
+import { linhasDoPlanejadoDaVaga, vagaJaNoRealizado } from "./vaga-no-realizado";
+import { estaPreAprovado } from "@shared/pre-aprovacao";
+import { vagaComEmpreita } from "@shared/cenotecnica-empreita";
+import { isAtendimentoFunction } from "@shared/atendimento";
 import { db } from "./db";
 import { storage, type FunctionManagerRole } from "./storage";
 import {
@@ -63,7 +67,9 @@ import {
   type ScalingChangeRequest,
   type InsertAvisoDeAlteracao,
   type User,
-  budgetActual as budgetActualTable,
+  budgetPlanned as budgetPlannedTable,
+  honorariosCeno,
+  teamInclusions as teamInclusionsTable,
 } from "@shared/schema";
 import { montarAvisoDeAlteracao, oQueRever } from "@shared/aviso-de-alteracao";
 import {
@@ -1757,26 +1763,52 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
    * estado, o mesmo código que a tela já trata como "recarregue") com o motivo.
    */
   /**
-   * Troca de função no pedido (03/11): a função tem de existir e a vaga não pode
-   * já estar no Realizado — a prestação guarda a função dela, com diária e
-   * alimentação calculadas por ela, e a troca não se propaga para lá.
+   * Troca de função no pedido (03/11): a função define diária e alimentação, e a
+   * troca não se propaga sozinha. Por isso não passa com a vaga já no Realizado,
+   * pré-aprovada no Planejado, com honorário em andamento ou em empreita; nem para
+   * atendimento sem o tipo, nem para a função de outra vaga da mesma pessoa.
    */
   async function assertTrocaDeFuncaoPermitida(inclusion: TeamInclusion, proposed: ProposedChanges | null | undefined, res: Response): Promise<boolean> {
     const nova = proposed?.functionId;
     if (!nova || nova === inclusion.functionId) return true;
-    if (!await storage.getFunction(nova)) { res.status(400).json({ message: "A função escolhida não existe." }); return false; }
+    const funcaoNova = await storage.getFunction(nova);
+    if (!funcaoNova) { res.status(400).json({ message: "A função escolhida não existe." }); return false; }
+    const barra = (message: string) => { res.status(409).json({ message }); return false; };
+    if (await vagaJaNoRealizado(inclusion)) return barra("Esta vaga já está no Realizado: a função não muda mais por pedido. Fale com o DP.");
+    if ((await linhasDoPlanejadoDaVaga(inclusion)).some((l) => estaPreAprovado(l.status))) {
+      return barra("Esta vaga já foi pré-aprovada no Planejado: o DP precisa desfazer a pré-aprovação antes de a função mudar.");
+    }
+    if (vagaComEmpreita(inclusion)) return barra("Esta vaga faz parte de uma empreita: a função não muda por pedido. Fale com o DP.");
+    const [honorario] = await db.select({ id: honorariosCeno.id }).from(honorariosCeno)
+      .where(and(eq(honorariosCeno.teamInclusionId, inclusion.id), inArray(honorariosCeno.status, ["aguardando", "aprovado", "aprovado_ajuste"]))).limit(1);
+    if (honorario) return barra("Esta vaga tem honorário da cenotécnica em andamento: resolva o honorário antes de trocar a função.");
+    if (inclusion.collaboratorId && isAtendimentoFunction(funcaoNova.name) && !inclusion.atendimentoTipo) {
+      return barra("Atendimento pede o tipo (Key Account ou Executivo de Contas): peça ao administrador para trocar na Escalação.");
+    }
     if (inclusion.collaboratorId) {
-      const [noRealizado] = await db.select({ id: budgetActualTable.id }).from(budgetActualTable).where(and(
-        eq(budgetActualTable.eventId, inclusion.eventId),
-        eq(budgetActualTable.collaboratorId, inclusion.collaboratorId),
-        eq(budgetActualTable.functionId, inclusion.functionId),
+      const [outraVaga] = await db.select({ id: teamInclusionsTable.id }).from(teamInclusionsTable).where(and(
+        eq(teamInclusionsTable.eventId, inclusion.eventId), eq(teamInclusionsTable.collaboratorId, inclusion.collaboratorId),
+        eq(teamInclusionsTable.functionId, nova), isNull(teamInclusionsTable.deletedAt), ne(teamInclusionsTable.id, inclusion.id),
       )).limit(1);
-      if (noRealizado) {
-        res.status(409).json({ message: "Esta vaga já está no Realizado: a função não muda mais por pedido. Fale com o DP." });
-        return false;
-      }
+      if (outraVaga) return barra("Esta pessoa já tem uma vaga nessa função neste evento.");
     }
     return true;
+  }
+
+  /** Função trocada: a linha ainda não pré-aprovada acompanha a vaga, senão fica órfã na função antiga. */
+  async function levarPlanejadoParaNovaFuncao(inclusion: TeamInclusion, proposed: ProposedChanges | null | undefined, actor: User): Promise<void> {
+    const nova = proposed?.functionId;
+    if (!nova || nova === inclusion.functionId) return;
+    const ids = (await linhasDoPlanejadoDaVaga(inclusion)).map((l) => l.id);
+    if (ids.length === 0) return;
+    await db.update(budgetPlannedTable).set({ functionId: nova, updatedAt: new Date(), updatedBy: actor.id }).where(inArray(budgetPlannedTable.id, ids));
+  }
+
+  /** O nome das funções do pedido: o de/para do histórico e do aviso guarda o texto, não o id. */
+  async function nomesDasFuncoesDoPedido(inclusion: TeamInclusion, proposed: ProposedChanges | null | undefined): Promise<Map<string, string>> {
+    if (!proposed?.functionId || proposed.functionId === inclusion.functionId) return new Map();
+    const [antes, depois] = await Promise.all([storage.getFunction(inclusion.functionId), storage.getFunction(proposed.functionId)]);
+    return new Map([antes, depois].filter((f): f is NonNullable<typeof f> => !!f).map((f) => [f.id, f.name]));
   }
 
   async function assertChangeWindowOpen(inclusion: TeamInclusion, actor: User, res: Response): Promise<boolean> {
@@ -1812,7 +1844,8 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
       .filter((d) => d.field === "idaVemDoEventoId" || d.field === "voltaSegueParaEventoId")
       .flatMap((d) => [d.from, d.to])
       .filter((x): x is string => typeof x === "string" && x.length > 0);
-    const nomes = new Map(idsDeEvento.length ? (await storage.getEventsByIds(idsDeEvento)).map((e) => [e.id, e.name] as const) : []);
+    const nomes = new Map<string, string>(idsDeEvento.length ? (await storage.getEventsByIds(idsDeEvento)).map((e) => [e.id, e.name] as const) : []);
+    (await nomesDasFuncoesDoPedido(inclusion, changes)).forEach((nome, id) => nomes.set(id, nome));
     const montado = montarAvisoDeAlteracao(diff, { temPassagem: passagens.length > 0, temHospedagem: hospedagens.length > 0 }, (id) => nomes.get(id));
     if (!montado) return null;
     return {
@@ -1880,9 +1913,10 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
   }
 
   /** "Diárias: 3 → 4 · Data de volta: 18/10/2026 → 19/10/2026" para o histórico. */
-  function diffPhrase(base: InclusionForDiff, proposed: ProposedChanges): string {
+  function diffPhrase(base: InclusionForDiff, proposed: ProposedChanges, nomesDasFuncoes?: ReadonlyMap<string, string>): string {
     const fmt = (field: ProposedField, v: unknown): string => {
       if (v === null || v === undefined || v === "") return "—";
+      if (field === "functionId") return nomesDasFuncoes?.get(String(v)) ?? "outra função";
       if (field === "workDays" && Array.isArray(v)) return v.map((d) => String(d).slice(5)).join(", ");
       if (field === "needsTicket" || field === "needsAccommodation") return v ? "Sim" : "Não";
       return String(v);
@@ -1997,7 +2031,8 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         updatedRequest = result.request;
         const updated = result.updatedInclusion!;
         // De/para no histórico também na aprovação direta (02/10) — o reajuste já tinha.
-        const mudancas = postScaling && isAjuste ? diffPhrase(inclusion, proposed) : "";
+        if (isAjuste) await levarPlanejadoParaNovaFuncao(inclusion, proposed, actor);
+        const mudancas = postScaling && isAjuste ? diffPhrase(inclusion, proposed, await nomesDasFuncoesDoPedido(inclusion, proposed)) : "";
         const detail = postScaling
           ? `Pedido de ajuste aprovado por ${actor.name} — aplicado na vaga já escalada${mudancas ? ` — mudanças: ${mudancas}` : ""}${sufixoDoAviso(aviso)}`
           : isAjuste
@@ -2162,8 +2197,9 @@ export function registerScalingValidationRoutes(app: Express, deps: ScalingValid
         const updated = result.updatedInclusion!;
         // O histórico diz O QUE o reajuste mudou (de/para) — sem isso a área
         // recebia a vaga de volta sem saber o que o aprovador fez nela.
+        if (kind === "reajustar" && requestType === "ajuste") await levarPlanejadoParaNovaFuncao(inclusion, changesToApply, actor);
         const mudancas = kind === "reajustar" && changesToApply && requestType === "ajuste"
-          ? diffPhrase(inclusion, changesToApply)
+          ? diffPhrase(inclusion, changesToApply, await nomesDasFuncoesDoPedido(inclusion, changesToApply))
           : "";
         const sufixoMudancas = kind === "reajustar" && requestType === "ajuste"
           ? (mudancas ? ` — mudanças: ${mudancas}` : " — nenhum campo alterado (vaga mantida como estava)")

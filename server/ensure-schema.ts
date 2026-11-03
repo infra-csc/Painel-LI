@@ -878,6 +878,8 @@ const PASSOS: Passo[] = [
   // 28/10 — ajustes pedidos pelo DP: 1,5 diária num dia (vaga, Planejado e
   // Realizado) e o VR do colaborador da casa (scripts/migrations/2026-10-28-ajustes-dp.sql).
   { descricao: "team_inclusions.dias_carregamento (dias de carregamento: têm janta)", sql: `ALTER TABLE team_inclusions ADD COLUMN IF NOT EXISTS dias_carregamento text[]` },
+  { descricao: "budget_planned.janta_a_mao_semana (janta lançada à mão, dias úteis)", sql: `ALTER TABLE budget_planned ADD COLUMN IF NOT EXISTS janta_a_mao_semana integer` },
+  { descricao: "budget_planned.janta_a_mao_fds (janta lançada à mão, fim de semana)", sql: `ALTER TABLE budget_planned ADD COLUMN IF NOT EXISTS janta_a_mao_fds integer` },
   { descricao: "team_inclusions.dias_meia_extra (dias com 1,5 diária)", sql: `ALTER TABLE team_inclusions ADD COLUMN IF NOT EXISTS dias_meia_extra text[]` },
   { descricao: "budget_planned.dias_meia_extra (dias com 1,5 diária)", sql: `ALTER TABLE budget_planned ADD COLUMN IF NOT EXISTS dias_meia_extra text[]` },
   { descricao: "budget_actual.dias_meia_extra (dias com 1,5 diária)", sql: `ALTER TABLE budget_actual ADD COLUMN IF NOT EXISTS dias_meia_extra text[]` },

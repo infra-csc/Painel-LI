@@ -317,3 +317,20 @@ describe("Depois da conferência automática (revisão de 03/11)", () => {
     expect((await produtor.agent.get("/api/budget-comparison/a-fechar")).status).toBe(403);
   });
 });
+
+describe("Reabrir com o comparativo aprovado (segunda revisão de 03/11)", () => {
+  it("não reabre: o crédito do Flash já saiu; a edição do DP tira o selo", async () => {
+    const c = await cenario();
+    const { agent } = await agenteLogado("financial");
+    const r = await mutacao(agent.post("/api/budget-actual/send-for-review")).send({ eventId: c.evento.id });
+    expect(r.body.conferidasAutomaticamente).toBe(1);
+    const ajuste = await mutacao(agent.patch(`/api/budget-actual/${c.actual.id}`)).send({ totalValue: (await relida(c.actual.id)).totalValue + 100 });
+    expect(ajuste.status, ajuste.text).toBe(200);
+    expect((await relida(c.actual.id)).rhAdjusted).toBe(true);
+    await ctx.db.update(ctx.schema.budgetActual).set({ rhAdjusted: false, rhAdjustedFields: null } as never).where(eq(ctx.schema.budgetActual.id, c.actual.id));
+    await ctx.db.insert(ctx.schema.budgetComparison).values({ eventId: c.evento.id, status: "aprovado" } as never);
+    const reabrir = await mutacao(agent.post(`/api/budget-actual/${c.actual.id}/reabrir-conferencia`)).send({});
+    expect(reabrir.status).toBe(409);
+    expect(reabrir.body.message).toContain("comparativo");
+  });
+});

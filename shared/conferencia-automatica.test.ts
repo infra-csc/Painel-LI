@@ -192,3 +192,16 @@ describe("conferirSemDivergencia — revisão de 03/11", () => {
     expect(ehConferenciaAutomatica({ ...base, rhAdjusted: true })).toBe(false);
   });
 });
+
+describe("conferirSemDivergencia — segunda revisão de 03/11", () => {
+  it("saída corrigida pelo produtor ou registrada pelo representante: vai ao DP", () => {
+    const presencas = (checkoutPor: string) => DIAS.map((dia) => ({ dia, checkinEm: `${dia}T12:00:00Z`, checkoutEm: `${dia}T21:00:00Z`, checkinPor: "colaborador", checkoutPor }));
+    expect(motivos({ resto: { presencas: presencas("produtor_correcao") } })).toEqual(["presenca_por_representante"]);
+    expect(motivos({ resto: { presencas: presencas("representante") } })).toEqual(["presenca_por_representante"]);
+    expect(motivos({ resto: { presencas: presencas("colaborador") } })).toEqual([]);
+  });
+
+  it("comparativo do evento já aprovado: a linha tardia vai ao DP", () => {
+    expect(motivos({ resto: { comparativoAprovado: true } })).toEqual(["comparativo_ja_aprovado"]);
+  });
+});

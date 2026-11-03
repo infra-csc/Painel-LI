@@ -441,3 +441,11 @@ describe("recalcularValor — janta só no dia de carregamento (29/10)", () => {
     expect(calc(DIAS_UTEIS[1], null).refeicoes.weekdayDinner).toBe(3_200);
   });
 });
+
+describe("podeConfirmarPrestacao — já aprovada (03/11)", () => {
+  const base = { dias: ["2026-11-09"], hoje: "2026-11-10", checkoutFinalFeito: false };
+  it("confirmada e aprovada não refaz; a primeira confirmação segue aberta", () => {
+    expect(podeConfirmarPrestacao({ ...base, jaConfirmadaEAprovada: true }).ok).toBe(false);
+    expect(podeConfirmarPrestacao({ ...base, jaConfirmadaEAprovada: false }).ok).toBe(true);
+  });
+});

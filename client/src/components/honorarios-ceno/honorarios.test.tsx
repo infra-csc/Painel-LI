@@ -620,7 +620,8 @@ describe("Honorários — empreita que agrupa vagas", () => {
     }, []));
     const { user } = renderComTudo(<AprovacaoPainel eventId={null} />, { user: aprovador });
     const origens = await screen.findAllByTestId("hon-origem-do-valor");
-    expect(origens.map((o) => o.textContent)).toEqual(["Freela Local (A) · tabela", "Outro valor · Montagem noturna", "Valor fechado da equipe · 2 vagas da escala"]);
+    expect(origens.map((o) => o.textContent)).toEqual(["Freela Local (A) · tabela", "Outro valor", "Valor fechado da equipe · 2 vagas da escala"]);
+    expect(screen.getByText("Montagem noturna")).toBeInTheDocument();
     expect(screen.getByText("Vaga #109 sem nome · Cenotécnica")).toBeInTheDocument();
     expect(screen.getByText("Vaga ainda sem colaborador escalado")).toBeInTheDocument();
     await user.click(screen.getByTestId("hon-empreita-vagas-botao"));

@@ -65,7 +65,7 @@ async function candidatos(dataLimite: string) {
       isNotNull(budgetActual.pagoEm), lt(budgetActual.pagoEm, dataLimite),
       or(isNull(budgetActual.pagoRegistradoEm), lt(budgetActual.pagoRegistradoEm, inicioDoDiaEmBrasilia(dataLimite))),
       isNull(presencas.fotoExpurgadaEm),
-      or(isNotNull(presencas.checkinFotoId), isNotNull(presencas.checkoutFotoId)),
+      or(isNotNull(presencas.checkinFotoId), isNotNull(presencas.checkoutFotoId), isNotNull(presencas.checkinLat), isNotNull(presencas.checkoutLat)),
     ));
 }
 
@@ -96,11 +96,15 @@ export async function expurgarSelfies(a: { simular: boolean; ator: User | null; 
     }
     if (!todas) continue;
     await db.update(presencas)
-      .set({ checkinFotoId: null, checkoutFotoId: null, fotoExpurgadaEm: new Date(), atualizadoEm: new Date() })
+      // O termo promete apagar as fotos E a localização (03/11).
+      .set({
+        checkinFotoId: null, checkoutFotoId: null, fotoExpurgadaEm: new Date(), atualizadoEm: new Date(),
+        checkinLat: null, checkinLng: null, checkinPrecisaoM: null, checkoutLat: null, checkoutLng: null, checkoutPrecisaoM: null,
+      })
       .where(and(eq(presencas.id, p.id), isNull(presencas.fotoExpurgadaEm)));
   }
   // Auditoria: só quantas (nunca os ids das fotos).
-  if (a.origem === "manual" || resumo.fotos > 0) {
+  if (a.origem === "manual" || resumo.presencas > 0) {
     await createAuditLog("delete", "presenca", "expurgo-de-selfies", {
       acao: a.origem === "manual" ? "expurgo das selfies (rodado na hora)" : "expurgo diário das selfies",
       retencaoDias, pagasAntesDe: dataLimite, presencas: resumo.presencas, prestacoes: resumo.prestacoes,

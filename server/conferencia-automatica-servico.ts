@@ -9,7 +9,7 @@ import type { Request } from "express";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "./db";
 import {
-  budgetActual as budgetActualTable, budgetPlanned as budgetPlannedTable, events as eventsTable, functions as functionsTable,
+  budgetActual as budgetActualTable, budgetComparison, budgetPlanned as budgetPlannedTable, events as eventsTable, functions as functionsTable,
   presencaConfirmacoes, presencaOcorrencias, presencas, systemSettings, teamInclusions,
   type BudgetActual, type InsertSystemLog,
 } from "@shared/schema";
@@ -38,7 +38,7 @@ export async function aplicarConferenciaAutomatica(tx: Tx, enviadas: readonly Bu
   const colaboradores = semNulos(enviadas.map((a) => a.collaboratorId));
 
   const idsDeFuncoes = Array.from(new Set(semNulos(enviadas.map((a) => a.functionId))));
-  const [funcoes, planejados, eventos, vagas, divisoes, ocorrencias, marcacoes, confirmacoes, corte] = await Promise.all([
+  const [funcoes, planejados, eventos, vagas, divisoes, ocorrencias, marcacoes, confirmacoes, corte, comparativos] = await Promise.all([
     idsDeFuncoes.length ? tx.select({ id: functionsTable.id, name: functionsTable.name }).from(functionsTable).where(inArray(functionsTable.id, idsDeFuncoes)) : Promise.resolve([]),
     idsDoPlanejado.length ? tx.select().from(budgetPlannedTable).where(inArray(budgetPlannedTable.id, idsDoPlanejado)) : Promise.resolve([]),
     tx.select().from(eventsTable).where(inArray(eventsTable.id, idsDeEventos)),
@@ -50,7 +50,9 @@ export async function aplicarConferenciaAutomatica(tx: Tx, enviadas: readonly Bu
     tx.select().from(presencas).where(inArray(presencas.actualId, ids)),
     tx.select().from(presencaConfirmacoes).where(inArray(presencaConfirmacoes.actualId, ids)),
     tx.select({ valor: systemSettings.value }).from(systemSettings).where(eq(systemSettings.key, CHAVE_DATA_DE_CORTE)),
+    tx.select({ eventId: budgetComparison.eventId }).from(budgetComparison).where(and(inArray(budgetComparison.eventId, idsDeEventos), eq(budgetComparison.status, "aprovado"))),
   ]);
+  const eventosComComparativo = new Set(comparativos.map((c) => c.eventId));
   const nomeDaFuncao = new Map(funcoes.map((f) => [f.id, f.name]));
   const planejadoPorId = new Map(planejados.map((p) => [p.id, p]));
   const eventoPorId = new Map(eventos.map((e) => [e.id, e]));
@@ -67,7 +69,8 @@ export async function aplicarConferenciaAutomatica(tx: Tx, enviadas: readonly Bu
     dataDeCorte,
     temDivisoes: comDivisoes.has(a.id),
     ocorrencias: ocorrencias.filter((o) => o.actualId === a.id).map((o) => ({ tipo: o.tipo, dia: o.dia ? diaDe(o.dia) : null, removidoEm: o.removidoEm })),
-    presencas: marcacoes.filter((m) => m.actualId === a.id).map((m) => ({ dia: diaDe(m.dia), checkinEm: m.checkinEm, checkoutEm: m.checkoutEm, checkinPor: m.checkinPor })),
+    presencas: marcacoes.filter((m) => m.actualId === a.id).map((m) => ({ dia: diaDe(m.dia), checkinEm: m.checkinEm, checkoutEm: m.checkoutEm, checkinPor: m.checkinPor, checkoutPor: m.checkoutPor })),
+    comparativoAprovado: eventosComComparativo.has(a.eventId),
     confirmacao: confirmacaoPorPrestacao.get(a.id) ?? null,
   }).automatica);
   if (semDivergencia.length === 0) return [];

@@ -33,6 +33,7 @@
  * Os valores continuam editáveis no passo 2; `origem*` é o texto curto que a
  * tela mostra para dizer de onde veio cada número.
  */
+import { jantaQueFica } from "@shared/dividir-diarias";
 import { refeicaoCentsDia, refeicaoPerfil, vrValido, type RefeicaoPerfil } from "@shared/alimentacao";
 import { isFuncaoLocal, isPercursoFunction, regraDiariaPorTipo, type RegraDiaria } from "@shared/calculation-rules";
 import { formatarMoeda } from "@/lib/format";
@@ -91,13 +92,7 @@ const dia = (n: number) => (n === 1 ? "dia" : "dias");
  * dia de carregamento marcado, a janta é só desses dias (29/10); sem marca, o
  * rateio por dia de sempre (janta lançada à mão).
  */
-export function jantaQueFica(a: { totalCents: number; dias: readonly string[]; ficam: readonly string[]; carregamento?: readonly (string | null | undefined)[] | null }): number {
-  if (a.dias.length === 0 || a.totalCents <= 0) return 0;
-  const marcas = new Set((a.carregamento ?? []).map((d) => String(d ?? "").slice(0, 10)));
-  const marcadosDoGrupo = a.dias.filter((d) => marcas.has(d));
-  if (marcadosDoGrupo.length === 0) return Math.round((a.totalCents / a.dias.length) * a.ficam.length);
-  return Math.round((a.totalCents / marcadosDoGrupo.length) * a.ficam.filter((d) => marcas.has(d)).length);
-}
+export { jantaQueFica };
 
 export function preencherValoresDoNovo(e: EntradaDoNovo): PreenchimentoDoNovo {
   const uteis = e.dias.filter(d => !isWeekend(d)).length;

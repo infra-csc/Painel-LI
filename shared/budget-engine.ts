@@ -136,10 +136,10 @@ export interface EntradaDoPlanejado {
   eventName?: string | null;
   eventEndDate?: string | null;
   /**
-   * Janta gravada na linha JÁ pré-aprovada (29/10): sem logística, a regra não dá
-   * janta — a que está lá foi exceção à mão do DP e não some ao recalcular.
+   * Janta lançada à mão, gravada na linha (29/10): sem logística, a regra não dá
+   * janta — a exceção do DP não some ao recalcular.
    */
-  jantaPreAprovada?: { semana: number; fds: number } | null;
+  jantaAMao?: { semana: number | null; fds: number | null } | null;
   ticket?: PassagemParaPlanejado | null;
   override?: OverrideDoPlanejado | null;
   /**
@@ -201,6 +201,8 @@ export interface ResultadoDoPlanejado {
   sysJantarSemana: number;
   sysAlmocoFds: number;
   sysJantarFds: number;
+  jantaAMaoSemana: number | null;
+  jantaAMaoFds: number | null;
   /** Honorário da vaga (aprovado ou pendente), para os textos da tela — null sem pedido. */
   honorario: HonorarioNaVaga | null;
   /** O honorário APROVADO é a mão de obra da vaga (com ou sem ajuste manual por cima). */
@@ -485,10 +487,18 @@ export function calcularPlanejadoDaVaga(e: EntradaDoPlanejado): ResultadoDoPlane
   if (funcaoLocal || empreita) { calcAlmSem = 0; calcJanSem = 0; calcAlmFds = 0; calcJanFds = 0; }
   const alimEstimada = voa && !semMobilidade && (fonteVoo !== "passagem" || alim.estimado);
   const almocoSemana = weekdays === 0 ? 0 : (override?.almocoSemana ?? calcAlmSem);
-  const jantaManual = semJantaSemLogistica && !voa ? e.jantaPreAprovada : null;
-  const jantarSemana = weekdays === 0 ? 0 : (override?.jantarSemana ?? Math.max(calcJanSem, jantaManual?.semana ?? 0));
+  const jantaManual = semJantaSemLogistica && !voa ? e.jantaAMao : null;
+  const sysJantarSemana = Math.max(calcJanSem, jantaManual?.semana ?? 0);
+  const sysJantarFds = Math.max(calcJanFds, jantaManual?.fds ?? 0);
+  const jantarSemana = weekdays === 0 ? 0 : (override?.jantarSemana ?? sysJantarSemana);
   const almocoFds = weekends === 0 ? 0 : (override?.almocoFds ?? calcAlmFds);
-  const jantarFds = weekends === 0 ? 0 : (override?.jantarFds ?? Math.max(calcJanFds, jantaManual?.fds ?? 0));
+  const jantarFds = weekends === 0 ? 0 : (override?.jantarFds ?? sysJantarFds);
+  // O que fica gravado como "à mão": o ajuste da tela ou o que já estava na linha.
+  const jantaAMaoDaLinha = (ajuste: number | undefined, salva: number | null | undefined) => {
+    if (!semJantaSemLogistica || voa) return null;
+    const v = ajuste ?? salva ?? 0;
+    return v > 0 ? v : null;
+  };
 
   const ajudaCusto = mobilidade + almocoSemana + jantarSemana + almocoFds + jantarFds;
   const totalFinal = subtotalDiarias + ajudaCusto;
@@ -510,7 +520,9 @@ export function calcularPlanejadoDaVaga(e: EntradaDoPlanejado): ResultadoDoPlane
     vooPartidaIda, vooChegadaIda, vooPartidaVolta, fonteVoo, alimEstimada,
     deflationSegments: deflated.segments,
     sysValorDiaria, sysMobilidade: sysMob, sysMobilidadeIda: sysMobIda, sysMobilidadeVolta: sysMobVolta,
-    sysAlmocoSemana: calcAlmSem, sysJantarSemana: calcJanSem, sysAlmocoFds: calcAlmFds, sysJantarFds: calcJanFds,
+    sysAlmocoSemana: calcAlmSem, sysJantarSemana, sysAlmocoFds: calcAlmFds, sysJantarFds,
+    jantaAMaoSemana: jantaAMaoDaLinha(override?.jantarSemana, jantaManual?.semana),
+    jantaAMaoFds: jantaAMaoDaLinha(override?.jantarFds, jantaManual?.fds),
     honorario,
     honorarioAprovado: !!maoDeObra,
     honorarioDifere: !!maoDeObra?.difereDoAprovado,
@@ -544,6 +556,9 @@ export interface LinhaDoPlanejado {
   totalValue: number;
   /** Dias com 1,5 diária (28/10) — o ½ já está na média `dailyValue`. */
   diasMeiaExtra: string[];
+  /** Janta lançada à mão (03/11): null = só a da regra. */
+  jantaAMaoSemana: number | null;
+  jantaAMaoFds: number | null;
 }
 
 /**
@@ -574,5 +589,7 @@ export function linhaDoPlanejado(r: ResultadoDoPlanejado): LinhaDoPlanejado {
     // 28/10 (revisão R4): só os dias cujo ½ entrou no valor — ½ "sem efeito"
     // (valor fechado, casa em dia útil) não vai para o Realizado como 1,5.
     diasMeiaExtra: r.meiasDiarias.filter((m) => m.valorCents > 0).map((m) => m.dia),
+    jantaAMaoSemana: r.jantaAMaoSemana,
+    jantaAMaoFds: r.jantaAMaoFds,
   };
 }

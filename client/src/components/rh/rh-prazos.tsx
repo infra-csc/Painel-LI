@@ -69,7 +69,7 @@ export function FaixaDePrazos({ contagem, filtro, onFiltro, ordem, onOrdem }: {
       <Botao ativo={filtro === "atrasados"} onClick={() => alternar("atrasados")} icone={TriangleAlert} rotulo="Atrasados" n={contagem.atrasados} tom="perigo" dica={dicaAtrasados} testid="rh-prazo-atrasados" />
       <Botao ativo={filtro === "vence_hoje"} onClick={() => alternar("vence_hoje")} icone={AlarmClock} rotulo="Vence hoje" n={contagem.venceHoje} tom="alerta" dica="O prazo da etapa atual termina hoje (horário de Brasília)" testid="rh-prazo-hoje" />
       <Botao ativo={filtro === "contestacoes"} onClick={() => alternar("contestacoes")} icone={MessageSquareWarning} rotulo="Contestações" n={contagem.contestacoes} tom="alerta" dica="O colaborador escreveu “Algo não bate?” na confirmação e o DP ainda não respondeu" testid="rh-prazo-contestacoes" />
-      <label className="ml-auto inline-flex shrink-0 items-center gap-1.5 h-[34px] pl-2.5 pr-1 rounded-lg border border-border bg-card text-sm text-slate-700">
+      <label className="relative ml-auto inline-flex shrink-0 items-center gap-1.5 h-[34px] pl-2.5 pr-1 rounded-lg border border-border bg-card text-sm text-slate-700">
         <ArrowDownWideNarrow className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
         <span className="sr-only">Ordem da fila</span>
         <select

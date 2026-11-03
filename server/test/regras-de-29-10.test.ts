@@ -8,7 +8,9 @@
  */
 import { beforeAll, describe, expect, it } from "vitest";
 import { agenteLogado, criarApp, criarColaborador, criarEvento, criarFuncao, criarVaga, mutacao, type Contexto } from "./harness";
-import { lerConfiguracaoDoBanco, montarPrestacao } from "../presenca-servico";
+import { eq } from "drizzle-orm";
+import { lerConfiguracaoDoBanco, montarPrestacao, permissaoDeConfirmar } from "../presenca-servico";
+import { expurgarSelfies } from "../expurgo-selfies";
 
 let ctx: Contexto;
 beforeAll(async () => { ctx = await criarApp(); });
@@ -84,3 +86,65 @@ describe("Domingo da Night na presença", () => {
   });
 });
 
+
+describe("Segunda revisão de 03/11", () => {
+  async function night(tipo: string) {
+    const { agent, user } = await agenteLogado("admin");
+    const evento = await criarEvento({ name: "Night Run Revisão 2026", startDate: "2026-11-13", endDate: "2026-11-15" });
+    const funcao = await criarFuncao({ name: `kit ${Math.random().toString(36).slice(2, 8)}` });
+    const colab = await criarColaborador();
+    const vaga = await criarVaga({ userId: user.id, eventId: evento.id, functionId: funcao.id, collaboratorId: colab.id });
+    await ctx.storage.updateTeamInclusion(vaga.id, { scheduleStartDate: "2026-11-13", scheduleEndDate: "2026-11-14", workDays: ["2026-11-13", "2026-11-14"], dailyRates: 2 } as never);
+    const [actual] = await ctx.db.insert(ctx.schema.budgetActual).values({
+      eventId: evento.id, collaboratorId: colab.id, functionId: funcao.id, collaboratorType: tipo,
+      dailyQuantity: 2, dailyValue: 15_000, totalValue: 30_000, workedDays: ["2026-11-13", "2026-11-14", "2026-11-15"], sentForReview: false, rhStatus: "pendente",
+    } as never).returning();
+    return { agent, evento, funcao, colab, vaga, actual };
+  }
+
+  it("carregamento com a vaga já no Realizado: não marca, a prestação guarda a janta dela", async () => {
+    const { agent, vaga } = await night("casa");
+    const r = await mutacao(agent.patch(`/api/team-inclusions/${vaga.id}/dias-carregamento`)).send({ diasCarregamento: ["2026-11-13"] });
+    expect(r.status).toBe(409);
+    expect(r.body.message).toContain("Realizado");
+  });
+
+  it("falta no sábado tira também o domingo; sem falta, o domingo segue pago", async () => {
+    const { actual } = await night("casa");
+    const config = await lerConfiguracaoDoBanco();
+    expect((await montarPrestacao(actual.id, config))?.calculo.diasPagos).toContain("2026-11-15");
+    await ctx.db.insert(ctx.schema.presencaOcorrencias).values({ actualId: actual.id, tipo: "falta", dia: "2026-11-14", criadoPor: "x" } as never);
+    const pagos = (await montarPrestacao(actual.id, config))?.calculo.diasPagos ?? [];
+    expect(pagos).not.toContain("2026-11-14");
+    expect(pagos).not.toContain("2026-11-15");
+  });
+
+  it("filho da divisão usa a vaga do titular: o domingo da Night não pede presença", async () => {
+    const { evento, funcao, actual } = await night("casa");
+    const outro = await criarColaborador();
+    const [filho] = await ctx.db.insert(ctx.schema.budgetActual).values({
+      eventId: evento.id, collaboratorId: outro.id, functionId: funcao.id, collaboratorType: "casa", splitParentId: actual.id,
+      dailyQuantity: 1, dailyValue: 15_000, totalValue: 15_000, workedDays: ["2026-11-14", "2026-11-15"], sentForReview: false, rhStatus: "pendente",
+    } as never).returning();
+    const m = await montarPrestacao(filho.id, await lerConfiguracaoDoBanco());
+    expect(m?.dias).toEqual(["2026-11-14"]);
+    expect(m?.calculo.diasPagos).toContain("2026-11-15");
+  });
+
+  it("confirmada e aprovada: o portal não refaz a confirmação", async () => {
+    const { actual } = await night("freela");
+    await ctx.db.update(ctx.schema.budgetActual).set({ rhStatus: "aprovado", sentForReview: true } as never).where(eq(ctx.schema.budgetActual.id, actual.id));
+    await ctx.db.insert(ctx.schema.presencaConfirmacoes).values({ actualId: actual.id, collaboratorId: actual.collaboratorId, confirmadoPor: "colaborador", diasConfirmados: ["2026-11-13"] } as never);
+    const m = await montarPrestacao(actual.id, await lerConfiguracaoDoBanco());
+    expect(permissaoDeConfirmar(m!, "2026-12-01").ok).toBe(false);
+  });
+
+  it("expurgo apaga a localização, inclusive de presença sem foto", async () => {
+    const { actual } = await night("freela");
+    await ctx.db.update(ctx.schema.budgetActual).set({ pagoEm: "2020-01-01" } as never).where(eq(ctx.schema.budgetActual.id, actual.id));
+    await ctx.db.insert(ctx.schema.presencas).values({ actualId: actual.id, eventId: actual.eventId, collaboratorId: actual.collaboratorId, dia: "2026-11-13", checkinEm: new Date(), checkinLat: "-23.5", checkinLng: "-46.6", checkinPrecisaoM: 10 } as never);
+    await expurgarSelfies({ simular: false, ator: null, origem: "manual" });
+    const [p] = await ctx.db.select().from(ctx.schema.presencas).where(eq(ctx.schema.presencas.actualId, actual.id));
+    expect(p).toMatchObject({ checkinLat: null, checkinLng: null, checkinPrecisaoM: null });
+  });
+});

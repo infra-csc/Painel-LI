@@ -277,8 +277,10 @@ export function diasPendentes(a: { dias: readonly string[]; presencas: readonly 
 }
 
 /** A confirmação do colaborador abre depois do último dia — ou no último dia, já com o check-out feito. */
-export function podeConfirmarPrestacao(a: { dias: readonly string[]; hoje: string; presencaDoUltimoDia?: MarcacaoDoDia | null; checkoutFinalFeito: boolean }): Permissao {
+export function podeConfirmarPrestacao(a: { dias: readonly string[]; hoje: string; presencaDoUltimoDia?: MarcacaoDoDia | null; checkoutFinalFeito: boolean; jaConfirmadaEAprovada?: boolean }): Permissao {
   if (a.checkoutFinalFeito) return nao("O produtor já fez o check-out final desta prestação.");
+  // 03/11: refazer depois de aprovada mudaria o CNPJ da OC ou abriria contestação numa linha fechada.
+  if (a.jaConfirmadaEAprovada) return nao("A conferência já aprovou esta prestação. Para corrigir, fale com o DP.");
   if (a.dias.length === 0) return nao("Esta prestação não tem dias de diária.");
   const ultimo = a.dias[a.dias.length - 1];
   if (a.hoje > ultimo) return ok;

@@ -184,9 +184,9 @@ export function OrigemDoValor({ h, className }: {
   const tabela = h.tipo === "vaga" && ehTipoDeTabela(h.tipoFreela);
   const outro = h.tipo === "vaga" && h.tipoFreela === "outro";
   return (
-    <span className={cn("block text-2xs", tabela || outro ? "font-medium text-slate-700" : "text-slate-600", className)} data-testid="hon-origem-do-valor">
+    <span className={cn("flex items-start text-2xs", tabela || outro ? "font-medium text-slate-700" : "text-slate-600", className)} data-testid="hon-origem-do-valor">
       {(tabela || outro) && (
-        <span aria-hidden="true" className={cn("mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle", tabela ? "bg-primary" : "bg-warning-strong")} />
+        <span aria-hidden="true" className={cn("mr-1 mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full", tabela ? "bg-primary" : "bg-warning-strong")} />
       )}
       <span className={outro ? "line-clamp-2" : undefined}>{rotuloDoValor(h)}</span>
     </span>

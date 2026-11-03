@@ -6,7 +6,6 @@
  * vaga, e deriva os índices que cards e planilha consomem (enviados ao
  * Realizado, "não participou", totais e estatísticas). Sem JSX.
  */
-import { estaPreAprovado } from "@shared/pre-aprovacao";
 import { useCallback, useMemo, useRef } from "react";
 import type { BudgetActual, BudgetPlanned as BudgetPlannedRow, Collaborator, FunctionValue, TeamInclusion, Ticket } from "@shared/schema";
 import { calcularPlanejadoDaVaga, type VagaParaPlanejado } from "@shared/budget-engine";
@@ -170,8 +169,8 @@ export function useBudgetEngine(e: EntradaDoMotor): SaidaDoMotor {
       const ticket = ticketByInclusion.get(inclusion.id) ?? null;
       const override = budgetOverrides[id];
       const linha = plannedByVaga.get(id);
-      const jantaSemana = estaPreAprovado(linha?.status) ? linha?.weekdayDinner ?? 0 : 0;
-      const jantaFds = estaPreAprovado(linha?.status) ? linha?.weekendDinner ?? 0 : 0;
+      const jantaSemana = linha?.jantaAMaoSemana ?? null;
+      const jantaFds = linha?.jantaAMaoFds ?? null;
       const honorario: HonorarioNaVaga | null = honorarioPorVaga.get(id) ?? null;
       const chave: unknown[] = [inclusion, fnName, collab?.type ?? null, collab?.vrDiarioCents ?? null, fv, systemSettings, eventLocation, eventName, eventEndDate, ticket, override, honorario, jantaSemana, jantaFds];
       const hit = anterior.get(id);
@@ -188,7 +187,7 @@ export function useBudgetEngine(e: EntradaDoMotor): SaidaDoMotor {
               eventLocation,
               eventName,
               eventEndDate,
-              jantaPreAprovada: { semana: jantaSemana, fds: jantaFds },
+              jantaAMao: { semana: jantaSemana, fds: jantaFds },
               ticket,
               override,
               honorario,

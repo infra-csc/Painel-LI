@@ -638,6 +638,10 @@ export const budgetPlanned = pgTable("budget_planned", {
   // média (subtotal ÷ dias); a lista diz QUAIS dias, para o Realizado nascer
   // com eles marcados (shared/meia-diaria.ts).
   diasMeiaExtra: text("dias_meia_extra").array(),
+  // 03/11: janta lançada à mão (sem logística a regra não dá janta). Explícita:
+  // inferir do valor gravado prendia a janta do dia de carregamento desmarcado.
+  jantaAMaoSemana: integer("janta_a_mao_semana"),
+  jantaAMaoFds: integer("janta_a_mao_fds"),
 }, (t) => [
   // Já existem (13/08)
   index("budget_planned_event_idx").on(t.eventId),

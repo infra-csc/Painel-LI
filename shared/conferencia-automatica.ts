@@ -60,6 +60,7 @@ export const ROTULO_DO_MOTIVO_DA_CONFERENCIA = {
   sem_checkout: "Dia com entrada e sem saída",
   presenca_por_representante: "Presença registrada pelo representante",
   confirmada_por_representante: "Confirmada pelo representante, não pelo colaborador",
+  comparativo_ja_aprovado: "O comparativo do evento já foi aprovado",
   sem_confirmacao: "Sem a confirmação do colaborador",
   contestada: "Contestada pelo colaborador",
   dias_confirmados_diferentes: "Dias confirmados diferentes dos trabalhados",
@@ -114,7 +115,9 @@ export interface EntradaDaConferencia {
   temDivisoes: boolean;
   /** Pode trazer as removidas — só as ativas contam. */
   ocorrencias: readonly OcorrenciaDoDia[];
-  presencas: readonly (MarcacaoDoDia & { dia: string; checkinPor?: string | null })[];
+  presencas: readonly (MarcacaoDoDia & { dia: string; checkinPor?: string | null; checkoutPor?: string | null })[];
+  /** O comparativo do evento já foi aprovado: o crédito do Flash não veria esta linha. */
+  comparativoAprovado?: boolean;
   confirmacao: { contestacao?: string | null; diasConfirmados?: readonly (string | null)[] | null; confirmadoPor?: string | null } | null | undefined;
 }
 
@@ -207,7 +210,8 @@ export function conferirSemDivergencia(e: EntradaDaConferencia): ResultadoDaConf
   if (e.presencas.some((m) => m.checkinEm && !m.checkoutEm)) motivos.push("sem_checkout");
   // A prova de que os dias aconteceram é o colaborador ter marcado e confirmado:
   // o que o representante registrou por ele passa pelos olhos do DP.
-  if (e.presencas.some((m) => m.checkinEm && m.checkinPor && m.checkinPor !== "colaborador")) motivos.push("presenca_por_representante");
+  if (e.presencas.some((m) => (m.checkinEm && m.checkinPor && m.checkinPor !== "colaborador") || (m.checkoutEm && m.checkoutPor && m.checkoutPor !== "colaborador"))) motivos.push("presenca_por_representante");
+  if (e.comparativoAprovado) motivos.push("comparativo_ja_aprovado");
   if (!e.confirmacao) {
     motivos.push("sem_confirmacao");
   } else {

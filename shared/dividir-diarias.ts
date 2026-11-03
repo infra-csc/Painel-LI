@@ -13,6 +13,18 @@ import { DEFLATION_FACTORS_DEFAULT, regraDiariaPorTipo, type DeflationFactors } 
 import { valoresDosDiasDoSubtotal } from "./meia-diaria";
 import { ehFimDeSemana } from "./presenca";
 
+/**
+ * A janta que fica com quem mantém `ficam` (29/10). Com dia de carregamento
+ * marcado, ela acompanha o dia marcado; sem marca (janta à mão), rateio por dia.
+ */
+export function jantaQueFica(a: { totalCents: number; dias: readonly string[]; ficam: readonly string[]; carregamento?: readonly (string | null | undefined)[] | null }): number {
+  if (a.dias.length === 0 || a.totalCents <= 0) return 0;
+  const marcas = new Set((a.carregamento ?? []).map((d) => String(d ?? "").slice(0, 10)));
+  const marcadosDoGrupo = a.dias.filter((d) => marcas.has(d));
+  if (marcadosDoGrupo.length === 0) return Math.round((a.totalCents / a.dias.length) * a.ficam.length);
+  return Math.round((a.totalCents / marcadosDoGrupo.length) * a.ficam.filter((d) => marcas.has(d)).length);
+}
+
 export interface DiariasQueFicam {
   subtotalCents: number;
   /** Dias com diária que ficam + 1 por dobra que fica (a mesma conta do Realizado). */

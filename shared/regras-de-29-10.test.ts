@@ -134,8 +134,14 @@ describe("Revisão de 03/11", () => {
       eventName: "Maratona", eventEndDate: "2026-11-15",
     };
     expect(calcularPlanejadoDaVaga(entrada).jantarSemana).toBe(0);
-    expect(calcularPlanejadoDaVaga({ ...entrada, jantaPreAprovada: { semana: 4000, fds: 0 } }).jantarSemana).toBe(4000);
+    expect(calcularPlanejadoDaVaga({ ...entrada, jantaAMao: { semana: 4000, fds: null } }).jantarSemana).toBe(4000);
     const ajuste = { jantarSemana: 0 } as never;
-    expect(calcularPlanejadoDaVaga({ ...entrada, jantaPreAprovada: { semana: 4000, fds: 0 }, override: ajuste }).jantarSemana).toBe(0);
+    const zerada = calcularPlanejadoDaVaga({ ...entrada, jantaAMao: { semana: 4000, fds: null }, override: ajuste });
+    expect(zerada.jantarSemana).toBe(0);
+    expect(zerada.jantaAMaoSemana).toBeNull();
+    // A tela compara o digitado com sysJantar*: com a janta à mão, zerar é diferente e vira ajuste.
+    expect(calcularPlanejadoDaVaga({ ...entrada, jantaAMao: { semana: 4000, fds: null } }).sysJantarSemana).toBe(4000);
+    expect(calcularPlanejadoDaVaga({ ...entrada, jantaAMao: { semana: 4000, fds: null } }).jantaAMaoSemana).toBe(4000);
+    expect(calcularPlanejadoDaVaga({ ...entrada, override: { jantarSemana: 5000 } as never }).jantaAMaoSemana).toBe(5000);
   });
 });

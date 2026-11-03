@@ -19,14 +19,14 @@ import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "./db";
 import { storage } from "./storage";
 import {
-  presencas, presencaConfirmacoes, teamInclusions, functionManagers, functions as functionsTable,
+  budgetActual, presencas, presencaConfirmacoes, teamInclusions, functionManagers, functions as functionsTable,
   type BudgetActual, type Collaborator, type Event, type Presenca, type PresencaConfirmacao, type PresencaOcorrencia, type TeamInclusion, type User,
 } from "@shared/schema";
 import {
   diaEmBrasilia, diaValido, diasPendentes, estadoDoDia, inclusaoDaPrestacao, lerConfiguracaoDaPresenca, periodoDaPrestacao,
   podeConfirmarPrestacao, podeRegistrarEntrada, podeRegistrarSaida, realizadoParaCalculo, recalcularValor, situacaoDoCnpjInformado,
   type CalculoDaPresenca, type RealizadoParaCalculo, type ConfiguracaoDaPresenca, type EstadoDoDia, type FonteDosDias, type QuemConfirma, type QuemRegistra,
-  pedeLocalizacao,
+  ocorrenciaTiraODia, pedeLocalizacao,
 } from "@shared/presenca";
 import { ehEventoLegado } from "@shared/legado-honorarios";
 import { deflationFactorsFromSettings, isPercursoFunction, type DeflationFactors } from "@shared/calculation-rules";
@@ -94,12 +94,17 @@ export async function montarPrestacoes(actuals: readonly BudgetActual[], config:
   const eventIds = Array.from(new Set(actuals.map((a) => a.eventId)));
   const colabIds = Array.from(new Set(actuals.map((a) => a.collaboratorId).filter((v): v is string => !!v)));
   const funcIds = Array.from(new Set(actuals.map((a) => a.functionId).filter((v): v is string => !!v)));
+  // Filho da divisão não tem vaga própria: janta de carregamento e domingo vêm da vaga do titular.
+  const idsDosTitulares = Array.from(new Set(actuals.map((a) => a.splitParentId).filter((v): v is string => !!v)));
+  const titulares = idsDosTitulares.length ? await db.select().from(budgetActual).where(inArray(budgetActual.id, idsDosTitulares)) : [];
+  const titularPorId = new Map(titulares.map((t) => [t.id, t]));
+  const colabIdsDasVagas = Array.from(new Set([...colabIds, ...titulares.map((t) => t.collaboratorId).filter((v): v is string => !!v)]));
   const [eventos, funcoes, colaboradores, vagas, todasPresencas, ocorrencias, confirmacoes, settings] = await Promise.all([
     storage.getEventsByIds(eventIds),
     storage.getFunctionsByIds(funcIds),
     colabIds.length ? Promise.all(colabIds.map((id) => storage.getCollaborator(id))) : Promise.resolve([]),
-    colabIds.length
-      ? db.select().from(teamInclusions).where(and(inArray(teamInclusions.eventId, eventIds), inArray(teamInclusions.collaboratorId, colabIds), isNull(teamInclusions.deletedAt)))
+    colabIdsDasVagas.length
+      ? db.select().from(teamInclusions).where(and(inArray(teamInclusions.eventId, eventIds), inArray(teamInclusions.collaboratorId, colabIdsDasVagas), isNull(teamInclusions.deletedAt)))
       : Promise.resolve([] as TeamInclusion[]),
     presencasDasPrestacoes(ids),
     ocorrenciasDasPrestacoes(ids),
@@ -130,20 +135,30 @@ export async function montarPrestacoes(actuals: readonly BudgetActual[], config:
     const valorFlatPorDia = isPercursoFunction(funcaoNome) || vagaComEmpreita(inclusao)
       || usaEmpreitaCenotecnica(isCenotecnicaFunction(funcaoNome), actual.collaboratorType);
     const fatores = valorFlatPorDia ? null : fatoresDoPadrao;
+    const titular = actual.splitParentId ? titularPorId.get(actual.splitParentId) : undefined;
+    const vagaDasRegras = (titular ? inclusaoDaPrestacao(titular, vagas) : undefined) ?? inclusao;
+    // Domingo da Night (29/10): a prova virou a noite de sábado — é dia pago,
+    // sem check-in próprio; não aparece para marcar nem trava o check-out final.
+    const domingo = domingoDaNight({ nomeDoEvento: evento.name, fimDoEvento: evento.endDate, fimDaEscala: vagaDasRegras?.scheduleEndDate, collaboratorType: actual.collaboratorType, nomeDaFuncao: funcaoNome });
+    const ocorrenciasDoCalculo = ocorrenciasDela.map((o) => ({ tipo: o.tipo, dia: o.dia ? String(o.dia).slice(0, 10) : null, horas: o.horas }));
+    // Sem o sábado não há noite virada: a falta nele tira também o domingo (03/11).
+    const sabado = domingo ? String(vagaDasRegras?.scheduleEndDate).slice(0, 10) : null;
+    if (domingo && periodo.dias.includes(domingo)
+      && ocorrenciasDoCalculo.some((o) => o.dia === sabado && ocorrenciaTiraODia(o.tipo))
+      && !ocorrenciasDoCalculo.some((o) => o.dia === domingo && ocorrenciaTiraODia(o.tipo))) {
+      ocorrenciasDoCalculo.push({ tipo: "falta", dia: domingo, horas: null });
+    }
     const calculo = recalcularValor({
       realizado,
       dias: periodo.dias,
-      ocorrencias: ocorrenciasDela.map((o) => ({ tipo: o.tipo, dia: o.dia ? String(o.dia).slice(0, 10) : null, horas: o.horas })),
+      ocorrencias: ocorrenciasDoCalculo,
       divisorHoraExtra: config.horaExtraDivisor,
       horaExtraMaxDia: config.horaExtraMaxDia,
       fatores,
       nomeDaFuncao: funcaoNome,
       // Sem logística, a janta é só do dia de carregamento: a falta tira a do dia certo.
-      diasComJanta: inclusao && !inclusao.needsTicket && valemRegrasDe2910(evento.endDate) ? inclusao.diasCarregamento : null,
+      diasComJanta: vagaDasRegras && !vagaDasRegras.needsTicket && valemRegrasDe2910(evento.endDate) ? vagaDasRegras.diasCarregamento : null,
     });
-    // Domingo da Night (29/10): a prova virou a noite de sábado — é dia pago,
-    // sem check-in próprio; não aparece para marcar nem trava o check-out final.
-    const domingo = domingoDaNight({ nomeDoEvento: evento.name, fimDoEvento: evento.endDate, fimDaEscala: inclusao?.scheduleEndDate, collaboratorType: actual.collaboratorType, nomeDaFuncao: funcaoNome });
     const diasDePresenca = periodo.dias.filter((d) => d !== domingo);
     const pendentes = diasPendentes({
       dias: diasDePresenca,
@@ -193,7 +208,7 @@ export function prazoDaMontada(m: PrestacaoMontada, prazos: PrazosDosHonorarios,
 /** A confirmação do colaborador abre? */
 export function permissaoDeConfirmar(m: PrestacaoMontada, hoje: string) {
   const ultimo = m.dias[m.dias.length - 1];
-  return podeConfirmarPrestacao({ dias: m.dias, hoje, presencaDoUltimoDia: ultimo ? m.presencaPorDia.get(ultimo) : null, checkoutFinalFeito: m.checkoutFinalFeito });
+  return podeConfirmarPrestacao({ dias: m.dias, hoje, presencaDoUltimoDia: ultimo ? m.presencaPorDia.get(ultimo) : null, checkoutFinalFeito: m.checkoutFinalFeito, jaConfirmadaEAprovada: !!m.confirmacao && m.actual.rhStatus === "aprovado" });
 }
 
 // ── Função da Área de Função ────────────────────────────────────────────────

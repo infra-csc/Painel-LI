@@ -156,8 +156,8 @@ function LinhaPendente({ h, marcado, onMarcar, onAprovar, onAjustar, onDevolver,
       <td data-primeira className="px-3 py-3">
         <span className="block break-words text-sm font-semibold leading-5 text-foreground">{h.nome}</span>
         <span className="block"><OrigemDaLinha h={h} /></span>
-        <OrigemDoValor h={h} className="mt-0.5" />
-        {h.tipo === "empreita" && <VagasDaEmpreitaLista vagas={h.vagasDaEmpreita ?? []} className="mt-0.5" />}
+        <OrigemDoValor h={{ ...h, observacao: null }} className="mt-0.5" />
+        {h.tipo === "empreita" && (h.vagasDaEmpreita?.length ?? 0) > 0 && <VagasDaEmpreitaLista vagas={h.vagasDaEmpreita ?? []} className="mt-0.5" />}
         <AvisoDaLinha h={h} />
         {h.observacao && (
           <span className="mt-1.5 flex items-start gap-1.5 text-2xs text-slate-600">

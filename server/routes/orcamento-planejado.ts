@@ -105,7 +105,7 @@ export function registrarOrcamentoPlanejado(app: Express): void {
         eventLocation: event.location ?? null,
         eventName: event.name,
         eventEndDate: event.endDate,
-        jantaPreAprovada: estaPreAprovado(planned.status) ? { semana: planned.weekdayDinner ?? 0, fds: planned.weekendDinner ?? 0 } : null,
+        jantaAMao: { semana: planned.jantaAMaoSemana, fds: planned.jantaAMaoFds },
         ticket: ticketByInclusion.get(inc.id) ?? null,
         honorario: honorarioPorVaga.get(inc.id) ?? null,
         // 28/10: VR do colaborador da casa no almoço de dia útil.

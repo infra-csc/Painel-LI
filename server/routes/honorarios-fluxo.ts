@@ -81,6 +81,9 @@ const linhaParaPreAprovar = z.object({
   plannedId: z.string().min(1).max(100).nullish(),
   // 28/10: dias com 1,5 diária (o ½ já está na diária média e no total).
   diasMeiaExtra: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(400).nullish(),
+  // 03/11: janta lançada à mão, para sobreviver ao recálculo.
+  jantaAMaoSemana: centavos.nullish(),
+  jantaAMaoFds: centavos.nullish(),
 });
 const corpoDaPreAprovacao = z.object({
   eventId: z.string().min(1).max(100),
@@ -168,6 +171,7 @@ export function registrarHonorariosFluxo(app: Express): void {
             mobility: l.mobility, mobilityIda: l.mobilityIda ?? null, mobilityVolta: l.mobilityVolta ?? null,
             transport: l.transport, totalValue: l.totalValue,
             diasMeiaExtra: l.diasMeiaExtra?.length ? Array.from(new Set(l.diasMeiaExtra)).sort() : null,
+            jantaAMaoSemana: l.jantaAMaoSemana ?? null, jantaAMaoFds: l.jantaAMaoFds ?? null,
             status: STATUS_PRE_APROVADO, approvedBy: user.id, approvedAt: agora,
             // Grava a vaga na linha (inclusive na antiga adotada): o casamento deixa de depender da ordem.
             ...(l.teamInclusionId ? { teamInclusionId: l.teamInclusionId } : {}),
