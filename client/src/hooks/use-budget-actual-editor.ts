@@ -167,7 +167,9 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
     if (isPercursoFunction(fnName) || isFuncaoLocal(fnName)) return out;
     if (activeDates.length === 0) return out;
 
-    const inclusion = getItemInclusion(item);
+    // Filho da divisão não tem vaga própria: quem voa ou não é a vaga do titular.
+    const titular = item.splitParentId ? (actualsPorGrupo.get(item.splitParentId) ?? []).find((a) => a.id === item.splitParentId) : undefined;
+    const inclusion = getItemInclusion(item) ?? (titular ? getItemInclusion(titular) : undefined);
     const ticket = inclusion ? ticketByInclusion.get(inclusion.id) : undefined;
     const voa = !!inclusion?.needsTicket;
     // Van/ônibus no retorno já paga jantar a partir das 20h (regra 17/08) —
@@ -223,7 +225,7 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
       if (d.jantar) { if (fds) out.weekendDinner += refFds.jantarCents; else out.weekdayDinner += refUtil.jantarCents; }
     }
     return out;
-  }, [functionNameById, getItemInclusion, ticketByInclusion, systemSettings, getGroupDayBounds, vrDoColaborador, fimDoEvento]);
+  }, [functionNameById, getItemInclusion, ticketByInclusion, systemSettings, getGroupDayBounds, vrDoColaborador, fimDoEvento, actualsPorGrupo]);
 
   // ── Viagem e alimentação do modal: DERIVADAS (23/09) ───────────────────────
   // Horário: o que foi digitado à mão vence; senão, passagem > sugerido na

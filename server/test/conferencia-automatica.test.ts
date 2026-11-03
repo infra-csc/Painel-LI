@@ -274,3 +274,46 @@ describe("POST /api/presenca/:id/checkout-final — conferência automática", (
     expect(r.body.realizado.rhStatus).toBe("pendente");
   });
 });
+
+describe("Depois da conferência automática (revisão de 03/11)", () => {
+  async function aprovada() {
+    const c = await cenario();
+    const { agent } = await agenteLogado("financial");
+    const r = await mutacao(agent.post("/api/budget-actual/send-for-review")).send({ eventId: c.evento.id });
+    expect(r.body.conferidasAutomaticamente).toBe(1);
+    return { ...c, agent };
+  }
+
+  it("o DP reabre: a prestação volta para a conferência, sem aprovar sozinha de novo", async () => {
+    const { actual, agent } = await aprovada();
+    const r = await mutacao(agent.post(`/api/budget-actual/${actual.id}/reabrir-conferencia`)).send({});
+    expect(r.status, r.text).toBe(200);
+    const depois = await relida(actual.id);
+    expect(depois).toMatchObject({ rhStatus: "pendente", rhComment: null, rhActionBy: null, sentForReview: true });
+    const decisao = await mutacao(agent.post("/api/budget-actual/rh-action")).send({ itemIds: [actual.id], action: "devolvido", comment: "conferir" });
+    expect(decisao.body.updated).toBe(1);
+  });
+
+  it("não reabre com OC, nem aprovação de pessoa, nem sem ser DP", async () => {
+    const { actual, agent } = await aprovada();
+    const produtor = await agenteLogado("production");
+    expect((await mutacao(produtor.agent.post(`/api/budget-actual/${actual.id}/reabrir-conferencia`)).send({})).status).toBe(403);
+    await ctx.db.update(ctx.schema.budgetActual).set({ ocNumero: "OC-1" } as never).where(eq(ctx.schema.budgetActual.id, actual.id));
+    expect((await mutacao(agent.post(`/api/budget-actual/${actual.id}/reabrir-conferencia`)).send({})).status).toBe(409);
+    const humana = await cenario();
+    await ctx.db.update(ctx.schema.budgetActual).set({ sentForReview: true, rhStatus: "aprovado", rhComment: "ok" } as never).where(eq(ctx.schema.budgetActual.id, humana.actual.id));
+    expect((await mutacao(agent.post(`/api/budget-actual/${humana.actual.id}/reabrir-conferencia`)).send({})).status).toBe(409);
+  });
+
+  it("evento só com conferência automática aparece como comparativo a fechar; aprovado, sai", async () => {
+    const { evento, agent } = await aprovada();
+    const antes = await agent.get("/api/budget-comparison/a-fechar");
+    expect(antes.status, antes.text).toBe(200);
+    expect(antes.body.eventos.map((e: { eventId: string }) => e.eventId)).toContain(evento.id);
+    await ctx.db.insert(ctx.schema.budgetComparison).values({ eventId: evento.id, status: "aprovado" } as never);
+    const depois = await agent.get("/api/budget-comparison/a-fechar");
+    expect(depois.body.eventos.map((e: { eventId: string }) => e.eventId)).not.toContain(evento.id);
+    const produtor = await agenteLogado("production");
+    expect((await produtor.agent.get("/api/budget-comparison/a-fechar")).status).toBe(403);
+  });
+});

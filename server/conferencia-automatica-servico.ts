@@ -9,7 +9,7 @@ import type { Request } from "express";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "./db";
 import {
-  budgetActual as budgetActualTable, budgetPlanned as budgetPlannedTable, events as eventsTable,
+  budgetActual as budgetActualTable, budgetPlanned as budgetPlannedTable, events as eventsTable, functions as functionsTable,
   presencaConfirmacoes, presencaOcorrencias, presencas, systemSettings, teamInclusions,
   type BudgetActual, type InsertSystemLog,
 } from "@shared/schema";
@@ -37,7 +37,9 @@ export async function aplicarConferenciaAutomatica(tx: Tx, enviadas: readonly Bu
   const idsDeEventos = Array.from(new Set(enviadas.map((a) => a.eventId)));
   const colaboradores = semNulos(enviadas.map((a) => a.collaboratorId));
 
-  const [planejados, eventos, vagas, divisoes, ocorrencias, marcacoes, confirmacoes, corte] = await Promise.all([
+  const idsDeFuncoes = Array.from(new Set(semNulos(enviadas.map((a) => a.functionId))));
+  const [funcoes, planejados, eventos, vagas, divisoes, ocorrencias, marcacoes, confirmacoes, corte] = await Promise.all([
+    idsDeFuncoes.length ? tx.select({ id: functionsTable.id, name: functionsTable.name }).from(functionsTable).where(inArray(functionsTable.id, idsDeFuncoes)) : Promise.resolve([]),
     idsDoPlanejado.length ? tx.select().from(budgetPlannedTable).where(inArray(budgetPlannedTable.id, idsDoPlanejado)) : Promise.resolve([]),
     tx.select().from(eventsTable).where(inArray(eventsTable.id, idsDeEventos)),
     colaboradores.length
@@ -49,6 +51,7 @@ export async function aplicarConferenciaAutomatica(tx: Tx, enviadas: readonly Bu
     tx.select().from(presencaConfirmacoes).where(inArray(presencaConfirmacoes.actualId, ids)),
     tx.select({ valor: systemSettings.value }).from(systemSettings).where(eq(systemSettings.key, CHAVE_DATA_DE_CORTE)),
   ]);
+  const nomeDaFuncao = new Map(funcoes.map((f) => [f.id, f.name]));
   const planejadoPorId = new Map(planejados.map((p) => [p.id, p]));
   const eventoPorId = new Map(eventos.map((e) => [e.id, e]));
   const comDivisoes = new Set(divisoes.map((d) => d.pai));
@@ -60,10 +63,11 @@ export async function aplicarConferenciaAutomatica(tx: Tx, enviadas: readonly Bu
     planejado: a.plannedId ? planejadoPorId.get(a.plannedId) : null,
     evento: eventoPorId.get(a.eventId),
     inclusao: inclusaoDaPrestacao(a, vagas) ?? null,
+    nomeDaFuncao: a.functionId ? nomeDaFuncao.get(a.functionId) ?? null : null,
     dataDeCorte,
     temDivisoes: comDivisoes.has(a.id),
     ocorrencias: ocorrencias.filter((o) => o.actualId === a.id).map((o) => ({ tipo: o.tipo, dia: o.dia ? diaDe(o.dia) : null, removidoEm: o.removidoEm })),
-    presencas: marcacoes.filter((m) => m.actualId === a.id).map((m) => ({ dia: diaDe(m.dia), checkinEm: m.checkinEm, checkoutEm: m.checkoutEm })),
+    presencas: marcacoes.filter((m) => m.actualId === a.id).map((m) => ({ dia: diaDe(m.dia), checkinEm: m.checkinEm, checkoutEm: m.checkoutEm, checkinPor: m.checkinPor })),
     confirmacao: confirmacaoPorPrestacao.get(a.id) ?? null,
   }).automatica);
   if (semDivergencia.length === 0) return [];

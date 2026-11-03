@@ -4,11 +4,12 @@
  * e a decisão do RH em lote (aprovar/rejeitar/devolver).
  * Papéis: financeiro (admin/RH).
  */
+import { ehConferenciaAutomatica } from "@shared/conferencia-automatica";
 import type { Express } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
 import { budgetPlanned as budgetPlannedTable, budgetActual as budgetActualTable, insertBudgetActualSchema, type BudgetActual, type InsertBudgetActual, type RhAdjustedFields } from "@shared/schema";
-import { eq, and, ne, inArray } from "drizzle-orm";
+import { eq, and, ne, inArray, isNull } from "drizzle-orm";
 import { isFinanceRole } from "@shared/roles";
 import { HttpError } from "../http";
 import { podeDecidirPrestacao, podeEnviarParaRevisao, prestacaoEstaTravada } from "@shared/prestacao-rules";
@@ -397,6 +398,30 @@ export function registrarOrcamentoRealizado(app: Express): void {
       res.status(201).json(created);
     } catch (error) {
       responderErroComStatus(res, error, "Erro ao dividir vaga");
+    }
+  });
+
+  // Conferência automática (29/10): nenhuma pessoa olhou — o DP pode trazer a
+  // prestação de volta para a conferência enquanto não há OC. Aprovação de uma
+  // pessoa não passa por aqui.
+  app.post("/api/budget-actual/:id/reabrir-conferencia", async (req, res) => {
+    const finUser = await requireFinanceUser(req, res);
+    if (!finUser) return;
+    try {
+      const atual = await storage.getBudgetActualById(req.params.id);
+      if (!atual) return res.status(404).json({ message: "Item não encontrado" });
+      if (!ehConferenciaAutomatica(atual)) return res.status(409).json({ message: "Só a conferência automática pode ser reaberta." });
+      if (atual.ocNumero) return res.status(409).json({ message: "Esta prestação já tem OC — não dá para reabrir a conferência." });
+      const agora = new Date();
+      const [linha] = await db.update(budgetActualTable)
+        .set({ rhStatus: "pendente", rhComment: null, rhActionBy: null, rhActionAt: null, updatedAt: agora, updatedBy: finUser.id })
+        .where(and(eq(budgetActualTable.id, atual.id), eq(budgetActualTable.rhStatus, "aprovado"), isNull(budgetActualTable.ocNumero)))
+        .returning();
+      if (!linha) return res.status(409).json({ message: "A prestação mudou enquanto era reaberta — recarregue a tela." });
+      await createAuditLog("update", "budget_actual", linha.id, { ...linha, acao: "conferência automática reaberta pelo DP" }, finUser.id, finUser.name, atual, req);
+      res.json(linha);
+    } catch (error) {
+      responderErroComStatus(res, error, "Erro ao reabrir a conferência");
     }
   });
 

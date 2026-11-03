@@ -8,7 +8,8 @@ import type { Express, Request } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
 import { budgetComparison as budgetComparisonTable, insertBudgetComparisonSchema, type BudgetActual, type BudgetPlanned, type MudancaDoComparativo } from "@shared/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
+import { CONFERENCIA_AUTOMATICA } from "@shared/conferencia-automatica";
 import { entraNosTotaisDoComparativo, totaisDoGrupoNoComparativo } from "@shared/comparativo";
 import { safeSyncFlashFromComparison, safeReverseFlashFromComparison, type FlashSyncActor } from "../flash-credit";
 import { createAuditLog, ehViolacaoDeUnicidade, usuarioDaSessao, requireFinanceUser, requireFinSession, requireFinWrite } from "./_compartilhado";
@@ -26,6 +27,28 @@ export function registrarOrcamentoComparativo(app: Express): void {
         createAuditLog(action, 'financial', entityId, data, u?.id, u?.name || 'Sistema', oldData, req),
     };
   };
+
+  // Eventos com conferência automática e nada mais para conferir, ainda sem o
+  // comparativo aprovado (29/10): sem pendência, nada leva o DP até lá — e é a
+  // aprovação do comparativo que credita alimentação e mobilidade no Flash.
+  app.get("/api/budget-comparison/a-fechar", async (req, res) => {
+    const finUser = await requireFinanceUser(req, res);
+    if (!finUser) return;
+    try {
+      const r = await db.execute(sql`
+        SELECT e.id AS "eventId", e.name AS nome, COUNT(a.id)::int AS prestacoes
+          FROM events e JOIN budget_actual a ON a.event_id = e.id
+         WHERE e.id IN (SELECT event_id FROM budget_actual WHERE rh_status = 'aprovado' AND rh_action_by IS NULL AND rh_comment = ${CONFERENCIA_AUTOMATICA})
+           AND NOT EXISTS (SELECT 1 FROM budget_actual x WHERE x.event_id = e.id AND x.did_not_attend = false AND x.rh_status IS DISTINCT FROM 'aprovado')
+           AND NOT EXISTS (SELECT 1 FROM budget_comparison c WHERE c.event_id = e.id AND c.status = 'aprovado')
+         GROUP BY e.id, e.name ORDER BY e.name LIMIT 100`);
+      res.set("Cache-Control", "no-store");
+      res.json({ eventos: r.rows });
+    } catch (error) {
+      console.error("Error listing comparisons to close:", error);
+      res.status(500).json({ message: "Erro ao listar os comparativos a fechar" });
+    }
+  });
 
   // Budget Comparison (Comparativo)
   app.get("/api/budget-comparison", async (req, res) => {

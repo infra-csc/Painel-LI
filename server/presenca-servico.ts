@@ -12,7 +12,7 @@
  *    do SERVIDOR) — o mesmo caminho para o colaborador e o representante;
  *  - confirmação final (colaborador ou representante).
  */
-import { domingoDaNight } from "@shared/regras-de-29-10";
+import { domingoDaNight, valemRegrasDe2910 } from "@shared/regras-de-29-10";
 import type { Request, Response } from "express";
 import multer from "multer";
 import { and, eq, inArray, isNull } from "drizzle-orm";
@@ -68,7 +68,10 @@ export interface PrestacaoMontada {
   inclusao: TeamInclusion | null;
   /** O Realizado do recálculo: a base do 1º check-out final, se houver (28/10, R2). */
   realizado: RealizadoParaCalculo;
+  /** Dias de marcar presença. */
   dias: string[];
+  /** Dias pagos: `dias` + o domingo da Night (29/10), que não pede check-in. */
+  diasPagos: string[];
   fonteDosDias: FonteDosDias;
   presencaPorDia: Map<string, Presenca>;
   ocorrencias: PresencaOcorrencia[];
@@ -135,6 +138,8 @@ export async function montarPrestacoes(actuals: readonly BudgetActual[], config:
       horaExtraMaxDia: config.horaExtraMaxDia,
       fatores,
       nomeDaFuncao: funcaoNome,
+      // Sem logística, a janta é só do dia de carregamento: a falta tira a do dia certo.
+      diasComJanta: inclusao && !inclusao.needsTicket && valemRegrasDe2910(evento.endDate) ? inclusao.diasCarregamento : null,
     });
     // Domingo da Night (29/10): a prova virou a noite de sábado — é dia pago,
     // sem check-in próprio; não aparece para marcar nem trava o check-out final.
@@ -147,7 +152,7 @@ export async function montarPrestacoes(actuals: readonly BudgetActual[], config:
     });
     montadas.push({
       actual, evento, colaborador: actual.collaboratorId ? colabPorId.get(actual.collaboratorId) ?? null : null,
-      funcaoNome, inclusao, realizado, dias: diasDePresenca, fonteDosDias: periodo.fonte, presencaPorDia,
+      funcaoNome, inclusao, realizado, dias: diasDePresenca, diasPagos: periodo.dias, fonteDosDias: periodo.fonte, presencaPorDia,
       ocorrencias: ocorrenciasDela, confirmacao: confirmacaoPorActual.get(actual.id) ?? null,
       calculo, pendentes, checkoutFinalFeito: !!actual.checkoutFinalEm, fatores,
     });
@@ -244,7 +249,8 @@ function coordenada(v: unknown, limite: number): string | null {
 export function localizacaoDoCorpo(body: Record<string, unknown> | undefined): { lat: string | null; lng: string | null; precisaoM: number | null } {
   const lat = coordenada(body?.lat, 90);
   const lng = coordenada(body?.lng, 180);
-  if (!lat || !lng) return { lat: null, lng: null, precisaoM: null };
+  // 0,0 (no meio do oceano) é celular sem posição de verdade, não um lugar.
+  if (!lat || !lng || (Number(lat) === 0 && Number(lng) === 0)) return { lat: null, lng: null, precisaoM: null };
   const p = Number(body?.precisao);
   return { lat, lng, precisaoM: Number.isFinite(p) && p >= 0 && p <= 100_000 ? Math.round(p) : null };
 }

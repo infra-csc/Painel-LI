@@ -6,6 +6,7 @@
  * vaga, e deriva os índices que cards e planilha consomem (enviados ao
  * Realizado, "não participou", totais e estatísticas). Sem JSX.
  */
+import { estaPreAprovado } from "@shared/pre-aprovacao";
 import { useCallback, useMemo, useRef } from "react";
 import type { BudgetActual, BudgetPlanned as BudgetPlannedRow, Collaborator, FunctionValue, TeamInclusion, Ticket } from "@shared/schema";
 import { calcularPlanejadoDaVaga, type VagaParaPlanejado } from "@shared/budget-engine";
@@ -168,8 +169,11 @@ export function useBudgetEngine(e: EntradaDoMotor): SaidaDoMotor {
       const fnName = functionNamesById.get(inclusion.functionId) ?? null;
       const ticket = ticketByInclusion.get(inclusion.id) ?? null;
       const override = budgetOverrides[id];
+      const linha = plannedByVaga.get(id);
+      const jantaSemana = estaPreAprovado(linha?.status) ? linha?.weekdayDinner ?? 0 : 0;
+      const jantaFds = estaPreAprovado(linha?.status) ? linha?.weekendDinner ?? 0 : 0;
       const honorario: HonorarioNaVaga | null = honorarioPorVaga.get(id) ?? null;
-      const chave: unknown[] = [inclusion, fnName, collab?.type ?? null, collab?.vrDiarioCents ?? null, fv, systemSettings, eventLocation, eventName, eventEndDate, ticket, override, honorario];
+      const chave: unknown[] = [inclusion, fnName, collab?.type ?? null, collab?.vrDiarioCents ?? null, fv, systemSettings, eventLocation, eventName, eventEndDate, ticket, override, honorario, jantaSemana, jantaFds];
       const hit = anterior.get(id);
       const reaproveita = !!hit && hit.chave.length === chave.length && hit.chave.every((v, i) => v === chave[i]);
       const result: CalculatedBudget = reaproveita
@@ -184,6 +188,7 @@ export function useBudgetEngine(e: EntradaDoMotor): SaidaDoMotor {
               eventLocation,
               eventName,
               eventEndDate,
+              jantaPreAprovada: { semana: jantaSemana, fds: jantaFds },
               ticket,
               override,
               honorario,
@@ -199,7 +204,7 @@ export function useBudgetEngine(e: EntradaDoMotor): SaidaDoMotor {
     });
     cacheOrcamentosRef.current = proximo;
     return out;
-  }, [confirmedInclusions, functionValues, collaboratorById, functionValueByFunctionId, functionNamesById, systemSettings, ticketByInclusion, eventLocation, eventName, eventEndDate, budgetOverrides, honorarioPorVaga]);
+  }, [confirmedInclusions, functionValues, collaboratorById, functionValueByFunctionId, functionNamesById, systemSettings, ticketByInclusion, eventLocation, eventName, eventEndDate, budgetOverrides, honorarioPorVaga, plannedByVaga]);
 
   // Vagas marcadas como "não participou" — pela linha DA vaga (27/10).
   const notAttendedIds = useMemo(() => {

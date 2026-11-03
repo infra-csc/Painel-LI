@@ -146,6 +146,11 @@ export function HistoricoDeEmissoes({ colaboradorId, onEscolher, onAbrirContrato
 
   return (
     <div className="space-y-3">
+      {(d.notasSemCnpj ?? 0) > 0 && (
+        <p className="m-0 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 text-xs text-foreground" data-testid="ctr-emissoes-sem-cnpj">
+          {d.notasSemCnpj === 1 ? "1 nota não aparece aqui" : `${d.notasSemCnpj} notas não aparecem aqui`}: sem CNPJ registrado (anteriores a 27/10/2026).
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <span className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-full border border-border bg-card py-1 pl-3 pr-1 text-sm font-semibold text-foreground" data-testid="ctr-emissoes-colaborador">
           <span className="min-w-0 break-words">{nome}</span>

@@ -310,6 +310,7 @@ export type { EmissaoDoEvento, EmpresaEmitente };
 export interface RespostaDoHistoricoDeEmissoes {
   colaborador: { id: string; fullName: string; collaboratorNumber: number };
   empresas: EmpresaEmitente[];
+  notasSemCnpj?: number;
   totalDeNotas: number;
   truncado: boolean;
 }

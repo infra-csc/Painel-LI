@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { preencherValoresDoNovo, type EntradaDoNovo } from "./valores-do-novo";
+import { jantaQueFica, preencherValoresDoNovo, type EntradaDoNovo } from "./valores-do-novo";
 
 // 2026-04-10 = sexta (útil), 11 = sábado, 12 = domingo.
 const SEXTA = "2026-04-10";
@@ -141,5 +141,20 @@ describe("preencherValoresDoNovo — diária pelo tipo do NOVO colaborador (deci
     const r = preencherValoresDoNovo(entrada({ tipoColaborador: "casa", functionName: "Percurso", dias: SEX_SAB }));
     expect(r.valorDiariaUtil).toBe(15000);
     expect(r.valorDiariaFds).toBe(15000);
+  });
+});
+
+describe("jantaQueFica (29/10)", () => {
+  const DIAS = ["2026-11-09", "2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13"];
+  it("com carregamento marcado, a janta acompanha o dia marcado", () => {
+    expect(jantaQueFica({ totalCents: 4_000, dias: DIAS, ficam: DIAS.slice(2), carregamento: [DIAS[0]] })).toBe(0);
+    expect(jantaQueFica({ totalCents: 4_000, dias: DIAS, ficam: DIAS.slice(0, 2), carregamento: [DIAS[0]] })).toBe(4_000);
+  });
+  it("sem marca (janta à mão): rateio por dia", () => {
+    expect(jantaQueFica({ totalCents: 5_000, dias: DIAS, ficam: DIAS.slice(0, 2), carregamento: null })).toBe(2_000);
+  });
+  it("sem dias ou sem janta: zero", () => {
+    expect(jantaQueFica({ totalCents: 5_000, dias: [], ficam: [] })).toBe(0);
+    expect(jantaQueFica({ totalCents: 0, dias: DIAS, ficam: DIAS })).toBe(0);
   });
 });

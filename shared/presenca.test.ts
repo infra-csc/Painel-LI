@@ -417,3 +417,27 @@ describe("revisão 28/10 — quem lança o quê e quando (S2)", () => {
     expect(erroDaOcorrencia({ ...base, ocorrencias: [{ tipo: "diaria_extra", dia: "2026-11-06" }], tipo: "diaria_extra", dia: "2026-11-06" })).toMatchObject({ status: 409 });
   });
 });
+
+describe("recalcularValor — janta só no dia de carregamento (29/10)", () => {
+  // Seg a sex; R$ 40 de janta, toda na segunda (carregamento).
+  const DIAS_UTEIS = ["2026-11-09", "2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13"];
+  const realizado = {
+    collaboratorType: "local", dailyQuantity: 5, dailyValue: 10_000, totalValue: 50_000 + 4_000,
+    weekdayLunch: 0, weekdayDinner: 4_000, weekendLunch: 0, weekendDinner: 0, mobility: 0, transport: 0,
+    diasMeiaExtra: null, diasDobra: null,
+  };
+  const calc = (diaDaFalta: string, diasComJanta: string[] | null) => recalcularValor({
+    realizado: realizado as never, dias: DIAS_UTEIS, ocorrencias: [{ tipo: "falta", dia: diaDaFalta, horas: null }],
+    divisorHoraExtra: 8, fatores: null, diasComJanta,
+  });
+
+  it("falta no dia de carregamento tira a janta inteira", () => {
+    expect(calc(DIAS_UTEIS[0], [DIAS_UTEIS[0]]).refeicoes.weekdayDinner).toBe(0);
+  });
+  it("falta em outro dia não mexe na janta", () => {
+    expect(calc(DIAS_UTEIS[1], [DIAS_UTEIS[0]]).refeicoes.weekdayDinner).toBe(4_000);
+  });
+  it("sem marca: o rateio por dia de sempre", () => {
+    expect(calc(DIAS_UTEIS[1], null).refeicoes.weekdayDinner).toBe(3_200);
+  });
+});

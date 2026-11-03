@@ -202,6 +202,7 @@ describe("1,5 diária na vaga e VR do colaborador (28/10)", () => {
     const [linha] = await ctx.storage.getBudgetPlanned(evento.id);
     // 12–14/10/2099 = seg a qua: 3 dias úteis; VR R$ 40,50 cobre o almoço de R$ 40,00.
     expect(linha.weekdayLunch).toBe(0);
-    expect(linha.weekdayDinner).toBe(3 * 4_000);
+    // 29/10: sem logística não entra janta (shared/regras-de-29-10.ts).
+    expect(linha.weekdayDinner).toBe(0);
   });
 });

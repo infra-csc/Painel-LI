@@ -485,7 +485,7 @@ export function registrarPresenca(app: Express): void {
     // erroDaOcorrencia): Área de Função só falta/substituição; horas extras com
     // dia e teto por dia; diária extra só no período da vaga ± 2 dias.
     const erro = erroDaOcorrencia({
-      tipo, dia, horas: horas ?? null, dias: m.dias, diasExtras: m.calculo.diasExtras,
+      tipo, dia, horas: horas ?? null, dias: m.diasPagos, diasExtras: m.calculo.diasExtras,
       ocorrencias: m.ocorrencias.map((o) => ({ tipo: o.tipo, dia: o.dia ? String(o.dia).slice(0, 10) : null, horas: o.horas })),
       periodoDaVaga: { inicio: m.inclusao?.scheduleStartDate ?? null, fim: m.inclusao?.scheduleEndDate ?? null },
       horaExtraMaxDia: acesso.config.horaExtraMaxDia, financeiras: lancaOcorrenciaFinanceira(user),

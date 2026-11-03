@@ -12,7 +12,7 @@
  * Valem para eventos que TERMINAM a partir de `REGRAS_DE_29_10_DESDE`: evento
  * já acontecido não muda de valor ao reabrir o Realizado ou recalcular.
  */
-import { regraDiariaPorTipo } from "./calculation-rules";
+import { isFuncaoLocal, isPercursoFunction, regraDiariaPorTipo } from "./calculation-rules";
 
 export const REGRAS_DE_29_10_DESDE = "2026-11-04";
 
@@ -36,8 +36,8 @@ function diaSeguinte(iso: string): string {
  * Só a CASA: em produção (Night Run, 03/11) o domingo lançado à mão foi sempre
  * de colaborador casa, que recebe diária no fim de semana; freela e local que
  * terminam no sábado ficaram sem o domingo — e são a maioria das vagas. Casa
- * na cenotécnica não recebe diária: fica de fora. O domingo tem de estar dentro
- * do período do evento.
+ * na cenotécnica não recebe diária: fica de fora; percurso (pacote) e função
+ * local também. O domingo tem de estar dentro do período do evento.
  */
 export function domingoDaNight(a: {
   nomeDoEvento: string | null | undefined;
@@ -48,6 +48,7 @@ export function domingoDaNight(a: {
 }): string | null {
   if (!valemRegrasDe2910(a.fimDoEvento) || !EVENTO_NIGHT.test(a.nomeDoEvento ?? "")) return null;
   if (a.collaboratorType !== "casa" || regraDiariaPorTipo(a.collaboratorType, a.nomeDaFuncao) !== "fds") return null;
+  if (isPercursoFunction(a.nomeDaFuncao) || isFuncaoLocal(a.nomeDaFuncao)) return null;
   const fim = a.fimDaEscala ? String(a.fimDaEscala).slice(0, 10) : "";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fim)) return null;
   const [ano, mes, dia] = fim.split("-").map(Number);

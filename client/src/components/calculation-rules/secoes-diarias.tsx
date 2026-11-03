@@ -28,6 +28,7 @@ export function SecaoDiariaCasa({ r }: { r: RegrasVigentes }) {
         itens={[
           { chave: "clt", titulo: "CLT (casa)", texto: "diária só em sábado e domingo; no dia útil, zero." },
           { chave: "local", titulo: "Produção local", texto: "a mesma tabela, em todos os dias do período." },
+          { chave: "night", titulo: "Night que termina no sábado", texto: "o domingo entra sozinho, com a diária, sem pedir check-in. Só para a casa, em evento com “Night” no nome que termina a partir de 04/11/2026. Para tirar, desmarque o dia no Realizado." },
           { chave: "ceno", titulo: "Cenotécnica da casa", texto: "não recebe diária, nem no fim de semana. Sup Ceno conta como Produtor." },
           { chave: "atend", titulo: "Atendimento", texto: "Key Account ou Executivo de Contas, escolhido vaga por vaga na Escalação." },
           { chave: "outras", titulo: "Outras funções", texto: "fora destes grupos, vale a diária cadastrada na função (ou, sem ela, a da vaga)." },

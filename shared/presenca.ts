@@ -428,6 +428,8 @@ export function recalcularValor(a: {
   horaExtraMaxDia?: number;
   /** Fatores da deflação (system_settings); null = valor fechado por dia (percurso/empreita). Padrão: os do slide. */
   fatores?: DeflationFactors | null;
+  /** 29/10: sem logística, a janta é só destes dias (carregamento); sem lista, o rateio por dia. */
+  diasComJanta?: readonly (string | null | undefined)[] | null;
 }): CalculoDaPresenca {
   const r = a.realizado;
   const dias = Array.from(new Set(a.dias)).sort();
@@ -449,9 +451,17 @@ export function recalcularValor(a: {
   const uteis = dias.filter((d) => !ehFimDeSemana(d)).length;
   const fds = dias.length - uteis;
   const media = (total: number, n: number) => (n > 0 ? total / n : 0);
+  const comJanta = new Set((a.diasComJanta ?? []).map((d) => String(d ?? "").slice(0, 10)));
+  const jantaDoDia = (d: string, total: number, doGrupo: readonly string[]) => {
+    const marcados = doGrupo.filter((x) => comJanta.has(x)).length;
+    if (marcados === 0) return media(total, doGrupo.length);
+    return comJanta.has(d) ? total / marcados : 0;
+  };
+  const diasUteis = dias.filter((d) => !ehFimDeSemana(d));
+  const diasFds = dias.filter((d) => ehFimDeSemana(d));
   const mediaDoDia = (d: string) => ehFimDeSemana(d)
-    ? { lunch: media(r.weekendLunch, fds), dinner: media(r.weekendDinner, fds), fds: true }
-    : { lunch: media(r.weekdayLunch, uteis), dinner: media(r.weekdayDinner, uteis), fds: false };
+    ? { lunch: media(r.weekendLunch, fds), dinner: jantaDoDia(d, r.weekendDinner, diasFds), fds: true }
+    : { lunch: media(r.weekdayLunch, uteis), dinner: jantaDoDia(d, r.weekdayDinner, diasUteis), fds: false };
 
   const diasComFalta = Array.from(new Set(ativas.filter((o) => ocorrenciaTiraODia(o.tipo) && o.dia && dias.includes(o.dia)).map((o) => o.dia as string))).sort();
   const diasExtras = Array.from(new Set(ativas.filter((o) => o.tipo === "diaria_extra" && o.dia && !dias.includes(o.dia)).map((o) => o.dia as string))).sort();
@@ -825,7 +835,7 @@ export interface ConfiguracaoDaPresenca {
 export const TERMO_PADRAO = [
   "RASCUNHO — revisar com o jurídico.",
   "",
-  "Para registrar a sua presença no evento, este aplicativo guarda, a cada check-in e check-out: a data e a hora, uma foto (selfie) e, se você permitir, a localização do celular no momento do registro.",
+  "Para registrar a sua presença no evento, este aplicativo guarda, a cada check-in e check-out: a data e a hora, uma foto (selfie) e a localização do celular no momento do registro. A localização é obrigatória: sem ela, o check-in e o check-out não são feitos.",
   "Para que serve: comprovar os dias e horários trabalhados, conferir o uso de uniforme e EPIs e calcular os seus honorários.",
   "Quem vê: você, o Departamento Pessoal (DP) e a produção responsável pelo evento. Os dados não são compartilhados com terceiros.",
   "Por quanto tempo: as fotos e a localização ficam guardadas por até 365 dias depois do pagamento e então são apagadas.",
@@ -840,7 +850,7 @@ export const CONFIGURACAO_PADRAO: ConfiguracaoDaPresenca = {
   horaExtraMaxDia: 12,
   produtorAjusteMaxPct: 10,
   termoTexto: TERMO_PADRAO,
-  termoVersao: "2026-10-27-rascunho",
+  termoVersao: "2026-11-03-rascunho",
   retencaoDias: 365,
 };
 

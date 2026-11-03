@@ -25,6 +25,8 @@
  * os outros filtros de agora), ordem "Mais atrasado primeiro" e o diálogo da
  * contestação do colaborador (o DP responde; o colaborador vê no portal).
  */
+import { useQuery } from "@tanstack/react-query";
+import { fetchJson } from "@/lib/queryClient";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { CheckCheck, ShieldAlert } from "lucide-react";
@@ -47,6 +49,31 @@ import { AvisoDoLegado, ConcluirLegadoDialog, RecorteDoPainel } from "@/componen
 import { AbrirContestacao, FaixaDePrazos, type ContagemDaFaixa } from "@/components/rh/rh-prazos";
 import { passaNoFiltroDePrazo } from "@/components/rh/use-rh-fila-filtrada";
 import { DialogoDaContestacao, type ContestacaoParaTela } from "@/components/honorarios/contestacao";
+
+/**
+ * Eventos só com conferência automática (29/10): sem pendência, nada traz o DP à
+ * Conferência — e é a aprovação do comparativo que credita o Flash.
+ */
+function ComparativosAFechar() {
+  const q = useQuery<{ eventos: { eventId: string; nome: string; prestacoes: number }[] }>({
+    queryKey: ["/api/budget-comparison/a-fechar"],
+    queryFn: ({ signal }) => fetchJson("/api/budget-comparison/a-fechar", signal),
+  });
+  const eventos = q.data?.eventos ?? [];
+  if (eventos.length === 0) return null;
+  return (
+    <div className="rounded-xl border border-warning/40 bg-warning-soft px-4 py-3 text-sm" data-testid="rh-comparativos-a-fechar">
+      <p className="m-0 font-medium text-foreground">
+        {eventos.length === 1 ? "1 evento conferido automaticamente precisa" : `${eventos.length} eventos conferidos automaticamente precisam`} do comparativo aprovado para creditar alimentação e mobilidade no Flash.
+      </p>
+      <ul className="m-0 mt-1.5 flex list-none flex-wrap gap-x-4 gap-y-1 p-0">
+        {eventos.map((e) => (
+          <li key={e.eventId}><a className="font-medium text-info underline-offset-2 hover:underline" href={`/budget-comparison?event=${encodeURIComponent(e.eventId)}`}>{e.nome}</a></li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 export default function RhControlPage() {
   usePageTitle("Painel de honorários");
@@ -278,6 +305,7 @@ export default function RhControlPage() {
           totalForProgress={totalForProgress}
           filtros={filtros}
         />
+        {canRh && <ComparativosAFechar />}
         {!noLegado && (
           <FaixaDePrazos
             contagem={contagemDosPrazos}

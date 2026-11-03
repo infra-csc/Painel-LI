@@ -208,7 +208,7 @@ export function calcAlimentacao(input: AlimentacaoInput): AlimentacaoResult {
       }
     }
 
-    if (carregamento.has(sorted[i])) jantar = true;
+    if (input.semJantaSemLogistica && carregamento.has(sorted[i])) jantar = true;
     dias.push({ date: sorted[i], almoco, jantar, papel });
   }
 

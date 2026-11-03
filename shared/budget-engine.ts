@@ -135,6 +135,11 @@ export interface EntradaDoPlanejado {
   /** Nome e fim do evento (29/10): ligam as regras de janta e o domingo da Night. */
   eventName?: string | null;
   eventEndDate?: string | null;
+  /**
+   * Janta gravada na linha JÁ pré-aprovada (29/10): sem logística, a regra não dá
+   * janta — a que está lá foi exceção à mão do DP e não some ao recalcular.
+   */
+  jantaPreAprovada?: { semana: number; fds: number } | null;
   ticket?: PassagemParaPlanejado | null;
   override?: OverrideDoPlanejado | null;
   /**
@@ -480,9 +485,10 @@ export function calcularPlanejadoDaVaga(e: EntradaDoPlanejado): ResultadoDoPlane
   if (funcaoLocal || empreita) { calcAlmSem = 0; calcJanSem = 0; calcAlmFds = 0; calcJanFds = 0; }
   const alimEstimada = voa && !semMobilidade && (fonteVoo !== "passagem" || alim.estimado);
   const almocoSemana = weekdays === 0 ? 0 : (override?.almocoSemana ?? calcAlmSem);
-  const jantarSemana = weekdays === 0 ? 0 : (override?.jantarSemana ?? calcJanSem);
+  const jantaManual = semJantaSemLogistica && !voa ? e.jantaPreAprovada : null;
+  const jantarSemana = weekdays === 0 ? 0 : (override?.jantarSemana ?? Math.max(calcJanSem, jantaManual?.semana ?? 0));
   const almocoFds = weekends === 0 ? 0 : (override?.almocoFds ?? calcAlmFds);
-  const jantarFds = weekends === 0 ? 0 : (override?.jantarFds ?? calcJanFds);
+  const jantarFds = weekends === 0 ? 0 : (override?.jantarFds ?? Math.max(calcJanFds, jantaManual?.fds ?? 0));
 
   const ajudaCusto = mobilidade + almocoSemana + jantarSemana + almocoFds + jantarFds;
   const totalFinal = subtotalDiarias + ajudaCusto;

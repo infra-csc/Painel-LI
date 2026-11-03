@@ -178,6 +178,8 @@ export function ProvedorDeMarcacao({ eu, children }: { eu: EuDoPortal; children:
         // O servidor recusou por falta de localização (a tela já devia ter bloqueado): mesmo bloqueio.
         setLocal({ nome: "sem", motivo: "negada" });
         setEtapa({ nome: "previa" });
+        // Tela aberta antes da mudança ainda acha que a localização é opcional.
+        void queryClient.invalidateQueries({ queryKey: CHAVE_EU });
         return;
       }
       if (codigoDoErro(falha) === "termo_pendente") void queryClient.invalidateQueries({ queryKey: CHAVE_EU });

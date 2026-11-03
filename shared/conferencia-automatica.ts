@@ -14,11 +14,12 @@
  *
  * Funções puras — servidor (decisão) e telas (o selo no lugar do nome).
  */
+import { isPercursoFunction, regraDiariaPorTipo } from "./calculation-rules";
 import { idaEVoltaDaMobilidade } from "./comparativo";
 import { mesmosDiasDeDobra } from "./dobra-de-turno";
 import { ehEventoLegado } from "./legado-honorarios";
 import { camposDeValorQueMudaram, estaPreAprovado, type CampoDeValorDoPlanejado, type ValoresDoPlanejado } from "./pre-aprovacao";
-import { diasPendentes, periodoDaPrestacao, type EventoParaDias, type InclusaoParaDias, type MarcacaoDoDia, type OcorrenciaDoDia } from "./presenca";
+import { diasPendentes, ehFimDeSemana, periodoDaPrestacao, type EventoParaDias, type InclusaoParaDias, type MarcacaoDoDia, type OcorrenciaDoDia } from "./presenca";
 import { podeDecidirPrestacao } from "./prestacao-rules";
 
 /** O que as telas e o histórico mostram no lugar do nome de quem aprovou. */
@@ -26,9 +27,10 @@ export const CONFERENCIA_AUTOMATICA = "Conferência automática (sem divergênci
 
 /** A aprovação foi da conferência automática (e não de uma pessoa do DP)? */
 export function ehConferenciaAutomatica(
-  p: { rhStatus?: string | null; rhComment?: string | null; rhActionBy?: string | null } | null | undefined,
+  p: { rhStatus?: string | null; rhComment?: string | null; rhActionBy?: string | null; rhAdjusted?: boolean | null } | null | undefined,
 ): boolean {
-  return !!p && p.rhStatus === "aprovado" && !p.rhActionBy && p.rhComment === CONFERENCIA_AUTOMATICA;
+  // Ajustada pelo DP depois: já não é "sem divergência".
+  return !!p && p.rhStatus === "aprovado" && !p.rhActionBy && !p.rhAdjusted && p.rhComment === CONFERENCIA_AUTOMATICA;
 }
 
 /** Por que a prestação vai ao DP. */
@@ -47,6 +49,7 @@ export const ROTULO_DO_MOTIVO_DA_CONFERENCIA = {
   sem_valor: "Valor zerado",
   valor_diferente: "Valores diferentes do Planejado",
   dias_diferentes: "Dias trabalhados diferentes da escala",
+  diarias_diferentes: "Quantidade de diárias diferente dos dias da escala",
   meia_diaria_diferente: "½ diária diferente do Planejado",
   dobra_de_turno: "Dobra de turno",
   ocorrencia_ativa: "Ocorrência lançada",
@@ -54,6 +57,9 @@ export const ROTULO_DO_MOTIVO_DA_CONFERENCIA = {
   ajuste_do_produtor: "Ajuste do produtor sobre o valor calculado",
   justificativa_para_o_dp: "Justificativa escrita para o DP",
   presenca_incompleta: "Dia sem presença registrada",
+  sem_checkout: "Dia com entrada e sem saída",
+  presenca_por_representante: "Presença registrada pelo representante",
+  confirmada_por_representante: "Confirmada pelo representante, não pelo colaborador",
   sem_confirmacao: "Sem a confirmação do colaborador",
   contestada: "Contestada pelo colaborador",
   dias_confirmados_diferentes: "Dias confirmados diferentes dos trabalhados",
@@ -101,13 +107,15 @@ export interface EntradaDaConferencia {
   evento: (EventoParaDias & { status?: string | null }) | null | undefined;
   /** A vaga: o período da escala é a referência dos dias (o Planejado só guarda a quantidade). */
   inclusao?: InclusaoParaDias | null;
+  /** Nome da função: decide quais dias pagam diária (casa só no fim de semana). */
+  nomeDaFuncao?: string | null;
   dataDeCorte: string;
   /** A prestação tem filhos de divisão? */
   temDivisoes: boolean;
   /** Pode trazer as removidas — só as ativas contam. */
   ocorrencias: readonly OcorrenciaDoDia[];
-  presencas: readonly (MarcacaoDoDia & { dia: string })[];
-  confirmacao: { contestacao?: string | null; diasConfirmados?: readonly (string | null)[] | null } | null | undefined;
+  presencas: readonly (MarcacaoDoDia & { dia: string; checkinPor?: string | null })[];
+  confirmacao: { contestacao?: string | null; diasConfirmados?: readonly (string | null)[] | null; confirmadoPor?: string | null } | null | undefined;
 }
 
 export interface ResultadoDaConferencia {
@@ -182,6 +190,11 @@ export function conferirSemDivergencia(e: EntradaDaConferencia): ResultadoDaConf
   if (diasDaEscala.length === 0 || (trabalhados.length > 0 && !mesmosDiasDeDobra(trabalhados, diasDaEscala))) motivos.push("dias_diferentes");
   // O Planejado não tem dobra de turno: qualquer dobra é a mais.
   if (diasGravados(p.diasDobra).length > 0) motivos.push("dobra_de_turno");
+  // A escala pode ter encolhido depois da pré-aprovação: a linha ainda paga as
+  // diárias de antes e os dias conferem. A quantidade tem de ser a dos dias que pagam.
+  const regra = isPercursoFunction(e.nomeDaFuncao) ? "todos" : regraDiariaPorTipo(p.collaboratorType, e.nomeDaFuncao);
+  const diasQuePagam = (trabalhados.length > 0 ? trabalhados : diasDaEscala).filter((d) => regra === "todos" || (regra === "fds" && ehFimDeSemana(d))).length;
+  if ((trabalhados.length > 0 || diasDaEscala.length > 0) && (p.dailyQuantity ?? 0) !== diasQuePagam) motivos.push("diarias_diferentes");
 
   if (e.ocorrencias.some((o) => !o.removidoEm)) motivos.push("ocorrencia_ativa");
   if (Number(p.horasExtras ?? 0) !== 0 || (p.valorHorasExtras ?? 0) !== 0) motivos.push("horas_extras");
@@ -191,10 +204,15 @@ export function conferirSemDivergencia(e: EntradaDaConferencia): ResultadoDaConf
 
   const dias = periodoDaPrestacao(p, e.inclusao, evento).dias;
   if (diasPendentes({ dias, presencas: e.presencas.map((m) => ({ ...m, dia: diaDe(m.dia) })), ocorrencias: e.ocorrencias }).length > 0) motivos.push("presenca_incompleta");
+  if (e.presencas.some((m) => m.checkinEm && !m.checkoutEm)) motivos.push("sem_checkout");
+  // A prova de que os dias aconteceram é o colaborador ter marcado e confirmado:
+  // o que o representante registrou por ele passa pelos olhos do DP.
+  if (e.presencas.some((m) => m.checkinEm && m.checkinPor && m.checkinPor !== "colaborador")) motivos.push("presenca_por_representante");
   if (!e.confirmacao) {
     motivos.push("sem_confirmacao");
   } else {
     if (e.confirmacao.contestacao?.trim()) motivos.push("contestada");
+    if (e.confirmacao.confirmadoPor && e.confirmacao.confirmadoPor !== "colaborador") motivos.push("confirmada_por_representante");
     if (!mesmosDiasDeDobra(e.confirmacao.diasConfirmados, dias)) motivos.push("dias_confirmados_diferentes");
   }
 

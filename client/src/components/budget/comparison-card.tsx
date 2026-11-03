@@ -23,6 +23,11 @@
  * do ajuste, chat e histórico. Memoizado (item de lista).
  */
 import { memo, type ReactNode } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { CHAVE_CONTROLE_RH } from "@/components/rh/prestacao-utils";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { apiErrorMessage } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 import { ChevronDown, ClipboardList, GitFork, Layers, MessageSquare, PencilLine, TriangleAlert, Undo2, UserX } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -309,6 +314,28 @@ function ComparisonCardBody(props: ComparisonCardProps & { plannedTotal: number;
   );
 }
 
+/** Conferência automática sem OC: o DP traz a prestação de volta para conferir (29/10). */
+function ReabrirConferencia({ id }: { id: string }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const reabrir = useMutation({
+    mutationFn: async () => (await apiRequest("POST", `/api/budget-actual/${id}/reabrir-conferencia`, {})).json(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/budget-actual"] });
+      qc.invalidateQueries({ queryKey: ["/api/budget-comparison"] });
+      qc.invalidateQueries({ queryKey: [CHAVE_CONTROLE_RH] });
+      toast({ title: "Conferência reaberta", description: "A prestação voltou para o DP aprovar, devolver ou recusar." });
+    },
+    onError: (err: unknown) => toast({ title: "Não foi possível reabrir", description: apiErrorMessage(err, "Tente novamente."), variant: "destructive" }),
+  });
+  return (
+    <button type="button" disabled={reabrir.isPending} onClick={(ev) => { ev.stopPropagation(); reabrir.mutate(); }} data-testid="cmp-reabrir-conferencia"
+      className="rounded font-medium text-info hover:underline underline-offset-2 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      Reabrir conferência
+    </button>
+  );
+}
+
 export const ComparisonCard = memo(function ComparisonCard(props: ComparisonCardProps) {
   const { row, isExpanded, isSelected, isHighlighted, cardTi, eventNotes, plannedLogs, isRhOrAdmin, getCollaboratorName, getFunctionName, onToggleExpand, onToggleSelect, onEdit, presenca } = props;
   const p = row.planned;
@@ -414,7 +441,10 @@ export const ComparisonCard = memo(function ComparisonCard(props: ComparisonCard
             </p>
           )}
           {ehConferenciaAutomatica(a) && (
-            <p className="m-0 mt-1 text-2xs text-success truncate" data-testid="cmp-conferencia-automatica">{CONFERENCIA_AUTOMATICA}</p>
+            <p className="m-0 mt-1 flex flex-wrap items-center gap-x-2 text-2xs text-success" data-testid="cmp-conferencia-automatica">
+              <span className="truncate">{CONFERENCIA_AUTOMATICA}</span>
+              {isRhOrAdmin && !a.ocNumero && <ReabrirConferencia id={a.id} />}
+            </p>
           )}
           {temNotas && <div className="min-w-0 [&>div]:mt-1"><BudgetNotesSnippet notes={eventNotes} entityId={a.id} /></div>}
         </div>

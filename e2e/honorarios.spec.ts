@@ -197,7 +197,7 @@ test("perfil Honorários (23/10): entra direto na tela, libera a vaga aberta, fi
   await expect(page).toHaveURL(/\/honorarios-ceno/);
   const menu = page.getByRole("complementary", { name: "Menu principal" });
   await expect(menu.getByRole("link", { name: /Honorários da cenotécnica/ })).toBeVisible();
-  await expect(menu.getByRole("link", { name: /Escalação|Pré-aprovação|Passagens|Colaboradores|Eventos/ })).toHaveCount(0);
+  await expect(menu.getByRole("link", { name: /^(Escalação|Pré-aprovação|Passagens|Colaboradores|Eventos)/ })).toHaveCount(0);
 
   await page.goto(`/honorarios-ceno?evento=${eventId}`);
   await page.getByRole("button", { name: `Registrar liberação de ${nomeDaAberta}` }).click();

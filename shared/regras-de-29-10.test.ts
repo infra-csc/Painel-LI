@@ -114,3 +114,28 @@ describe("resumoDosDiasDeCarregamento", () => {
     expect(resumoDosDiasDeCarregamento(null)).toBe("");
   });
 });
+
+describe("Revisão de 03/11", () => {
+  it("domingo da Night: percurso e função local da casa ficam de fora", () => {
+    expect(domingoDaNight({ ...NIGHT, nomeDaFuncao: "percurso" })).toBeNull();
+    expect(domingoDaNight({ ...NIGHT, nomeDaFuncao: "produção local" })).toBeNull();
+  });
+
+  it("carregamento em quem viaja só vale com a regra ligada (evento antigo não muda)", () => {
+    const voa = { workDays: ["2026-11-12", "2026-11-13"], voa: true, chegadaIda: "20:00", partidaVolta: "22:00", almocoCents: 4000, jantarCents: 4000, diasCarregamento: ["2026-11-12"] };
+    expect(calcAlimentacao(voa).dias[0].jantar).toBe(false);
+    expect(calcAlimentacao({ ...voa, semJantaSemLogistica: true }).dias[0].jantar).toBe(true);
+  });
+
+  it("janta à mão na linha pré-aprovada não some ao recalcular; o ajuste da tela vence", () => {
+    const entrada = {
+      vaga: { id: "v1", eventId: "e1", functionId: "f1", collaboratorId: "c1", needsTicket: false, scheduleStartDate: "2026-11-12", scheduleEndDate: "2026-11-13", dailyRates: 2 } as VagaParaPlanejado,
+      functionName: "produção", collaboratorType: "local", settings: {}, functionValue: { dailyValueLocal: 20000, dailyValueTravel: 20000 } as never,
+      eventName: "Maratona", eventEndDate: "2026-11-15",
+    };
+    expect(calcularPlanejadoDaVaga(entrada).jantarSemana).toBe(0);
+    expect(calcularPlanejadoDaVaga({ ...entrada, jantaPreAprovada: { semana: 4000, fds: 0 } }).jantarSemana).toBe(4000);
+    const ajuste = { jantarSemana: 0 } as never;
+    expect(calcularPlanejadoDaVaga({ ...entrada, jantaPreAprovada: { semana: 4000, fds: 0 }, override: ajuste }).jantarSemana).toBe(0);
+  });
+});

@@ -9,7 +9,7 @@ import { fixEncoding } from "@/lib/utils";
 import { useConfirmarDescarte } from "@/lib/use-confirmar-descarte";
 import { vagaComEmpreita } from "@shared/cenotecnica-empreita";
 import { getDaysInRange, isWeekend, fmtR$, type SplitVagaModalProps, type Step2Form } from "./split-shared";
-import { preencherValoresDoNovo } from "./valores-do-novo";
+import { jantaQueFica, preencherValoresDoNovo } from "./valores-do-novo";
 import { valemRegrasDe2910 } from "@shared/regras-de-29-10";
 
 export function useSplitState({ item, collaborators, teamInclusion, eventStartDate, eventEndDate, takenDays = [], functionName, systemSettings, onClose, onConfirm, isPending }: SplitVagaModalProps) {
@@ -41,11 +41,12 @@ export function useSplitState({ item, collaborators, teamInclusion, eventStartDa
   const availableDays = useMemo(() => {
     const s = teamInclusion?.scheduleStartDate;
     const e = teamInclusion?.scheduleEndDate;
-    if (s && e) return getDaysInRange(s, e);
+    // Dia gravado fora da escala (domingo da Night, 29/10; dia extra) também é dividido.
+    if (s && e) return Array.from(new Set([...getDaysInRange(s, e), ...(item.workedDays ?? []).map((d) => String(d).slice(0, 10))])).sort();
     // Sem datas na escalação: usa as datas do evento (mesmo fallback de getItemDayCounts na página)
     if (eventStartDate && eventEndDate) return getDaysInRange(eventStartDate, eventEndDate);
     return [];
-  }, [teamInclusion, eventStartDate, eventEndDate]);
+  }, [teamInclusion, eventStartDate, eventEndDate, item.workedDays]);
 
   const parentWorkedDays = useMemo(() => {
     if (item.workedDays && item.workedDays.length > 0) return item.workedDays;
@@ -195,9 +196,11 @@ export function useSplitState({ item, collaborators, teamInclusion, eventStartDa
     const remWkdys = remainingForParent.filter(d => !isWeekend(d)).length;
     const remWknds = remainingForParent.filter(d => isWeekend(d)).length;
     const parentNewWeekdayLunch = remWkdys * perDayWeekdayLunch;
-    const parentNewWeekdayDinner = remWkdys * perDayWeekdayDinner;
+    const semJanta = !teamInclusion?.needsTicket && valemRegrasDe2910(eventEndDate);
+    const marcas = semJanta ? teamInclusion?.diasCarregamento : null;
+    const parentNewWeekdayDinner = jantaQueFica({ totalCents: item.weekdayDinner || 0, dias: parentWorkedDays.filter(d => !isWeekend(d)), ficam: remainingForParent.filter(d => !isWeekend(d)), carregamento: marcas });
     const parentNewWeekendLunch = remWknds * perDayWeekendLunch;
-    const parentNewWeekendDinner = remWknds * perDayWeekendDinner;
+    const parentNewWeekendDinner = jantaQueFica({ totalCents: item.weekendDinner || 0, dias: parentWorkedDays.filter(d => isWeekend(d)), ficam: remainingForParent.filter(d => isWeekend(d)), carregamento: marcas });
     const parentNewMobility = parentWorkedDays.length > 0
       ? Math.round((item.mobility || 0) * remainingForParent.length / parentWorkedDays.length)
       : 0;

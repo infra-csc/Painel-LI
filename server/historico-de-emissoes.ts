@@ -18,6 +18,8 @@ export interface HistoricoDeEmissoes {
   empresas: EmpresaEmitente[];
   /** Notas consideradas (enviadas ou aprovadas com CNPJ válido). */
   totalDeNotas: number;
+  /** Enviadas ou aprovadas sem CNPJ: não entram nas empresas (as antigas, de antes de 27/10). */
+  notasSemCnpj: number;
   /** Havia mais notas que o teto — as mais antigas ficaram de fora. */
   truncado: boolean;
 }
@@ -66,5 +68,8 @@ export async function historicoDeEmissoesDoColaborador(collaboratorId: string): 
   }
 
   const empresas = agruparEmissoes(notas, doContrato);
-  return { empresas, totalDeNotas: empresas.reduce((s, e) => s + e.notas, 0), truncado };
+  const totalDeNotas = empresas.reduce((s, e) => s + e.notas, 0);
+  // Nota enviada/aprovada que não entrou por não ter CNPJ (as antigas, de antes de 27/10).
+  const notasSemCnpj = notas.filter((n) => (STATUS_DE_EMISSAO as readonly string[]).includes(n.status) && !cnpjDaEmissao(n)).length;
+  return { empresas, totalDeNotas, notasSemCnpj, truncado };
 }

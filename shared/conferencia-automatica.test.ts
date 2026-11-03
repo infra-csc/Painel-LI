@@ -153,3 +153,42 @@ describe("ehConferenciaAutomatica", () => {
     expect(ehConferenciaAutomatica(null)).toBe(false);
   });
 });
+
+describe("conferirSemDivergencia — revisão de 03/11", () => {
+  it("escala encolheu e a linha ainda paga as diárias de antes: vai ao DP", () => {
+    const dois = DIAS.slice(0, 2);
+    const m = conferirSemDivergencia(entrada({
+      prestacao: { workedDays: dois },
+      resto: {
+        inclusao: { scheduleStartDate: dois[0], scheduleEndDate: dois[1] },
+        presencas: dois.map((dia) => ({ dia, checkinEm: `${dia}T12:00:00Z`, checkoutEm: `${dia}T21:00:00Z` })),
+        confirmacao: { contestacao: null, diasConfirmados: dois },
+      },
+    })).motivos;
+    expect(m).toEqual(["diarias_diferentes"]);
+  });
+
+  it("casa recebe só no fim de semana: a quantidade conta só esses dias", () => {
+    // 10 e 11/10/2099 = sábado e domingo; 12 = segunda.
+    const casa = { collaboratorType: "casa", dailyQuantity: 2 };
+    expect(motivos({ prestacao: casa, planejado: casa })).toEqual([]);
+    const errado = { collaboratorType: "casa", dailyQuantity: 3 };
+    expect(motivos({ prestacao: errado, planejado: errado })).toEqual(["diarias_diferentes"]);
+  });
+
+  it("representante registrou a presença ou confirmou: vai ao DP", () => {
+    expect(motivos({ resto: { confirmacao: { contestacao: null, diasConfirmados: DIAS, confirmadoPor: "representante" } } })).toEqual(["confirmada_por_representante"]);
+    expect(motivos({ resto: { presencas: DIAS.map((dia) => ({ dia, checkinEm: `${dia}T12:00:00Z`, checkoutEm: `${dia}T21:00:00Z`, checkinPor: "representante" })) } })).toEqual(["presenca_por_representante"]);
+    expect(motivos({ resto: { confirmacao: { contestacao: null, diasConfirmados: DIAS, confirmadoPor: "colaborador" } } })).toEqual([]);
+  });
+
+  it("dia com entrada e sem saída: vai ao DP", () => {
+    expect(motivos({ resto: { presencas: DIAS.map((dia) => ({ dia, checkinEm: `${dia}T12:00:00Z`, checkoutEm: null })) } })).toEqual(["sem_checkout"]);
+  });
+
+  it("ajustada pelo DP depois: já não leva o selo de automática", () => {
+    const base = { rhStatus: "aprovado", rhActionBy: null, rhComment: CONFERENCIA_AUTOMATICA };
+    expect(ehConferenciaAutomatica(base)).toBe(true);
+    expect(ehConferenciaAutomatica({ ...base, rhAdjusted: true })).toBe(false);
+  });
+});
