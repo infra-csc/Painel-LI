@@ -20,8 +20,9 @@ import { CabecalhoDoDialogo, RodapeDoDialogo, moldura } from "./inclusion-ui";
 import type { BulkDays } from "./use-bulk-days";
 import type { TeamInclusionData } from "./use-team-inclusion-data";
 
-export function BulkDaysDialog({ bulk, getCollaboratorName, getFunctionName }: {
+export function BulkDaysDialog({ bulk, getEventName, getCollaboratorName, getFunctionName }: {
   bulk: BulkDays;
+  getEventName: TeamInclusionData["getEventName"];
   getCollaboratorName: TeamInclusionData["getCollaboratorName"];
   getFunctionName: TeamInclusionData["getFunctionName"];
 }) {
@@ -35,6 +36,10 @@ export function BulkDaysDialog({ bulk, getCollaboratorName, getFunctionName }: {
     return { inc, selectedDays, allDays, changed };
   });
   const alteradas = linhas.filter(l => l.changed).length;
+  // Por evento (03/11): diária é pagamento, e a mesma pessoa pode estar em vários eventos. Sem
+  // seleção, o lote traz tudo o que está na lista, então cada vaga precisa dizer de onde é.
+  const porEvento = new Map<string, typeof linhas>();
+  for (const l of linhas) porEvento.set(l.inc.eventId, [...(porEvento.get(l.inc.eventId) ?? []), l]);
   const pedirParaFechar = () => descarteLote.pedirParaFechar(fechar);
 
   return (
@@ -45,7 +50,7 @@ export function BulkDaysDialog({ bulk, getCollaboratorName, getFunctionName }: {
           <CabecalhoDoDialogo
             icone={LayoutGrid}
             titulo="Edição de diárias em lote"
-            descricao={`${targets.length} ${targets.length === 1 ? "vaga" : "vagas"} — marque os dias de cada uma; a quantidade de diárias é calculada pelos dias marcados.`}
+            descricao={`${targets.length} ${targets.length === 1 ? "vaga" : "vagas"}${porEvento.size > 1 ? ` de ${porEvento.size} eventos` : ""} — marque os dias de cada uma; a quantidade de diárias é calculada pelos dias marcados.`}
             onFechar={pedirParaFechar}
           />
 
@@ -56,7 +61,13 @@ export function BulkDaysDialog({ bulk, getCollaboratorName, getFunctionName }: {
                 Nenhuma vaga editável na lista — as de evento encerrado ficam de fora.
               </p>
             )}
-            {linhas.map(({ inc, selectedDays, allDays, changed }) => (
+            {Array.from(porEvento.entries()).map(([eventId, doEvento]) => (
+            <section key={eventId} aria-label={getEventName(eventId)} className="divide-y divide-border" data-testid={`lote-evento-${eventId}`}>
+            <h3 className="sticky top-0 z-10 m-0 flex items-baseline justify-between gap-3 bg-surface-muted px-5 sm:px-6 py-2 text-sm font-semibold text-foreground">
+              <span className="min-w-0 break-words">{fixEncoding(getEventName(eventId))}</span>
+              <span className="shrink-0 text-2xs font-medium tabular-nums text-muted-foreground">{doEvento.length} {doEvento.length === 1 ? "vaga" : "vagas"}</span>
+            </h3>
+            {doEvento.map(({ inc, selectedDays, allDays, changed }) => (
               <div
                 key={inc.id}
                 className={`inc-lote-linha px-5 sm:px-6 py-3.5 ${changed ? 'inc-lote-alterada' : ''}`}
@@ -94,6 +105,8 @@ export function BulkDaysDialog({ bulk, getCollaboratorName, getFunctionName }: {
                   <p className="m-0 text-xs text-muted-foreground italic">Sem período definido nesta inclusão</p>
                 )}
               </div>
+            ))}
+            </section>
             ))}
           </div>
 

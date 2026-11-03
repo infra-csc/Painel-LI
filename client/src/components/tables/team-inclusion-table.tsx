@@ -402,7 +402,7 @@ export default function TeamInclusionTable({ data }: { data: TeamInclusionData }
       />
 
       <EditInclusionDialog edit={edit} functions={functions} getEventName={getEventName} getCollaboratorName={getCollaboratorName} />
-      <BulkDaysDialog bulk={bulk} getCollaboratorName={getCollaboratorName} getFunctionName={getFunctionName} />
+      <BulkDaysDialog bulk={bulk} getEventName={getEventName} getCollaboratorName={getCollaboratorName} getFunctionName={getFunctionName} />
 
       <ConfirmDialog
         open={actions.confirmState.open}
