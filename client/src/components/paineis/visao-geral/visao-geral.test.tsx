@@ -25,7 +25,7 @@ const vaga = (o: Partial<TeamInclusion>) => vagaFake({
   status: "escalado", phase: "inclusao", deletedAt: null, needsTicket: false, needsAccommodation: false, ...o,
 } as Partial<TeamInclusion>);
 
-function montar(opcoes: { vagas?: number; role?: string } = {}) {
+function montar(opcoes: { vagas?: number; role?: string; falha?: string } = {}) {
   const semPassagemNemHotel = vaga({ id: "v1", eventId: "nr", collaboratorId: "c1", needsTicket: true, needsAccommodation: true, scheduleStartDate: iso(daqui(18)), scheduleEndDate: iso(daqui(20)) });
   const comTudo = vaga({ id: "v2", eventId: "nr", collaboratorId: "c2", needsTicket: true, needsAccommodation: true, scheduleStartDate: iso(daqui(18)), scheduleEndDate: iso(daqui(20)) });
   const venceLogo = vaga({ id: "v3", eventId: "sp", collaboratorId: "c3", needsTicket: true, scheduleStartDate: iso(daqui(37)), scheduleEndDate: iso(daqui(39)) });
@@ -34,6 +34,7 @@ function montar(opcoes: { vagas?: number; role?: string } = {}) {
   const cincoDiasAtras = new Date(Date.now() - 5 * 86_400_000).toISOString();
   const fetchMock = mockarFetch((url) => {
     const caminho = url.split("?")[0];
+    if (opcoes.falha && (url === opcoes.falha || caminho === opcoes.falha)) return respostaJson({ message: "Falhou" }, 500, url);
     if (url === "/api/team-inclusions") return opcoes.vagas ? respostaJson({ message: "Falhou" }, opcoes.vagas, url) : respostaJson([semPassagemNemHotel, comTudo, venceLogo, semNome], 200, url);
     if (url === "/api/team-inclusions?phase=sugestao") return respostaJson([aValidar], 200, url);
     if (caminho === "/api/events") return respostaJson([NR, SP], 200, url);
@@ -108,8 +109,17 @@ describe("Visão geral — blocos pela régua do Quadro de prazos", () => {
 
   it("falha na lista de vagas → estado de erro com Tentar novamente", async () => {
     montar({ vagas: 500 });
-    expect(await screen.findByText("Não foi possível carregar as vagas")).toBeInTheDocument();
+    expect(await screen.findByText("Não foi possível carregar os painéis")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Tentar novamente" })).toBeInTheDocument();
+  });
+
+  // Antes (03/11): eventos ou sugestões em falta viravam "0, tudo no prazo" em verde; passagens ou hotéis, "tudo a emitir".
+  it.each([
+    "/api/events", "/api/team-inclusions?phase=sugestao", "/api/tickets", "/api/accommodations", "/api/swap-requests", "/api/scaling-change-requests",
+  ])("falha em %s → erro, sem número nenhum", async (rota) => {
+    montar({ falha: rota });
+    expect(await screen.findByText("Não foi possível carregar os painéis")).toBeInTheDocument();
+    expect(screen.queryByTestId("numero-passagens")).toBeNull();
   });
 
   it("403 na lista de vagas → sem acesso, sem números", async () => {

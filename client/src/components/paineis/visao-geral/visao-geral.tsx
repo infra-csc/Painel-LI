@@ -122,7 +122,7 @@ export default function VisaoGeral() {
       <div className="px-[var(--page-gutter)] pt-5 pb-6">
         {base.erro ? (
           <ErrorState
-            title="Não foi possível carregar as vagas"
+            title="Não foi possível carregar os painéis"
             description={base.erro.message || "Tente de novo em instantes."}
             onRetry={base.recarregar}
           />

@@ -63,7 +63,7 @@ export function useAgora(intervaloMs = 15_000): number {
 
 export interface BaseDosPaineis {
   carregando: boolean;
-  /** A lista de vagas falhou (sem ela não há número nenhum). */
+  /** Uma das listas que formam os números falhou: sem ela, "em dia" e "atrasado" não valem. */
   erro: Error | null;
   semPermissao: boolean;
   recarregar: () => void;
@@ -182,23 +182,27 @@ export function useBaseDosPaineis(): BaseDosPaineis {
 
   const recarregar = useCallback(() => {
     void Promise.all([
-      vagasQ.refetch(), sugestoesQ.refetch(), passagensQ.refetch(), hospedagensQ.refetch(), trocasQ.refetch(), pedidosQ.refetch(),
+      vagasQ.refetch(), eventosQ.refetch(), sugestoesQ.refetch(), passagensQ.refetch(), hospedagensQ.refetch(), trocasQ.refetch(), pedidosQ.refetch(),
       queryClient.invalidateQueries({ queryKey: ["/api/escala/prazos"] }),
     ]);
-  }, [vagasQ, sugestoesQ, passagensQ, hospedagensQ, trocasQ, pedidosQ, queryClient]);
+  }, [vagasQ, eventosQ, sugestoesQ, passagensQ, hospedagensQ, trocasQ, pedidosQ, queryClient]);
 
   const atualizadoEm = useMemo(() => {
     const t = [vagasQ.dataUpdatedAt, sugestoesQ.dataUpdatedAt, passagensQ.dataUpdatedAt, hospedagensQ.dataUpdatedAt].filter((x) => x > 0);
     return t.length ? Math.min(...t) : null;
   }, [vagasQ.dataUpdatedAt, sugestoesQ.dataUpdatedAt, passagensQ.dataUpdatedAt, hospedagensQ.dataUpdatedAt]);
 
-  const erro = (vagasQ.error as Error | null) ?? null;
+  // Sem qualquer destas listas os números mentem (03/11): eventos ou sugestões em falta viravam
+  // "0, tudo no prazo" em verde; passagens ou hotéis, "tudo a emitir". Lista que já tem dado e só
+  // não atualizou segue valendo.
+  const falhou = (q: { data?: unknown; error: unknown }) => (q.data === undefined && q.error ? (q.error as Error) : null);
+  const erro = (vagasQ.error as Error | null) ?? falhou(eventosQ) ?? falhou(sugestoesQ) ?? falhou(passagensQ) ?? falhou(hospedagensQ) ?? falhou(trocasQ) ?? falhou(pedidosQ);
   const listaDeEventos = useMemo(() => Array.from(eventosPorId.values()), [eventosPorId]);
 
   return {
-    carregando: !!user && (vagasQ.isLoading || eventosQ.isLoading),
+    carregando: !!user && (vagasQ.isLoading || eventosQ.isLoading || sugestoesQ.isLoading || passagensQ.isLoading || hospedagensQ.isLoading),
     erro,
-    semPermissao: isApiError(erro) && erro.status === 403,
+    semPermissao: isApiError(vagasQ.error) && vagasQ.error.status === 403,
     recarregar,
     recarregando: vagasQ.isFetching || passagensQ.isFetching || hospedagensQ.isFetching || sugestoesQ.isFetching,
     atualizadoEm,
