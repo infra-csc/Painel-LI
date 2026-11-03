@@ -1657,10 +1657,12 @@ li:hover .fun-remover, .fun-remover:focus-visible { opacity: 1; }
   .rea-resumo .pla-metrica { border-top: 1px solid var(--border); border-left: 0; }
   .rea-resumo .pla-metrica:nth-child(odd) { border-left: 1px solid var(--border); }
 }
-/* Rodapé do card: no card estreito (grade de 2 dentro da divisão, tablet,
-   celular) Observações, Dividir e Remover ficam só no ícone — o rótulo vai
-   no aria-label/title. Medido pelo card (container), não pela janela. */
-@container (max-width: 480px) {
+/* Rodapé do card: no card estreito (grade de 2 no notebook e na divisão, tablet,
+   celular) Voltar, Observações, Dividir e Remover ficam só no ícone — o rótulo vai
+   no aria-label/title. Medido pelo card (container), não pela janela.
+   640: com os 4 rótulos, o rodapé pede ~610px; em 1366 o card tem ~500 e cortava
+   "Preencher", a ação principal (03/11). */
+@container (max-width: 640px) {
   .rea-acao-texto { display: none; }
 }
 
