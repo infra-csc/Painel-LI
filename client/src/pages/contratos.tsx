@@ -8,11 +8,13 @@
  *    colaboradores, anexo, histórico; editar, encerrar, reativar). Novo
  *    contrato e "Importar planilha" (3 passos) no topo;
  *  - Mudanças de conta: as trocas de banco/conta/PIX dos colaboradores que
- *    outra pessoa do DP precisa conferir — o aviso do sino leva para cá.
+ *    outra pessoa do DP precisa conferir — o aviso do sino leva para cá;
+ *  - Histórico de emissões (29/10): consulta das empresas pelas quais um
+ *    colaborador já emitiu nota (só leitura).
  * Só admin e financial (rota protegida por canAccessFinanceiro + 403 da API).
  */
-import { useMemo, useState } from "react";
-import { BadgeCheck, Building2, ChevronRight, CloudOff, FileSpreadsheet, History, Lock, Paperclip, Plus, SearchX, ShieldAlert, Users, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { BadgeCheck, Building2, ChevronRight, CloudOff, FileSpreadsheet, History, Lock, ReceiptText, Paperclip, Plus, SearchX, ShieldAlert, Users, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PageContainer } from "@/components/common/page-container";
 import { PageHeader } from "@/components/common/page-header";
@@ -36,9 +38,10 @@ import { ContratoDialog } from "@/components/contratos/contrato-dialog";
 import { ContratoSheet } from "@/components/contratos/contrato-sheet";
 import { ImportacaoDialog } from "@/components/contratos/importacao-dialog";
 import { AlteracoesDeConta } from "@/components/contratos/alteracoes-de-conta";
+import { HistoricoDeEmissoes } from "@/components/contratos/historico-de-emissoes";
 import { SecaoPagamento } from "@/components/contratos/secao-pagamento";
 
-type Aba = "contratos" | "contas";
+type Aba = "contratos" | "contas" | "emissoes";
 type FiltroSituacao = "todas" | SituacaoDoContrato;
 type FiltroVence = "" | "30" | "60" | "90";
 /** 28/10: origem do contrato (cadastrado pelo DP × aprovado automaticamente pelo histórico). */
@@ -132,7 +135,11 @@ export default function ContratosPage() {
     origem: campo.opcao<FiltroOrigem>(""),
     contrato: campo.texto(""),
     contas: campo.opcao<"pendentes" | "todas">("pendentes"),
+    /** Colaborador escolhido no Histórico de emissões. */
+    emissor: campo.texto(""),
   });
+  // No celular as abas rolam de lado: a escolhida (inclusive vinda do link) fica à vista.
+  useEffect(() => { document.getElementById(`ctr-tab-${url.aba}`)?.scrollIntoView?.({ block: "nearest", inline: "nearest" }); }, [url.aba]);
   const q = useContratos(dp);
   const pendentes = useAlteracoesDeConta("pendentes", dp);
   const [editando, setEditando] = useState<Contrato | null>(null);
@@ -179,6 +186,7 @@ export default function ContratosPage() {
   const ABAS: { id: Aba; rotulo: string; icone: LucideIcon; n: number | null }[] = [
     { id: "contratos", rotulo: "Contratos", icone: Building2, n: null },
     { id: "contas", rotulo: "Mudanças de conta", icone: ShieldAlert, n: nPendentes || null },
+    { id: "emissoes", rotulo: "Histórico de emissões", icone: ReceiptText, n: null },
   ];
 
   let conteudo: React.ReactNode;
@@ -261,6 +269,8 @@ export default function ContratosPage() {
         </div>
 
         <div id={`ctr-painel-${url.aba}`} role="tabpanel" aria-labelledby={`ctr-tab-${url.aba}`} className="val-entra space-y-3">
+          {url.aba === "emissoes" && <HistoricoDeEmissoes colaboradorId={url.emissor} onEscolher={(id) => setUrl({ emissor: id })} onAbrirContrato={(id) => setUrl({ contrato: id })} largo={largo} />}
+
           {url.aba === "contas" && <AlteracoesDeConta situacao={url.contas} onAbrirColaborador={(id, nome) => setPagamentoDe({ id, nome })} />}
 
           {url.aba === "contratos" && (todos.length === 0 ? (

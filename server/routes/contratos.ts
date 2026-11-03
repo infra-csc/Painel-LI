@@ -8,6 +8,8 @@
  *  GET    /api/contratos                       lista com situação e vínculos
  *  GET    /api/contratos/situacao              sinal "contrato ativo" por colaborador
  *                                              (?colaboradores=a,b&data= ou ?eventId=)
+ *  GET    /api/contratos/historico-de-emissoes?colaboradorId=
+ *                                              empresas pelas quais o colaborador já emitiu nota (29/10; só leitura)
  *  POST   /api/contratos/importacao/previa     prévia da planilha (NÃO grava)
  *  POST   /api/contratos/importacao/confirmar  grava o que a prévia mostrou
  *  POST   /api/contratos/aprovacao-automatica[?simular=1]
@@ -41,6 +43,7 @@ import * as dados from "../storage/contratos";
 import type { ContratoComColaboradores } from "../storage/contratos";
 import { storage } from "../storage";
 import { aprovarPeloHistorico } from "../fornecedor-automatico";
+import { historicoDeEmissoesDoColaborador } from "../historico-de-emissoes";
 
 // ── Formato devolvido ───────────────────────────────────────────────────────
 
@@ -154,6 +157,22 @@ export function registrarContratos(app: Express): void {
     }
     res.set("Cache-Control", "no-store");
     res.json({ data, situacoes });
+  });
+
+  /**
+   * 29/10 (deck do dono) — Histórico de emissões: as empresas (CNPJ) pelas quais
+   * o colaborador já emitiu nota enviada ou aprovada. Só leitura; mesma
+   * permissão da tela (DP). Regra em shared/historico-de-emissoes.ts.
+   */
+  app.get("/api/contratos/historico-de-emissoes", async (req, res) => {
+    if (!(await exigirDp(req, res))) return;
+    const colaboradorId = typeof req.query.colaboradorId === "string" ? req.query.colaboradorId.trim() : "";
+    if (!colaboradorId || colaboradorId.length > 64) return res.status(400).json({ message: "Informe o colaborador (?colaboradorId=)." });
+    const colaborador = await storage.getCollaborator(colaboradorId);
+    if (!colaborador) return res.status(404).json({ message: "Colaborador não encontrado." });
+    const h = await historicoDeEmissoesDoColaborador(colaborador.id);
+    res.set("Cache-Control", "no-store");
+    res.json({ colaborador: { id: colaborador.id, fullName: colaborador.fullName, collaboratorNumber: colaborador.collaboratorNumber }, ...h });
   });
 
   app.post("/api/contratos/importacao/previa", async (req, res) => {

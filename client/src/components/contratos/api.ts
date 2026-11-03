@@ -10,6 +10,7 @@ import type { SituacaoContratualDoColaborador, SituacaoDoContrato, TipoDeContrat
 import type { DadosDePagamento, TipoDeConta, TipoDePix } from "@shared/pagamento";
 import type { AcaoDaLinha, CampoDaImportacao } from "@shared/importacao-contratos";
 import type { OrigemDoContrato } from "@shared/fornecedor-automatico";
+import type { EmissaoDoEvento, EmpresaEmitente } from "@shared/historico-de-emissoes";
 
 export const CHAVE = "contratos";
 export const CHAVE_DO_SINO_DE_CONTAS = ["shell", "contas-alteradas"] as const;
@@ -300,4 +301,24 @@ export function useConferirAlteracao() {
 
 export async function buscarContasAlteradas(signal?: AbortSignal) {
   return fetchJson<{ count: number; ultima: string | null }>("/api/shell/contas-alteradas", signal);
+}
+
+// ── Histórico de emissões (29/10) ───────────────────────────────────────────
+
+export type { EmissaoDoEvento, EmpresaEmitente };
+
+export interface RespostaDoHistoricoDeEmissoes {
+  colaborador: { id: string; fullName: string; collaboratorNumber: number };
+  empresas: EmpresaEmitente[];
+  totalDeNotas: number;
+  truncado: boolean;
+}
+
+/** Só consulta quando há colaborador escolhido; leitura, sem mutação. */
+export function useHistoricoDeEmissoes(colaboradorId: string | null, enabled = true) {
+  return useQuery<RespostaDoHistoricoDeEmissoes>({
+    queryKey: [CHAVE, "emissoes", colaboradorId],
+    queryFn: ({ signal }) => fetchJson(`/api/contratos/historico-de-emissoes?colaboradorId=${encodeURIComponent(colaboradorId ?? "")}`, signal),
+    enabled: enabled && !!colaboradorId,
+  });
 }
