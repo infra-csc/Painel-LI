@@ -426,6 +426,7 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
 
       {/* Status (+ resumo LOC/valor/tipo) */}
       <td data-col="status" className={`${cellCls} text-left`} data-rotulo="Situação" onClick={open}>
+        <div className="flex flex-col items-start gap-1.5 min-w-0">
         {cancelado ? (
           <span className={`${PILULA} bg-muted text-muted-foreground`}>Cancelado</span>
         ) : ticket && soCarimbo ? (
@@ -492,31 +493,35 @@ const TicketRow = forwardRef<HTMLTableRowElement, TicketRowProps>(function Ticke
             <span className="w-[5px] h-[5px] rounded-full bg-warning shrink-0" aria-hidden="true" />Pendente
           </span>
         )}
+        {/* Emitida: o carimbo de quem compra. Marcar não exige a passagem
+            preenchida — é aviso de que o bilhete saiu e de que a área não
+            pede mais ajuste. Clicar de novo desfaz (erro de clique acontece).
+            Aqui, com rótulo, e não ao lado do avião (03/11): era um ícone a 4px da
+            ação principal, e o clique errado tirava a vaga de "Comprar". */}
+        {!cancelado && onToggleEmitida && !terrestreTotal && (
+          <MotivoDesabilitado motivo={ticket?.emittedAt
+              ? "Passagem emitida — clique para desfazer"
+              : "Marcar como emitida — registra que o bilhete saiu"} desabilitado={!canEdit || locked || emitindo}>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onToggleEmitida(inclusion, !ticket?.emittedAt); }}
+              disabled={!canEdit || locked || emitindo}
+              aria-label={ticket?.emittedAt ? "Desfazer emissão da passagem" : "Marcar passagem como emitida"}
+              aria-pressed={!!ticket?.emittedAt}
+              data-testid={`toggle-emitida-${inclusion.id}`}
+              className={`pas-alvo inline-flex h-6 items-center gap-1 whitespace-nowrap rounded-md px-1.5 text-2xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40 disabled:cursor-not-allowed ${ticket?.emittedAt ? "text-muted-foreground hover:bg-muted hover:text-foreground" : "border border-border bg-card text-slate-600 hover:border-primary/40 hover:bg-brand-soft hover:text-primary"}`}
+            >
+              <Stamp className="w-3 h-3" aria-hidden="true" />
+              {ticket?.emittedAt ? "Desfazer" : "Marcar emitida"}
+            </button>
+          </MotivoDesabilitado>
+        )}
+        </div>
       </td>
 
       {/* Ações */}
       <td data-col="acoes" className="pl-1 pr-2 py-2 align-top whitespace-nowrap">
         <div className="pas-acoes flex items-center justify-end gap-1">
-          {/* Emitida: o carimbo de quem compra. Marcar não exige a passagem
-              preenchida — é aviso de que o bilhete saiu e de que a área não
-              pede mais ajuste. Clicar de novo desfaz (erro de clique acontece). */}
-          {!cancelado && onToggleEmitida && !terrestreTotal && (
-            <MotivoDesabilitado motivo={ticket?.emittedAt
-                ? "Passagem emitida — clique para desfazer"
-                : "Marcar como emitida — registra que o bilhete saiu"} desabilitado={!canEdit || locked || emitindo}>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onToggleEmitida(inclusion, !ticket?.emittedAt); }}
-                disabled={!canEdit || locked || emitindo}
-                aria-label={ticket?.emittedAt ? "Desfazer emissão da passagem" : "Marcar passagem como emitida"}
-                aria-pressed={!!ticket?.emittedAt}
-                data-testid={`toggle-emitida-${inclusion.id}`}
-                className={`pas-alvo w-8 h-8 rounded-lg flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40 disabled:cursor-not-allowed ${ticket?.emittedAt ? "bg-brand-soft text-primary hover:bg-primary/15" : "text-muted-foreground hover:bg-brand-soft hover:text-primary"}`}
-              >
-                <Stamp className="w-4 h-4" aria-hidden="true" />
-              </button>
-            </MotivoDesabilitado>
-          )}
           {!cancelado && (
             terrestreTotal ? (
               <button

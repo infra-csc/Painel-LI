@@ -132,7 +132,11 @@ describe("TicketRow", () => {
 
   it("carimbo 'Emitida': quem edita marca/desmarca; sem permissão o botão fica desabilitado com o motivo", async () => {
     const { user, onToggleEmitida, inclusion, unmount } = montar({ ticket: PASSAGEM() });
-    await user.click(screen.getByRole("button", { name: "Marcar passagem como emitida" }));
+    // Com rótulo e na coluna de situação, longe do botão de abrir a passagem (03/11).
+    const carimbo = screen.getByRole("button", { name: "Marcar passagem como emitida" });
+    expect(carimbo).toHaveTextContent("Marcar emitida");
+    expect(carimbo.closest("td")).toHaveAttribute("data-col", "status");
+    await user.click(carimbo);
     expect(onToggleEmitida).toHaveBeenCalledWith(inclusion, true);
     unmount();
 

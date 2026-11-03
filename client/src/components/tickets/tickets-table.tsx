@@ -182,8 +182,8 @@ export default function TicketsTable({
             <col />
             <col style={{ width: largo ? 200 : 182 }} />
             <col style={{ width: largo ? 150 : 124 }} />
-            <col style={{ width: estreita ? 116 : largo ? 200 : 150 }} />
-            <col style={{ width: 78 }} />
+            <col style={{ width: estreita ? 132 : largo ? 200 : 150 }} />
+            <col style={{ width: 56 }} />
           </colgroup>
         )}
         <caption className="sr-only">Passagens: vaga, evento, função, colaborador, viagem, sugestão e situação da compra</caption>
