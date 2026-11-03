@@ -59,7 +59,7 @@ export const ETAPAS_DA_TRILHA: readonly DefinicaoDaEtapa[] = [
   { id: "pre_aprovado", rotulo: "Pré-aprovado", descricao: "O DP revisou e pré-aprovou o valor antes do evento", quem: "DP", disponivel: true, ondeHoje: "Pré-aprovação de valores" },
   { id: "em_evento", rotulo: "Em evento", descricao: "Liberado para a Produção: a prestação está com o responsável da função", quem: "Produção", disponivel: true, ondeHoje: "Realizado" },
   { id: "confirmado", rotulo: "Confirmado", descricao: "Dias e valores confirmados e enviados para a conferência do DP", quem: "Produção", disponivel: true, ondeHoje: "Realizado" },
-  { id: "validado", rotulo: "Validado", descricao: "O DP conferiu o planejado × o realizado e aprovou", quem: "DP", disponivel: true, ondeHoje: "Conferência DP" },
+  { id: "validado", rotulo: "Validado", descricao: "O DP conferiu o planejado × o realizado e aprovou (sem divergência, a conferência é automática)", quem: "DP", disponivel: true, ondeHoje: "Conferência DP" },
   { id: "oc_emitida", rotulo: "OC emitida", descricao: "Ordem de compra gerada no M4 e registrada no app pelo DP", quem: "DP", disponivel: true, ondeHoje: "Ordens de compra", daNota: true },
   { id: "nf_enviada", rotulo: "NF enviada", descricao: "Nota fiscal anexada com o nº da OC", quem: "Colaborador", disponivel: true, ondeHoje: "Notas fiscais › Lançamento", daNota: true },
   { id: "nf_lancada", rotulo: "NF lançada no M4", descricao: "O DP validou a nota e deu entrada no M4 (hoje: o check-in financeiro da nota)", quem: "DP", disponivel: true, ondeHoje: "Notas fiscais › Aprovação DP", daNota: true },

@@ -93,7 +93,7 @@ export type ResultadoDaLocalizacao =
   | { ok: true; lat: number; lng: number; precisao: number | null }
   | { ok: false; motivo: "negada" | "indisponivel" | "tempo" | "sem_suporte" };
 
-/** Pede a localização uma vez, com prazo curto. Nunca rejeita: sem GPS, o check-in segue sem. */
+/** Pede a localização uma vez, com prazo curto. Nunca rejeita: quem chama decide (no modo "exigir", sem GPS não avança). */
 export function obterLocalizacao(prazoMs = 8000): Promise<ResultadoDaLocalizacao> {
   if (typeof navigator === "undefined" || !navigator.geolocation) return Promise.resolve({ ok: false, motivo: "sem_suporte" });
   return new Promise((resolve) => {

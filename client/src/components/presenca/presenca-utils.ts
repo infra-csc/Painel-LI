@@ -4,6 +4,7 @@
  * pendentes, faixa do ajuste): aqui é a situação de cada pessoa para a fila,
  * a busca, os textos e as contas do diálogo do check-out final.
  */
+import { CONFERENCIA_AUTOMATICA } from "@shared/conferencia-automatica";
 import { FUSO_DA_OPERACAO } from "@shared/hoje-sp";
 import { ajusteEmPct, reaisDaPresenca, type SituacaoDoCnpjInformado } from "@shared/presenca";
 import type { SituacaoContratualDoColaborador } from "@shared/contratos";
@@ -152,6 +153,7 @@ export function filtrarPrestacoes(prestacoes: readonly PrestacaoDaPresenca[], bu
 /** O selo principal da pessoa (um só), do mais urgente ao mais calmo. */
 export type TomDoSelo = "ok" | "alerta" | "perigo" | "info" | "neutro" | "marca";
 export function seloPrincipal(p: PrestacaoDaPresenca, hoje: string): { rotulo: string; tom: TomDoSelo; dica: string } {
+  if (p.realizado.conferenciaAutomatica) return { rotulo: "Conferência automática", tom: "ok", dica: `${CONFERENCIA_AUTOMATICA}: o realizado é igual ao planejado e a prestação segue direto para a OC.` };
   if (p.realizado.rhStatus === "aprovado") return { rotulo: "Aprovado pelo DP", tom: "ok", dica: "O DP aprovou a prestação." };
   if (foiParaODp(p)) return { rotulo: "Enviado ao DP", tom: "info", dica: `Check-out final feito${p.checkoutFinal.em ? ` em ${dataHoraBr(p.checkoutFinal.em)}` : ""}${p.checkoutFinal.por?.nome ? ` por ${p.checkoutFinal.por.nome}` : ""} — aguardando a conferência do DP.` };
   if (voltouDoDp(p)) return { rotulo: p.realizado.rhStatus === "rejeitado" ? "Recusado pelo DP" : "Devolvido pelo DP", tom: "perigo", dica: "O DP devolveu: confira a presença e refaça o check-out final." };

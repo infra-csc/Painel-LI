@@ -24,6 +24,9 @@ export interface EntradaDoMotor {
   systemSettings: Record<string, number> | undefined;
   ticketByInclusion: Map<string, Ticket>;
   eventLocation: string | null;
+  /** Nome e fim do evento (29/10): regras de janta e domingo da Night. */
+  eventName?: string | null;
+  eventEndDate?: string | null;
   budgetOverrides: BudgetOverrides;
   allBudgetPlanned: BudgetPlannedRow[] | undefined;
   existingActuals: BudgetActual[] | undefined;
@@ -88,7 +91,7 @@ const STATUS_CONFIRMADOS = new Set([
 export function useBudgetEngine(e: EntradaDoMotor): SaidaDoMotor {
   const {
     teamInclusions, functionValues, collaborators, functionNamesById, systemSettings,
-    ticketByInclusion, eventLocation, budgetOverrides, allBudgetPlanned, existingActuals, honorarios, eventoLegado = false,
+    ticketByInclusion, eventLocation, eventName = null, eventEndDate = null, budgetOverrides, allBudgetPlanned, existingActuals, honorarios, eventoLegado = false,
   } = e;
 
   // Honorário de cada vaga (aprovado, parte da empreita ou pendente) — a mesma
@@ -166,7 +169,7 @@ export function useBudgetEngine(e: EntradaDoMotor): SaidaDoMotor {
       const ticket = ticketByInclusion.get(inclusion.id) ?? null;
       const override = budgetOverrides[id];
       const honorario: HonorarioNaVaga | null = honorarioPorVaga.get(id) ?? null;
-      const chave: unknown[] = [inclusion, fnName, collab?.type ?? null, collab?.vrDiarioCents ?? null, fv, systemSettings, eventLocation, ticket, override, honorario];
+      const chave: unknown[] = [inclusion, fnName, collab?.type ?? null, collab?.vrDiarioCents ?? null, fv, systemSettings, eventLocation, eventName, eventEndDate, ticket, override, honorario];
       const hit = anterior.get(id);
       const reaproveita = !!hit && hit.chave.length === chave.length && hit.chave.every((v, i) => v === chave[i]);
       const result: CalculatedBudget = reaproveita
@@ -179,6 +182,8 @@ export function useBudgetEngine(e: EntradaDoMotor): SaidaDoMotor {
               functionValue: fv,
               settings: systemSettings,
               eventLocation,
+              eventName,
+              eventEndDate,
               ticket,
               override,
               honorario,
@@ -194,7 +199,7 @@ export function useBudgetEngine(e: EntradaDoMotor): SaidaDoMotor {
     });
     cacheOrcamentosRef.current = proximo;
     return out;
-  }, [confirmedInclusions, functionValues, collaboratorById, functionValueByFunctionId, functionNamesById, systemSettings, ticketByInclusion, eventLocation, budgetOverrides, honorarioPorVaga]);
+  }, [confirmedInclusions, functionValues, collaboratorById, functionValueByFunctionId, functionNamesById, systemSettings, ticketByInclusion, eventLocation, eventName, eventEndDate, budgetOverrides, honorarioPorVaga]);
 
   // Vagas marcadas como "não participou" — pela linha DA vaga (27/10).
   const notAttendedIds = useMemo(() => {

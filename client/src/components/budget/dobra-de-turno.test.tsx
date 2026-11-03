@@ -69,11 +69,13 @@ describe("grade de dias do Realizado — dobra de turno (29/10)", () => {
   });
 
   it("DP: marcar a dobra num dia de 1,5 tira o ½ (um dia não é as duas coisas)", async () => {
-    const { user } = renderComTudo(<Grade item={freela} />, { user: usuarioFake({ role: "financial" }) });
-    await user.click(await screen.findByTestId("rea-meia-2026-09-07"));
-    expect(screen.getByTestId("rea-meia-2026-09-07")).toHaveAttribute("aria-pressed", "true");
+    // 29/10: 1,5 novo não se marca mais; o que já estava aparece, para tirar ou trocar pela dobra.
+    const comMeia = { ...freela, diasMeiaExtra: ["2026-09-07"], totalValue: 35_000 };
+    const { user } = renderComTudo(<Grade item={comMeia} />, { user: usuarioFake({ role: "financial" }) });
+    expect(await screen.findByTestId("rea-meia-2026-09-07")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByTestId("rea-meia-2026-09-08")).not.toBeInTheDocument();
     await user.click(screen.getByTestId("rea-dobra-2026-09-07"));
-    expect(screen.getByTestId("rea-meia-2026-09-07")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByTestId("rea-meia-2026-09-07")).not.toBeInTheDocument();
     expect(screen.getByTestId("rea-dobra-2026-09-07")).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByLabelText("Diária realizada em 07/09")).toHaveValue("200,00");
   });

@@ -14,6 +14,7 @@
 // Nada saiu: os mesmos textos, os mesmos destinos e as mesmas condições.
 import { formatarMoeda } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { ehConferenciaAutomatica } from "@shared/conferencia-automatica";
 import { resumoDasDobras } from "@shared/dobra-de-turno";
 import { ArrowRight, Ban, Check, CheckCircle, ChevronDown, CircleDot, FileCheck, FileText, MessageSquare } from "lucide-react";
 import type { NotaParaControle, PrestacaoItem } from "./prestacao-types";
@@ -234,8 +235,8 @@ export function CartaoPrestacaoCorpo({
             )}
 
             {actual?.rhComment && (
-              <section className="crh-bloco crh-bloco-comentario" aria-label="Comentário do DP">
-                <h5 className="crh-bloco-titulo flex items-center gap-1.5"><MessageSquare className="w-3.5 h-3.5" aria-hidden="true" />Comentário do DP</h5>
+              <section className="crh-bloco crh-bloco-comentario" aria-label={ehConferenciaAutomatica(actual) ? "Conferência DP" : "Comentário do DP"}>
+                <h5 className="crh-bloco-titulo flex items-center gap-1.5"><MessageSquare className="w-3.5 h-3.5" aria-hidden="true" />{ehConferenciaAutomatica(actual) ? "Conferência DP" : "Comentário do DP"}</h5>
                 <p className="m-0 mt-1.5 text-sm leading-relaxed text-foreground">{actual.rhComment}</p>
                 {actual.rhActionAt && (
                   <p className="m-0 mt-1 text-2xs text-muted-foreground tabular-nums">

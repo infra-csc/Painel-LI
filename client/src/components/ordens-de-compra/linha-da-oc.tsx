@@ -19,6 +19,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { CONFERENCIA_AUTOMATICA } from "@shared/conferencia-automatica";
 import { toTitleCase } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { SeloDaConferencia } from "./conferencia-da-nota";
@@ -128,6 +129,7 @@ export const LinhaDaOc = memo(function LinhaDaOc({ l, selecionada, destacada, ac
       {/* Valor aprovado */}
       <div className="oc-cel oc-c-valor" data-rotulo="Aprovado">
         <span className="text-sm font-semibold tabular-nums text-foreground whitespace-nowrap">{reais(l.valorAprovado)}</span>
+        {l.conferenciaAutomatica && <span className="block text-2xs text-muted-foreground" title={CONFERENCIA_AUTOMATICA} data-testid="oc-conferencia-automatica">Conferência automática</span>}
       </div>
 
       {/* CNPJ emissor + selo de contrato */}

@@ -27,7 +27,7 @@ export interface DiaDaFileira {
   bloqueio?: string;
 }
 
-export function FileiraDeMeiaDiaria({ dias, marcados, onAlternar, desabilitado, rotuloId, testId }: {
+export function FileiraDeMeiaDiaria({ dias, marcados, onAlternar, desabilitado, rotuloId, testId, rotulo = MEIA_DIARIA_ROTULO, selo = "1,5×" }: {
   dias: readonly DiaDaFileira[];
   marcados: ReadonlySet<string>;
   onAlternar: (dia: string) => void;
@@ -35,6 +35,9 @@ export function FileiraDeMeiaDiaria({ dias, marcados, onAlternar, desabilitado, 
   /** id do texto que nomeia o grupo (aria-labelledby). */
   rotuloId?: string;
   testId?: string;
+  /** O que a marca significa (padrão: 1,5 diária) — o dia de carregamento usa a mesma fileira. */
+  rotulo?: string;
+  selo?: string;
 }) {
   return (
     <div className="flex flex-wrap gap-1.5" role="group" aria-labelledby={rotuloId} data-testid={testId}>
@@ -50,8 +53,8 @@ export function FileiraDeMeiaDiaria({ dias, marcados, onAlternar, desabilitado, 
             aria-pressed={marcado}
             disabled={travado}
             onClick={() => onAlternar(dia)}
-            title={bloqueio && !marcado ? bloqueio : marcado ? `${MEIA_DIARIA_ROTULO}${valor} — clique para tirar` : `Marcar ${semana} ${data} com ${MEIA_DIARIA_ROTULO}${valor}`}
-            aria-label={`${semana} ${data}${marcado ? `, ${MEIA_DIARIA_ROTULO}` : ""}`}
+            title={bloqueio && !marcado ? bloqueio : marcado ? `${rotulo}${valor} — clique para tirar` : `Marcar ${semana} ${data} como ${rotulo}${valor}`}
+            aria-label={`${semana} ${data}${marcado ? `, ${rotulo}` : ""}`}
             className={cn(
               "pas-alvo inline-flex items-center gap-1 h-7 px-2 rounded-md border text-2xs font-medium tabular-nums transition-colors",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed",
@@ -62,7 +65,7 @@ export function FileiraDeMeiaDiaria({ dias, marcados, onAlternar, desabilitado, 
           >
             <span className="text-muted-foreground">{semana}</span>
             <span>{data}</span>
-            {marcado && <span className="ml-0.5 rounded px-1 bg-info text-white text-[11px] leading-4 font-semibold">1,5×</span>}
+            {marcado && <span className="ml-0.5 rounded px-1 bg-info text-white text-[11px] leading-4 font-semibold">{selo}</span>}
           </button>
         );
       })}

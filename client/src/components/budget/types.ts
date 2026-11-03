@@ -102,6 +102,7 @@ export interface EditingBudgetInfo {
   /** 1,5 diária (28/10): o ½ que cada dia de trabalho ganharia (prévia), a diária do cálculo e se o valor é fechado. */
   meiaDiariaPossivel?: { dia: string; valorCents: number }[];
   valorDiariaDoCalculo?: number;
+  semJantaSemLogistica?: boolean;
   meiaDiariaSemEfeito?: boolean;
   /** Empreita da tabela: mobilidade 0 pela regra (28/10). */
   empreitaSemMobilidade?: boolean;

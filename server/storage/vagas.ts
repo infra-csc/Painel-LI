@@ -137,6 +137,7 @@ export async function getTeamInclusions(
       dailyRates: teamInclusions.dailyRates,
       workDays: teamInclusions.workDays,
       diasMeiaExtra: teamInclusions.diasMeiaExtra, // 28/10: dias com 1,5 diária
+      diasCarregamento: teamInclusions.diasCarregamento, // 29/10: dias com janta
       dailyValue: teamInclusions.dailyValue,
       actualDailyRates: teamInclusions.actualDailyRates,
       observations: teamInclusions.observations,

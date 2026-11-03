@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BudgetActual, BudgetPlanned, InsertBudgetActual, TeamInclusion, Ticket } from "@shared/schema";
 import { deflationFactorsFromSettings, isFuncaoLocal, isPercursoFunction, regraDiariaPorTipo } from "@shared/calculation-rules";
 import { isTransporteTerrestre } from "@shared/atendimento";
+import { valemRegrasDe2910 } from "@shared/regras-de-29-10";
 import { calcAlimentacao, dataDeChegadaDaIda, isCenotecnicaFunction, refeicaoCentsDia, refeicaoPerfil, toHoraHHMM } from "@shared/alimentacao";
 import { idaEVoltaDaMobilidade } from "@shared/comparativo";
 import { diariaDoDiaNaPosicao, dobraDaDiaria, meiaDaDiaria, semMeiaDiaria, valoresDosDiasDoSubtotal } from "@shared/meia-diaria";
@@ -24,6 +25,8 @@ import {
 
 export interface EntradaDoEditorDoRealizado {
   getItemInclusion: (item: BudgetActual) => TeamInclusion | undefined;
+  /** Fim do evento (29/10): liga a regra de janta sem logística. */
+  fimDoEvento?: string | null;
   getItemDayCounts: (item: BudgetActual) => DayCounts;
   getPlannedRef: (item: BudgetActual) => BudgetPlanned | undefined;
   getFunctionName: (id?: string | null) => string;
@@ -44,7 +47,7 @@ const TRAVEL_VAZIO = {
 };
 
 export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
-  const { getItemInclusion, getItemDayCounts, getPlannedRef, getFunctionName, functionNameById, ticketByInclusion, actualsPorGrupo, systemSettings, vrDoColaborador } = e;
+  const { getItemInclusion, getItemDayCounts, getPlannedRef, getFunctionName, functionNameById, ticketByInclusion, actualsPorGrupo, systemSettings, vrDoColaborador, fimDoEvento } = e;
 
   const [editingItem, setEditingItem] = useState<BudgetActual | null>(null);
   // `editFormBase` guarda o que foi digitado; `editFormData` (derivado, mais
@@ -209,6 +212,9 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
       almocoCents: refUtil.almocoCents,
       jantarCents: refUtil.jantarCents,
       terrestre,
+      // 29/10: sem logística não entra janta, salvo dia de carregamento — evento antigo não muda.
+      semJantaSemLogistica: valemRegrasDe2910(fimDoEvento),
+      diasCarregamento: inclusion?.diasCarregamento,
     });
 
     for (const d of alim.dias) {
@@ -217,7 +223,7 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
       if (d.jantar) { if (fds) out.weekendDinner += refFds.jantarCents; else out.weekdayDinner += refUtil.jantarCents; }
     }
     return out;
-  }, [functionNameById, getItemInclusion, ticketByInclusion, systemSettings, getGroupDayBounds, vrDoColaborador]);
+  }, [functionNameById, getItemInclusion, ticketByInclusion, systemSettings, getGroupDayBounds, vrDoColaborador, fimDoEvento]);
 
   // ── Viagem e alimentação do modal: DERIVADAS (23/09) ───────────────────────
   // Horário: o que foi digitado à mão vence; senão, passagem > sugerido na
@@ -552,6 +558,7 @@ export function useBudgetActualEditor(e: EntradaDoEditorDoRealizado) {
     editTravel, travelSource, activeDates,
     openEditModal, recalcAlimentacao, setAlimField, montarPayloadParaSalvar, fechar, fecharBotao, aoSalvar,
     alternarMeiaDiaria, alternarDobra,
+    semJantaSemLogistica: valemRegrasDe2910(fimDoEvento),
   };
 }
 

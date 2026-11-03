@@ -59,6 +59,7 @@ export function vagaFake(parcial: Partial<TeamInclusion> = {}): TeamInclusion {
     dailyRates: 3,
     workDays: ["2026-04-10", "2026-04-11", "2026-04-12"],
     diasMeiaExtra: null,
+    diasCarregamento: null,
     dailyValue: 0,
     actualDailyRates: null,
     observations: null,

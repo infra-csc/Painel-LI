@@ -61,7 +61,6 @@ export function useBudgetEditModal(e: EntradaDoModalDeEdicao) {
   // abrem automaticamente quando o valor atual difere do motor (override).
   const [alimExpanded, setAlimExpanded] = useState(false);
   // 1,5 diária (28/10): a fileira de dias abre pelo link (ou já aberta, com dia marcado).
-  const [meiaAberta, setMeiaAberta] = useState(false);
 
   // Aplica a nova diária no modal (sem tocar em originalModalValues/Total: a
   // troca de tipo é uma mudança REAL, aparece no "▲ vs original"). Preserva a
@@ -175,6 +174,7 @@ export function useBudgetEditModal(e: EntradaDoModalDeEdicao) {
       diasHonorario: budget.honorarioAprovado ? (budget.deflationSegments[0]?.days ?? budget.diasComDiaria) : undefined,
       inclusionId: budget.inclusion.id,
       meiaDiariaPossivel: budget.meiaDiariaPossivel,
+      semJantaSemLogistica: budget.semJantaSemLogistica,
       valorDiariaDoCalculo: budget.valorDiaria,
       meiaDiariaSemEfeito: budget.honorarioAprovado || !!budget.inclusion.empreitaEmpresa,
       empreitaSemMobilidade: budget.empreitaSemMobilidade,
@@ -231,7 +231,6 @@ export function useBudgetEditModal(e: EntradaDoModalDeEdicao) {
     );
     setEditingBudgetPlannedId(planRec?.id ?? null);
     setModalViewMode(viewMode);
-    setMeiaAberta(false);
     setModalTab("custos");
     setModalBufs({});
   };
@@ -310,7 +309,6 @@ export function useBudgetEditModal(e: EntradaDoModalDeEdicao) {
     modalBufs, setModalBufs,
     originalModalTotal, originalModalValues, defaultBudgetValues,
     alimExpanded, setAlimExpanded,
-    meiaAberta, setMeiaAberta,
     chooseLocalPercurseiroTipo, chooseLocalAtendimentoTipo,
     fecharModalEdicao, pedirFecharEdicao, DialogoDescarteEdicao,
     openEditModal, saveEdit,

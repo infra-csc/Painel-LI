@@ -55,6 +55,8 @@ import {
 import { prazoDaProducao } from "@shared/prazos-honorarios";
 import { contestacaoParaTela, lerPrazosDoBanco, registrarPrazosDosHonorarios } from "./honorarios-prazos";
 import { marcarEnviadosParaRevisao } from "./orcamento-realizado";
+import { aplicarConferenciaAutomatica, logsDaConferenciaAutomatica } from "../conferencia-automatica-servico";
+import { ehConferenciaAutomatica } from "@shared/conferencia-automatica";
 import { PAPEIS_QUE_VEEM_SELFIES } from "../objectAcl";
 import { notasDasPrestacoes } from "../honorarios-pagamento-servico";
 import { ROTULO_DO_ESTADO_DO_PAGAMENTO, estadoDoPagamento, podeEnviarNotaDaOc } from "@shared/honorarios-pagamento";
@@ -256,7 +258,7 @@ async function prestacoesParaTela(montadas: PrestacaoMontada[], user: User, conf
         termoAceito: !!acesso?.termoVersaoAceita && acesso.termoVersaoAceita === config.termoVersao,
         ultimoAcessoEm: acesso?.ultimoAcessoEm ? new Date(acesso.ultimoAcessoEm).toISOString() : null,
       },
-      realizado: { rhStatus: m.actual.rhStatus, sentForReview: m.actual.sentForReview, totalValue: semValores ? null : m.actual.totalValue, dailyValue: semValores ? null : m.actual.dailyValue },
+      realizado: { rhStatus: m.actual.rhStatus, sentForReview: m.actual.sentForReview, totalValue: semValores ? null : m.actual.totalValue, dailyValue: semValores ? null : m.actual.dailyValue, conferenciaAutomatica: ehConferenciaAutomatica(m.actual) },
       // Etapas 4–7 (28/10): a OC, a nota e se dá para enviar a NF como representante.
       notaFiscal: semValores ? undefined : (() => {
         const n = notas.get(m.actual.id) ?? null;
@@ -408,6 +410,8 @@ export function registrarPresenca(app: Express): void {
   });
 
   // ── Representante: check-in / check-out pelo colaborador ──────────────────
+  // 29/10: no modo "exigir" só o colaborador é bloqueado; o representante registra com a
+  // localização que tiver (opcional).
   const marcarComoRepresentante = (tipo: "entrada" | "saida") => async (req: Request, res: Response) => {
     const acesso = await prestacaoComAcesso(req, res, PAPEIS_DA_PRESENCA, String(req.params.actualId));
     if (!acesso) return;
@@ -598,7 +602,7 @@ export function registrarPresenca(app: Express): void {
     ].filter(Boolean).join(" · ");
     const agora = new Date();
     try {
-      const { depois, enviado } = await db.transaction(async (tx) => {
+      const { depois, enviado, conferidas } = await db.transaction(async (tx) => {
         const [depois] = await tx.update(budgetActualTable).set({
           ...campos,
           baseCheckoutFinal,
@@ -620,7 +624,8 @@ export function registrarPresenca(app: Express): void {
         // Envio ao DP pelo MESMO caminho do "Enviar para revisão" do Realizado.
         const [enviado] = await marcarEnviadosParaRevisao(tx, [depois], user.id);
         if (!enviado) throw new HttpError(409, "Não foi possível enviar ao DP — a prestação mudou de estado.");
-        return { depois, enviado };
+        // Conferência automática (deck de 29/10): sem divergência do Planejado, já sai aprovada.
+        return { depois, enviado, conferidas: await aplicarConferenciaAutomatica(tx, [enviado], user.id) };
       });
       await createAuditLogsBatch([
         montarLogDeAuditoria("update", "budget_actual", depois.id, {
@@ -629,6 +634,8 @@ export function registrarPresenca(app: Express): void {
         }, user.id, nomeDe(user), m.actual, req),
         montarLogDeAuditoria("send_review", "budget_actual", enviado.id, enviado, user.id, nomeDe(user), depois, req),
       ]);
+      // Em seguida, e não no mesmo INSERT: o histórico mostra o envio antes da aprovação.
+      if (conferidas.length > 0) await createAuditLogsBatch(logsDaConferenciaAutomatica(conferidas, [enviado], req));
       await responderPrestacao(res, m.actual.id, user);
     } catch (error) {
       responderErroComStatus(res, error, "Erro ao fazer o check-out final", 500);

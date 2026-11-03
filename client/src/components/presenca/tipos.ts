@@ -119,7 +119,7 @@ export interface PrestacaoDaPresenca {
     termoAceito: boolean;
     ultimoAcessoEm: string | null;
   };
-  realizado: { rhStatus: string | null; sentForReview: boolean | null; totalValue: number | null; dailyValue: number | null };
+  realizado: { rhStatus: string | null; sentForReview: boolean | null; totalValue: number | null; dailyValue: number | null; conferenciaAutomatica?: boolean };
   /** Etapas 4–7 (28/10): a OC, a nota e se dá para enviar a NF como representante. */
   notaFiscal?: NotaFiscalDaPresenca;
   /**

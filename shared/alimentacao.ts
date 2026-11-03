@@ -40,6 +40,11 @@
  *   Cenotécnica 35/35, Key Account / Gerente 44/44 por padrão — regra 18/08:
  *   "Executivo 40,00, Key/Gerente 44,00"; Executivo de Contas = Demais).
  *
+ * - Ajustes de 29/10 (shared/regras-de-29-10.ts), ligados por quem chama:
+ *   · `semJantaSemLogistica`: quem não viaja recebe só o almoço ("sem logística,
+ *     não entra janta; exceções incluídas à mão");
+ *   · `diasCarregamento`: dia de carregamento marcado na vaga sempre tem janta.
+ *
  * Funções puras — sem I/O, testáveis.
  */
 import { parseHoraMin } from "./atendimento";
@@ -94,6 +99,10 @@ export interface AlimentacaoInput {
    * mais tarde na prática).
    */
   terrestre?: boolean;
+  /** 29/10: sem logística (não voa), não entra janta. Falso = almoço + jantar, como antes. */
+  semJantaSemLogistica?: boolean;
+  /** 29/10: dias de carregamento/descarregamento da vaga — têm janta. */
+  diasCarregamento?: readonly (string | null | undefined)[] | null;
 }
 
 // Cortes confirmados pelo negócio
@@ -141,15 +150,18 @@ export function calcAlimentacao(input: AlimentacaoInput): AlimentacaoResult {
   }
 
   const sorted = [...input.workDays].sort();
+  const carregamento = new Set((input.diasCarregamento ?? []).map((d) => dataISO(d)).filter(Boolean));
 
-  // Jornada externa (não voa): almoço + jantar em todos os dias, sem estimativa
+  // Jornada externa (não voa): nunca estimado. Almoço todo dia; a janta, todo
+  // dia até 29/10 — depois, só no dia de carregamento (o resto entra à mão).
   if (!input.voa) {
-    for (const date of sorted) dias.push({ date, almoco: true, jantar: true, papel: "externo" });
+    for (const date of sorted) dias.push({ date, almoco: true, jantar: !input.semJantaSemLogistica || carregamento.has(date), papel: "externo" });
+    const jantares = dias.filter((d) => d.jantar).length;
     return {
       dias,
       almocos: dias.length,
-      jantares: dias.length,
-      totalCents: dias.length * (input.almocoCents + input.jantarCents),
+      jantares,
+      totalCents: dias.length * input.almocoCents + jantares * input.jantarCents,
       estimado: false,
     };
   }
@@ -196,6 +208,7 @@ export function calcAlimentacao(input: AlimentacaoInput): AlimentacaoResult {
       }
     }
 
+    if (carregamento.has(sorted[i])) jantar = true;
     dias.push({ date: sorted[i], almoco, jantar, papel });
   }
 

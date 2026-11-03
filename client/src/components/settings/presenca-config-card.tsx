@@ -163,7 +163,7 @@ export function PresencaConfigCard() {
     const termoMudou = r.termoTexto.trim() !== atual.termoTexto;
     corpo = (
       <>
-        <LinhaDeAjuste titulo="Selfie e localização" descricao="O que a entrada e a saída pedem — no app do colaborador e quando o representante registra. O raio da arena ainda não foi definido: a localização não bloqueia." colunas={2}>
+        <LinhaDeAjuste titulo="Selfie e localização" descricao="O que a entrada e a saída pedem — no app do colaborador e quando o representante registra. O raio da arena ainda não foi definido: a localização só precisa existir, não é conferida contra o local do evento." colunas={2}>
           <div className="cfg-campo-bloco min-w-0">
             <span className="cfg-rotulo" id="cfg-prs-selfie-rotulo">Selfie obrigatória</span>
             <div className={cn("cfg-campo justify-between", r.selfieObrigatoria !== salvo.selfieObrigatoria && "cfg-campo-alterado")}>
@@ -177,11 +177,16 @@ export function PresencaConfigCard() {
             <div className={cn("cfg-campo", r.localizacao !== salvo.localizacao && "cfg-campo-alterado")}>
               <select id="cfg-prs-local" value={r.localizacao} disabled={desab} onChange={(e) => setR({ ...r, localizacao: e.target.value as ModoDeLocalizacao })}
                 className="w-full h-full bg-transparent border-0 outline-none text-sm text-foreground">
-                <option value="registrar">Registrar</option>
-                <option value="nao_registrar">Não registrar</option>
+                <option value="exigir">Exigir (sem localização, não registra)</option>
+                <option value="registrar">Pedir, mas deixar passar sem</option>
+                <option value="nao_registrar">Não pedir</option>
               </select>
             </div>
-            <p className="cfg-apoio text-muted-foreground">{r.localizacao === "registrar" ? "pede o GPS; negado, registra sem" : "não pede o GPS"}</p>
+            <p className="cfg-apoio text-muted-foreground">{
+              r.localizacao === "exigir" ? "o colaborador só faz check-in/out com a localização liberada · o representante nunca é bloqueado"
+                : r.localizacao === "registrar" ? "pede o GPS; negado, registra sem localização"
+                  : "não pede o GPS"
+            } · padrão: exigir</p>
           </div>
         </LinhaDeAjuste>
 

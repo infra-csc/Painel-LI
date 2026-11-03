@@ -217,6 +217,83 @@ describe("Check-in com selfie", () => {
   });
 });
 
+describe("Check-in com localização obrigatória (modo exigir)", () => {
+  beforeEach(() => {
+    vi.mocked(captura.prepararFoto).mockClear().mockResolvedValue(new Blob(["jpg"], { type: "image/jpeg" }));
+    vi.mocked(captura.obterLocalizacao).mockReset();
+    URL.createObjectURL = vi.fn(() => "blob:previa");
+    URL.revokeObjectURL = vi.fn();
+  });
+
+  function montarExigindo(tipo: "entrada" | "saida" = "entrada") {
+    return renderComTudo(
+      <ProvedorDeMarcacao eu={eu({ configuracao: { selfieObrigatoria: true, localizacao: "exigir" } })}>
+        <BotaoDeMarcacao alvo={{ actualId: "act-1", dia: HOJE, tipo, evento: "Meia Maratona" }} />
+      </ProvedorDeMarcacao>,
+    );
+  }
+  const tirarFoto = async (user: ReturnType<typeof montarExigindo>["user"], botao: string) => {
+    await user.click(screen.getByRole("button", { name: botao }));
+    await user.upload(screen.getByTestId("portal-camera"), new File(["x"], "selfie.jpg", { type: "image/jpeg" }));
+  };
+
+  it("permissão negada: bloqueia, explica, não mostra \"Enviar\" nem chama o servidor; liberar + \"Tentar de novo\" destrava", async () => {
+    vi.mocked(captura.obterLocalizacao)
+      .mockResolvedValueOnce({ ok: false, motivo: "negada" })
+      .mockResolvedValueOnce({ ok: true, lat: -27.58, lng: -48.54, precisao: 9 });
+    const fetchMock = mockarFetch(() => respostaJson({ dia: HOJE, entrada: { em: "", hora: "07:55", comSelfie: true, fotoId: "ATT-1", porRepresentante: false, comLocalizacao: true }, saida: null }, 201));
+    const { user } = montarExigindo();
+    await tirarFoto(user, "Fazer check-in");
+
+    const aviso = await screen.findByRole("alert");
+    expect(aviso).toHaveTextContent("Precisamos da sua localização");
+    expect(aviso).toHaveTextContent(/permita a localização para este site/);
+    expect(screen.queryByText(/tudo bem, o produtor confere/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Enviar check-in" })).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Tentar de novo" }));
+    await user.click(await screen.findByRole("button", { name: "Enviar check-in" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("07:55");
+    expect(captura.obterLocalizacao).toHaveBeenCalledTimes(2);
+    const corpo = fetchMock.mock.calls[0][1]?.body as FormData;
+    expect(corpo.get("lat")).toBe("-27.58");
+  });
+
+  it("tempo esgotado e GPS indisponível têm mensagens diferentes da negada", async () => {
+    vi.mocked(captura.obterLocalizacao).mockResolvedValue({ ok: false, motivo: "tempo" });
+    const fetchMock = mockarFetch(() => respostaJson({}, 201));
+    const { user } = montarExigindo();
+    await tirarFoto(user, "Fazer check-in");
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Não deu tempo de pegar a localização/);
+
+    vi.mocked(captura.obterLocalizacao).mockResolvedValue({ ok: false, motivo: "indisponivel" });
+    await user.click(screen.getByRole("button", { name: "Tentar de novo" }));
+    expect(await screen.findByText(/não conseguiu achar a localização/)).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("o check-out também é bloqueado sem localização", async () => {
+    vi.mocked(captura.obterLocalizacao).mockResolvedValue({ ok: false, motivo: "negada" });
+    const fetchMock = mockarFetch(() => respostaJson({}, 201));
+    const { user } = montarExigindo("saida");
+    await tirarFoto(user, "Fazer check-out");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Precisamos da sua localização");
+    expect(screen.queryByRole("button", { name: "Enviar check-out" })).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("servidor recusa por localização (422): volta ao bloqueio em vez de mostrar erro solto", async () => {
+    vi.mocked(captura.obterLocalizacao).mockResolvedValue({ ok: true, lat: -27.58, lng: -48.54, precisao: 9 });
+    mockarFetch(() => respostaJson({ message: "Para registrar a presença, o app precisa da sua localização.", codigo: "localizacao_obrigatoria" }, 422));
+    const { user } = montarExigindo();
+    await tirarFoto(user, "Fazer check-in");
+    await user.click(await screen.findByRole("button", { name: "Enviar check-in" }));
+    expect(await screen.findByText("Precisamos da sua localização")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tentar de novo" })).toBeInTheDocument();
+  });
+});
+
 describe("Meus eventos e evento", () => {
   it("vazio", () => {
     renderComTudo(<TelaMeusEventos eu={eu()} dados={{ hoje: HOJE, prestacoes: [], cnpjs: [] }} />);

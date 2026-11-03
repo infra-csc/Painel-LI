@@ -28,12 +28,14 @@ export function useBudgetActualActions(args: { userId: string | undefined; onSav
       const res = await apiRequest("POST", "/api/budget-actual/send-for-review", { eventId, itemIds });
       return res.json();
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (resposta: { conferidasAutomaticamente?: number }, variables) => {
       qc.invalidateQueries({ queryKey: ["/api/budget-actual", variables.eventId] });
       qc.invalidateQueries({ queryKey: [CHAVE_CONTROLE_RH] });
+      const automaticas = resposta?.conferidasAutomaticamente ?? 0;
       toast({
         title: "Enviado para revisão",
-        description: "O orçamento realizado foi enviado para conferência e a emissão de NF foi liberada para os itens enviados.",
+        description: "O orçamento realizado foi enviado para conferência e a emissão de NF foi liberada para os itens enviados."
+          + (automaticas > 0 ? ` ${automaticas === 1 ? "1 item sem divergência foi aprovado" : `${automaticas} itens sem divergência foram aprovados`} na conferência automática e segue direto para a OC.` : ""),
         variant: "success",
       });
     },

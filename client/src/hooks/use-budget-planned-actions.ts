@@ -202,6 +202,8 @@ export function useBudgetPlannedActions(e: EntradaDasAcoesDoPlanejado) {
       plannedId: savedPlanned.id,
       paymentStatus: "pendente",
       observations: obsLabel,
+      // Domingo da Night (29/10): a escala termina no sábado — o Realizado nasce com ele.
+      ...(budget.diasDaVagaComDomingo ? { workedDays: budget.diasDaVagaComDomingo } : {}),
     });
     return { id: budget.inclusion.id, result: await actualRes.json() };
   };

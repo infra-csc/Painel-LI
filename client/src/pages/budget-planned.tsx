@@ -151,7 +151,7 @@ export default function BudgetPlannedPage() {
 
   const motor = useBudgetEngine({
     teamInclusions: q.teamInclusions, functionValues, collaborators, functionNamesById: functionNameById, systemSettings,
-    ticketByInclusion, eventLocation: selectedEvent?.location ?? null, budgetOverrides,
+    ticketByInclusion, eventLocation: selectedEvent?.location ?? null, eventName: selectedEvent?.name ?? null, eventEndDate: selectedEvent?.endDate ?? null, budgetOverrides,
     allBudgetPlanned: q.budgetPlanned, existingActuals: q.budgetActual, honorarios: q.honorarios,
     // 27/10: evento legado (antes da data de corte) vai ao Realizado sem a pré-aprovação.
     eventoLegado,

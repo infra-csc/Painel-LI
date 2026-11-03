@@ -125,6 +125,7 @@ export default function BudgetActualPage() {
     [collaborators],
   );
   const editor = useBudgetActualEditor({
+    fimDoEvento: selectedEvent?.endDate ?? null,
     getItemInclusion: dados.getItemInclusion, getItemDayCounts: dados.getItemDayCounts, getPlannedRef: dados.getPlannedRef,
     getFunctionName, functionNameById, ticketByInclusion, actualsPorGrupo: dados.actualsPorGrupo, systemSettings: q.systemSettings,
     vrDoColaborador,

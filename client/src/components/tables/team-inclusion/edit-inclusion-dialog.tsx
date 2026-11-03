@@ -92,7 +92,6 @@ export function EditInclusionDialog({ edit, functions, getEventName, getCollabor
     showEditModal, editingInclusion, editStartDate, editEndDate, editSelectedDays, setEditDirty, editMeiaDias, toggleMeiaDia,
     fecharEdicao, changeStartDate, changeEndDate, selectAllDays, selectNoDays, toggleDay, submit, isPending, descarteEdicao,
   } = edit;
-  const [meiaAberta, setMeiaAberta] = useState(false);
   const allDays = editStartDate && editEndDate ? generateDaysInRange(editStartDate, editEndDate) : [];
   const marcados = allDays.filter(d => editSelectedDays.has(d));
   const selectedCount = marcados.length;
@@ -208,15 +207,13 @@ export function EditInclusionDialog({ edit, functions, getEventName, getCollabor
                     <p className="m-0 mt-2 text-xs text-muted-foreground">
                       O período salvo vai do primeiro ao último dia marcado; a quantidade de diárias é a de dias marcados.
                     </p>
-                    {/* 1,5 diária (28/10, DP): dia de carga/descarga = diária + ½ */}
-                    {marcados.length > 0 && (meiaAberta || marcados.some(d => editMeiaDias.has(d)) ? (
+                    {/* 1,5 diária: o deck de 29/10 esconde a marcação; o dia já marcado aparece para poder tirar. */}
+                    {marcados.some(d => editMeiaDias.has(d)) && (
                       <div className="mt-3" data-testid="edit-meia-diaria">
-                        <span id="edit-meia-rotulo" className="block mb-1.5 text-xs font-medium text-slate-600">Dias com 1,5 diária <span className="font-normal text-muted-foreground">(carga/descarga)</span></span>
-                        <FileiraDeMeiaDiaria dias={marcados.map(dia => ({ dia }))} marcados={editMeiaDias} onAlternar={toggleMeiaDia} rotuloId="edit-meia-rotulo" />
+                        <span id="edit-meia-rotulo" className="block mb-1.5 text-xs font-medium text-slate-600">Dias com 1,5 diária <span className="font-normal text-muted-foreground">(clique para tirar)</span></span>
+                        <FileiraDeMeiaDiaria dias={marcados.filter(d => editMeiaDias.has(d)).map(dia => ({ dia }))} marcados={editMeiaDias} onAlternar={toggleMeiaDia} rotuloId="edit-meia-rotulo" />
                       </div>
-                    ) : (
-                      <button type="button" onClick={() => setMeiaAberta(true)} className="mt-2 text-xs font-medium text-info hover:underline underline-offset-2" data-testid="edit-abrir-meia-diaria">+ Marcar dia com 1,5 diária</button>
-                    ))}
+                    )}
                   </div>
                 )}
               </section>

@@ -58,6 +58,9 @@ export interface EntradaDoNovo {
   diasTitular: number;
   /** Diária (centavos/dia) da prestação do titular — o valor por dia do novo. */
   diariaTitular: number;
+  /** 29/10: sem logística não entra janta (shared/regras-de-29-10); os dias de carregamento têm. */
+  semJanta?: boolean;
+  diasCarregamento?: readonly (string | null | undefined)[] | null;
 }
 
 export interface PreenchimentoDoNovo {
@@ -130,18 +133,21 @@ export function preencherValoresDoNovo(e: EntradaDoNovo): PreenchimentoDoNovo {
     vr !== null ? `VR ${formatarMoeda(vr)}` : "",
     NOME_DO_PERFIL[perfil],
   ].filter(Boolean).join(" · ");
-  const par = (r: { almocoCents: number; jantarCents: number }) => `${formatarMoeda(r.almocoCents)} + ${formatarMoeda(r.jantarCents)}`;
+  const comJanta = (d: string) => !e.semJanta || (e.diasCarregamento ?? []).some((c) => String(c ?? "").slice(0, 10) === d);
+  const jantasUteis = e.dias.filter((d) => !isWeekend(d) && comJanta(d)).length;
+  const jantasFds = e.dias.filter((d) => isWeekend(d) && comJanta(d)).length;
+  const par = (r: { almocoCents: number; jantarCents: number }) => (e.semJanta ? formatarMoeda(r.almocoCents) : `${formatarMoeda(r.almocoCents)} + ${formatarMoeda(r.jantarCents)}`);
   const partes: string[] = [];
   if (uteis > 0) partes.push(`dia útil ${par(util)}`);
   if (fds > 0) partes.push(`fim de semana ${par(fimDeSemana)}`);
-  const origemAlimentacao = `Pela regra do colaborador${quem ? ` (${quem})` : ""}: ${partes.join(" · ")} por dia (almoço + jantar).`;
+  const origemAlimentacao = `Pela regra do colaborador${quem ? ` (${quem})` : ""}: ${partes.join(" · ")} por dia (${e.semJanta ? "só almoço: sem logística não entra janta" : "almoço + jantar"}).`;
 
   return {
     ...diarias,
     weekdayLunch: uteis * util.almocoCents,
-    weekdayDinner: uteis * util.jantarCents,
+    weekdayDinner: jantasUteis * util.jantarCents,
     weekendLunch: fds * fimDeSemana.almocoCents,
-    weekendDinner: fds * fimDeSemana.jantarCents,
+    weekendDinner: jantasFds * fimDeSemana.jantarCents,
     mobility,
     origemAlimentacao,
     origemMobilidade,

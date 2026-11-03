@@ -103,6 +103,8 @@ export function registrarOrcamentoPlanejado(app: Express): void {
         functionValue: fvByFunction.get(inc.functionId) ?? null,
         settings: cfg,
         eventLocation: event.location ?? null,
+        eventName: event.name,
+        eventEndDate: event.endDate,
         ticket: ticketByInclusion.get(inc.id) ?? null,
         honorario: honorarioPorVaga.get(inc.id) ?? null,
         // 28/10: VR do colaborador da casa no almoço de dia útil.

@@ -342,7 +342,7 @@ export default function PresencaNoEventoPage() {
             {filtro && <> · <button type="button" className="font-medium text-primary hover:underline" onClick={() => setFiltro(null)}>ver todas</button></>}
           </p>
           <p className="m-0 ml-auto text-2xs text-muted-foreground" title="Regras da presença — padrão provisório, o dono pode mudar (Tabela de valores)">
-            Selfie {regra.selfieObrigatoria ? "obrigatória" : "opcional"} · localização {regra.localizacao === "registrar" ? "registrada" : "não registrada"} · produção ajusta até ±{regra.produtorAjusteMaxPct.toLocaleString("pt-BR")}% · <span className="italic">padrão provisório</span>
+            Selfie {regra.selfieObrigatoria ? "obrigatória" : "opcional"} · localização {regra.localizacao === "exigir" ? "obrigatória" : regra.localizacao === "registrar" ? "registrada" : "não registrada"} · produção ajusta até ±{regra.produtorAjusteMaxPct.toLocaleString("pt-BR")}% · <span className="italic">padrão provisório</span>
           </p>
         </div>
         {visiveis.length === 0 ? (

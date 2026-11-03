@@ -10,6 +10,7 @@ import { useConfirmarDescarte } from "@/lib/use-confirmar-descarte";
 import { vagaComEmpreita } from "@shared/cenotecnica-empreita";
 import { getDaysInRange, isWeekend, fmtR$, type SplitVagaModalProps, type Step2Form } from "./split-shared";
 import { preencherValoresDoNovo } from "./valores-do-novo";
+import { valemRegrasDe2910 } from "@shared/regras-de-29-10";
 
 export function useSplitState({ item, collaborators, teamInclusion, eventStartDate, eventEndDate, takenDays = [], functionName, systemSettings, onClose, onConfirm, isPending }: SplitVagaModalProps) {
   // ── Step 1 state ──────────────────────────────────────────────────────────
@@ -152,6 +153,8 @@ export function useSplitState({ item, collaborators, teamInclusion, eventStartDa
       mobilidadeTitular: item.mobility || 0,
       diasTitular: parentWorkedDays.length,
       diariaTitular: item.dailyValue,
+      semJanta: !teamInclusion?.needsTicket && valemRegrasDe2910(eventEndDate),
+      diasCarregamento: teamInclusion?.diasCarregamento,
     });
     setStep2Form({
       valorDiariaUtil: pre.valorDiariaUtil,

@@ -273,11 +273,11 @@ function DiariasBlock(p: CustosTabProps) {
  */
 function MeiaDiariaNoAjuste(p: CustosTabProps) {
   const { ctrl, editingBudget, info } = p;
-  const { modalViewMode, setEditingBudget, meiaAberta, setMeiaAberta } = ctrl;
-  const possiveis = info.meiaDiariaPossivel ?? [];
-  if (possiveis.length === 0) return null;
+  const { modalViewMode, setEditingBudget } = ctrl;
+  // 29/10: o deck esconde a marcação de 1,5 — só o dia já marcado aparece, para poder tirar.
   const marcados = new Set(meiaDiasDoTexto(editingBudget.meiaDias));
-  const aberto = meiaAberta || marcados.size > 0;
+  const possiveis = (info.meiaDiariaPossivel ?? []).filter((m) => marcados.has(m.dia));
+  if (possiveis.length === 0) return null;
   const alternar = (dia: string) => setEditingBudget(prev => {
     if (!prev) return prev;
     const atual = new Set(meiaDiasDoTexto(prev.meiaDias));
@@ -285,16 +285,6 @@ function MeiaDiariaNoAjuste(p: CustosTabProps) {
     return { ...prev, meiaDias: meiaDiasParaTexto(Array.from(atual)) };
   });
   const escala = p.escalaDaDiaria ?? 1;
-  if (!aberto) {
-    if (modalViewMode) return null;
-    return (
-      <div className="px-4 py-2">
-        <button type="button" onClick={() => setMeiaAberta(true)} className="text-2xs font-medium text-info hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded" data-testid="modal-abrir-meia-diaria">
-          + Dia com 1,5 diária (carga/descarga)
-        </button>
-      </div>
-    );
-  }
   return (
     <div className="px-4 py-2.5 space-y-2" data-testid="modal-meia-diaria">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -451,7 +441,9 @@ function AlimentacaoBlock(p: CustosTabProps) {
         </div>
       ) : (
         <div className="px-4 py-2 bg-surface-muted/70 border-b border-border text-2xs text-muted-foreground">
-          Jornada externa (não voa) — almoço e jantar em todos os dias trabalhados.
+          {info.semJantaSemLogistica
+            ? "Sem logística (não voa) — almoço em todos os dias; janta só no dia de carregamento marcado na escala. Exceção: ajuste à mão."
+            : "Jornada externa (não voa) — almoço e jantar em todos os dias trabalhados."}
         </div>
       )}
 

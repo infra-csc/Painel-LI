@@ -106,7 +106,8 @@ function DiariasBlock(p: CustosTabRealizadoProps) {
                 <span className={cn("text-sm font-medium tabular-nums text-foreground", !entry.active && "line-through decoration-muted-foreground/60")}>{dateLabel}</span>
                 <span className="text-xs text-muted-foreground capitalize">{dayLabel}</span>
                 {entry.isWeekend && <span className="inline-flex items-center h-[18px] px-1.5 rounded-md bg-warning-soft text-warning text-2xs font-medium">fds</span>}
-                {entry.active && (dpMarcaMeia && (entry.valueCents > 0 || entry.meia) ? (
+                {/* 29/10: sem marcar 1,5 novo — só tirar o que já estava (Dobrar ocupa o lugar). */}
+                {entry.active && (dpMarcaMeia && entry.meia ? (
                   <button
                     type="button"
                     aria-pressed={!!entry.meia}
@@ -331,8 +332,9 @@ function ViagemBlock({ editor, isReadOnly, modalVoa }: Pick<CustosTabRealizadoPr
         </div>
       ) : (
         <p className="m-0 px-4 py-2.5 text-xs text-muted-foreground">
-          Jornada externa (não voa) — almoço e jantar em todos os dias trabalhados,
-          sem depender de horário de viagem.
+          {editor.semJantaSemLogistica
+            ? "Sem logística (não voa) — almoço em todos os dias; janta só no dia de carregamento marcado na escala. Exceção: ajuste à mão."
+            : "Jornada externa (não voa) — almoço e jantar em todos os dias trabalhados, sem depender de horário de viagem."}
         </p>
       )}
     </div>

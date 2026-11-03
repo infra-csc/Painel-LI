@@ -327,7 +327,8 @@ describe("portal: check-in e check-out", () => {
     expect((await mutacao(portal.post("/api/colaborador/termo")).send({ versao: "outra" })).status).toBe(409);
     expect((await mutacao(portal.post("/api/colaborador/termo")).send({ versao: eu.body.termo.versao })).status).toBe(200);
 
-    const semFoto = await mutacao(portal.post(`${urlHoje}/entrada`)).send({});
+    // com localização (o padrão exige) e sem foto: quem recusa é a regra da selfie
+    const semFoto = await mutacao(portal.post(`${urlHoje}/entrada`)).send({ lat: "-23.55", lng: "-46.63" });
     expect(semFoto.status).toBe(400);
     expect(semFoto.body.codigo).toBe("selfie_obrigatoria");
     expect((await selfie(portal, `/api/colaborador/presencas/${actual.id}/${somarDias(hoje, 1)}/entrada`)).status).toBe(409);
@@ -370,6 +371,90 @@ describe("portal: check-in e check-out", () => {
     }
     const hon = await agenteLogado("honorarios");
     expect((await hon.agent.get(`/api/attachments/${foto}/view`)).status).toBe(403);
+  });
+});
+
+describe("localização obrigatória (29/10): modo \"exigir\" é o padrão", () => {
+  const semLocal = (agent: TestAgent, url: string) =>
+    agent.post(url).set("Origin", ORIGEM_PERMITIDA).attach("foto", PNG, { filename: "selfie.png", contentType: "image/png" });
+  const modo = (m: string) => ctx.storage.upsertSystemSetting("presenca_localizacao", m);
+
+  it("sem nada gravado o padrão é exigir; colaborador sem lat/lng (ou inválidas) → 422 e nada é gravado; com localização → 201", async () => {
+    const eu0 = await colaboradorNoPortal();
+    expect((await eu0.portal.get("/api/colaborador/eu")).body.configuracao.localizacao).toBe("exigir");
+    const { colab, portal } = eu0;
+    const { actual } = await eventoDeHoje(colab.id);
+    const url = `/api/colaborador/presencas/${actual.id}/${hoje}`;
+
+    const sem = await semLocal(portal, `${url}/entrada`);
+    expect(sem.status, sem.text).toBe(422);
+    expect(sem.body.codigo).toBe("localizacao_obrigatoria");
+    expect(sem.body.message).toMatch(/localização/);
+    const metade = await semLocal(portal, `${url}/entrada`).field("lat", "-23.55");
+    expect(metade.status).toBe(422);
+    const fora = await semLocal(portal, `${url}/entrada`).field("lat", "123").field("lng", "-46.63");
+    expect(fora.status).toBe(422);
+    const lixo = await semLocal(portal, `${url}/entrada`).field("lat", "abc").field("lng", "-46.63");
+    expect(lixo.status).toBe(422);
+    expect(await ctx.db.select().from(ctx.schema.presencas).where(eq(ctx.schema.presencas.actualId, actual.id))).toHaveLength(0);
+
+    const ok = await selfie(portal, `${url}/entrada`);
+    expect(ok.status, ok.text).toBe(201);
+    expect(ok.body.entrada.comLocalizacao).toBe(true);
+    // check-out também exige
+    const saidaSem = await semLocal(portal, `${url}/saida`);
+    expect(saidaSem.status).toBe(422);
+    expect((await selfie(portal, `${url}/saida`)).status).toBe(201);
+  });
+
+  it("o representante NÃO é bloqueado no modo exigir: registra sem localização; com ela, grava", async () => {
+    const { colab } = await colaboradorComCpf();
+    const { actual } = await eventoDeHoje(colab.id);
+    const { agent } = await agenteLogado("production");
+    const url = `/api/presenca/${actual.id}/${hoje}/entrada`;
+    const r = await semLocal(agent, url);
+    expect(r.status, r.text).toBe(201);
+    expect(r.body.dias[1].entrada.por).toBe("representante");
+    const [p] = await ctx.db.select().from(ctx.schema.presencas).where(eq(ctx.schema.presencas.actualId, actual.id));
+    expect(p.checkinLat).toBeNull();
+
+    const outro = await colaboradorComCpf();
+    const ev2 = await eventoDeHoje(outro.colab.id);
+    const comLoc = await selfie(agent, `/api/presenca/${ev2.actual.id}/${hoje}/entrada`);
+    expect(comLoc.status, comLoc.text).toBe(201);
+    const [p2] = await ctx.db.select().from(ctx.schema.presencas).where(eq(ctx.schema.presencas.actualId, ev2.actual.id));
+    expect(p2.checkinLat).not.toBeNull();
+  });
+
+  it("os modos \"registrar\" e \"nao_registrar\" seguem como antes (sem localização passa) e o admin pode trocar o modo", async () => {
+    try {
+      await modo("registrar");
+      const a = await colaboradorNoPortal();
+      const ea = await eventoDeHoje(a.colab.id);
+      const r = await semLocal(a.portal, `/api/colaborador/presencas/${ea.actual.id}/${hoje}/entrada`);
+      expect(r.status, r.text).toBe(201);
+      expect(r.body.entrada.comLocalizacao).toBe(false);
+
+      await modo("nao_nada"); // valor inválido volta ao padrão (exigir)
+      const b = await colaboradorNoPortal();
+      const eb = await eventoDeHoje(b.colab.id);
+      expect((await semLocal(b.portal, `/api/colaborador/presencas/${eb.actual.id}/${hoje}/entrada`)).status).toBe(422);
+
+      await modo("nao_registrar");
+      const c = await colaboradorNoPortal();
+      const ec = await eventoDeHoje(c.colab.id);
+      const rc = await selfie(c.portal, `/api/colaborador/presencas/${ec.actual.id}/${hoje}/entrada`);
+      expect(rc.status, rc.text).toBe(201);
+      expect(rc.body.entrada.comLocalizacao).toBe(false); // nem grava o que veio
+
+      const adm = await agenteLogado("admin");
+      const troca = await mutacao(adm.agent.put("/api/presenca/configuracao")).send({ localizacao: "exigir" });
+      expect(troca.status, troca.text).toBe(200);
+      expect(troca.body.configuracao.localizacao).toBe("exigir");
+      expect((await mutacao(adm.agent.put("/api/presenca/configuracao")).send({ localizacao: "talvez" })).status).toBe(400);
+    } finally {
+      await modo("exigir");
+    }
   });
 });
 

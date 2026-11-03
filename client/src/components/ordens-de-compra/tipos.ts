@@ -71,6 +71,8 @@ export interface LinhaDaOc {
   funcao: { id: string | null; nome: string | null; centroDeCusto: string | null };
   valorAprovado: number;
   rhActionAt: string | null;
+  /** Aprovada pela conferência automática (sem divergência); ausente num servidor antigo. */
+  conferenciaAutomatica?: boolean;
   emiteNf: boolean;
   cnpjEmissor: CnpjEmissorDaLinha;
   oc: OcDaLinha | null;

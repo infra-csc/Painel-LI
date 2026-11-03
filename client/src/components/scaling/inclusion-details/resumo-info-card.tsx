@@ -18,7 +18,8 @@ import type { ScalingMutations } from "../use-scaling-mutations";
 import type { InclusionDialogState } from "./use-inclusion-dialog-state";
 import { Propriedade, Secao } from "./details-shared";
 import { PeriodoDaVaga } from "./resumo-periodo-card";
-import { MeiaDiariaDaVaga } from "./meia-diaria-da-vaga";
+import { DiasDeCarregamentoDaVaga, MeiaDiariaDaVaga } from "./meia-diaria-da-vaga";
+import { isFuncaoLocal, isPercursoFunction } from "@shared/calculation-rules";
 
 export function ResumoInfoCard({ inclusion, data, details, mutations, st }: {
   inclusion: TeamInclusion;
@@ -27,7 +28,11 @@ export function ResumoInfoCard({ inclusion, data, details, mutations, st }: {
   mutations: ScalingMutations;
   st: InclusionDialogState;
 }) {
-  const { getEventName, getFunctionName, canManageFunction, isAdminOrPurchasing } = data;
+  const { getEventName, getFunctionName, canManageFunction, isAdminOrPurchasing, collaborators } = data;
+  // Carregamento só muda a janta: freela, percurso e função local não têm alimentação.
+  const nomeDaFuncao = getFunctionName(inclusion.functionId);
+  const semAlimentacao = isPercursoFunction(nomeDaFuncao) || isFuncaoLocal(nomeDaFuncao)
+    || collaborators?.find((c) => c.id === inclusion.collaboratorId)?.type === "freela";
   const { eventLocked, requestLockReason, actionLockReason, selectedTicket, accommodation, setActiveTab } = st;
   const { pendingSwap } = details;
   const emitsNf = inclusion.emitsNf !== false;
@@ -66,7 +71,8 @@ export function ResumoInfoCard({ inclusion, data, details, mutations, st }: {
         <Propriedade rotulo="Período">
           <PeriodoDaVaga inclusion={inclusion} />
         </Propriedade>
-        {/* 1,5 diária (28/10): quem cuida da vaga marca os dias de carga/descarga — mesma trava da NF. */}
+        {/* Dias de carregamento (29/10): quem cuida da vaga marca — mesma trava da NF. O 1,5 só aparece se já marcado. */}
+        {!semAlimentacao && <DiasDeCarregamentoDaVaga inclusion={inclusion} podeMarcar={canToggleNf} mutation={mutations.setDiasCarregamento} />}
         <MeiaDiariaDaVaga inclusion={inclusion} podeMarcar={canToggleNf} mutation={mutations.setDiasMeiaExtra} />
         <Propriedade rotulo="Nota fiscal">
           {!canToggleNf ? (

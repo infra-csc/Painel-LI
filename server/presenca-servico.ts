@@ -12,6 +12,7 @@
  *    do SERVIDOR) — o mesmo caminho para o colaborador e o representante;
  *  - confirmação final (colaborador ou representante).
  */
+import { domingoDaNight } from "@shared/regras-de-29-10";
 import type { Request, Response } from "express";
 import multer from "multer";
 import { and, eq, inArray, isNull } from "drizzle-orm";
@@ -25,6 +26,7 @@ import {
   diaEmBrasilia, diaValido, diasPendentes, estadoDoDia, inclusaoDaPrestacao, lerConfiguracaoDaPresenca, periodoDaPrestacao,
   podeConfirmarPrestacao, podeRegistrarEntrada, podeRegistrarSaida, realizadoParaCalculo, recalcularValor, situacaoDoCnpjInformado,
   type CalculoDaPresenca, type RealizadoParaCalculo, type ConfiguracaoDaPresenca, type EstadoDoDia, type FonteDosDias, type QuemConfirma, type QuemRegistra,
+  pedeLocalizacao,
 } from "@shared/presenca";
 import { ehEventoLegado } from "@shared/legado-honorarios";
 import { deflationFactorsFromSettings, isPercursoFunction, type DeflationFactors } from "@shared/calculation-rules";
@@ -134,14 +136,18 @@ export async function montarPrestacoes(actuals: readonly BudgetActual[], config:
       fatores,
       nomeDaFuncao: funcaoNome,
     });
+    // Domingo da Night (29/10): a prova virou a noite de sábado — é dia pago,
+    // sem check-in próprio; não aparece para marcar nem trava o check-out final.
+    const domingo = domingoDaNight({ nomeDoEvento: evento.name, fimDoEvento: evento.endDate, fimDaEscala: inclusao?.scheduleEndDate, collaboratorType: actual.collaboratorType, nomeDaFuncao: funcaoNome });
+    const diasDePresenca = periodo.dias.filter((d) => d !== domingo);
     const pendentes = diasPendentes({
-      dias: periodo.dias,
+      dias: diasDePresenca,
       presencas: presencasDela.map((p) => ({ dia: String(p.dia).slice(0, 10), checkinEm: p.checkinEm, checkoutEm: p.checkoutEm })),
       ocorrencias: ocorrenciasDela.map((o) => ({ tipo: o.tipo, dia: o.dia ? String(o.dia).slice(0, 10) : null })),
     });
     montadas.push({
       actual, evento, colaborador: actual.collaboratorId ? colabPorId.get(actual.collaboratorId) ?? null : null,
-      funcaoNome, inclusao, realizado, dias: periodo.dias, fonteDosDias: periodo.fonte, presencaPorDia,
+      funcaoNome, inclusao, realizado, dias: diasDePresenca, fonteDosDias: periodo.fonte, presencaPorDia,
       ocorrencias: ocorrenciasDela, confirmacao: confirmacaoPorActual.get(actual.id) ?? null,
       calculo, pendentes, checkoutFinalFeito: !!actual.checkoutFinalEm, fatores,
     });
@@ -309,7 +315,7 @@ export async function registrarMarcacao(a: Marcacao): Promise<Presenca | null> {
       classe: "presenca",
     });
   }
-  const loc = config.localizacao === "registrar" ? localizacaoDoCorpo(req.body) : { lat: null, lng: null, precisaoM: null };
+  const loc = pedeLocalizacao(config.localizacao) ? localizacaoDoCorpo(req.body) : { lat: null, lng: null, precisaoM: null };
   const agora = new Date();
   const campos = tipo === "entrada"
     ? { checkinEm: agora, checkinFotoId: fotoId, checkinLat: loc.lat, checkinLng: loc.lng, checkinPrecisaoM: loc.precisaoM, checkinPor: por, checkinUserId: ator?.id ?? null }

@@ -303,6 +303,9 @@ export const teamInclusions = pgTable("team_inclusions", {
   // Night Run): datas YYYY-MM-DD, subconjunto dos dias de trabalho. O motor do
   // Planejado soma +½ diária por dia marcado (shared/meia-diaria.ts).
   diasMeiaExtra: text("dias_meia_extra").array(),
+  // Dias de carregamento (29/10): subconjunto dos dias de trabalho; o dia marcado
+  // tem janta mesmo sem logística (shared/regras-de-29-10.ts).
+  diasCarregamento: text("dias_carregamento").array(),
   dailyValue: integer("daily_value").notNull().default(0), // valor da diária em centavos
   actualDailyRates: integer("actual_daily_rates"), // quantidade real de diárias
   observations: text("observations"),

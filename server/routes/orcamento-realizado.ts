@@ -20,6 +20,7 @@ import { mesmosDiasDeDobra, motivoComDobras, normalizarDiasDobra, separarMeiaEDo
 import { baseComDobras, ehFimDeSemana } from "@shared/presenca";
 import { diariasQueFicam } from "@shared/dividir-diarias";
 import { lerConfiguracaoDoBanco, montarPrestacao } from "../presenca-servico";
+import { aplicarConferenciaAutomatica, logsDaConferenciaAutomatica } from "../conferencia-automatica-servico";
 import { lerDataDeCorteDoBanco } from "./honorarios-fluxo";
 import {
   montarLogDeAuditoria,
@@ -585,12 +586,18 @@ export function registrarOrcamentoRealizado(app: Express): void {
         ? items.filter((i) => itemIds.includes(i.id) && podeEnviarParaRevisao(i))
         : items.filter(podeEnviarParaRevisao);
       const actor = usuarioDaSessao(req);
-      const updated = await db.transaction((tx) => marcarEnviadosParaRevisao(tx, toUpdate, actorId));
+      // Conferência automática (deck de 29/10): sem divergência do Planejado, já sai aprovada.
+      const { updated, conferidas } = await db.transaction(async (tx) => {
+        const updated = await marcarEnviadosParaRevisao(tx, toUpdate, actorId);
+        return { updated, conferidas: await aplicarConferenciaAutomatica(tx, updated, actorId) };
+      });
       const anteriorPorId = new Map(toUpdate.map((i) => [i.id, i]));
       // Auditoria por ITEM (antes só um registro com o evento como entidade).
       await createAuditLogsBatch(updated.map((u) =>
         montarLogDeAuditoria('send_review', 'budget_actual', u.id, u, actorId, actor?.name || 'Sistema', anteriorPorId.get(u.id), req)));
-      res.json({ updated: updated.length });
+      // Em seguida, e não no mesmo INSERT: o histórico mostra o envio antes da aprovação.
+      if (conferidas.length > 0) await createAuditLogsBatch(logsDaConferenciaAutomatica(conferidas, updated, req));
+      res.json({ updated: updated.length, conferidasAutomaticamente: conferidas.length });
     } catch (error) {
       console.error("Error sending for review:", error);
       res.status(500).json({ message: "Erro ao enviar para revisão" });

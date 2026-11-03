@@ -14,6 +14,7 @@ import { apiErrorMessage } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import { reduzirImagem } from "./reduzir-imagem";
 import { diaComSemana } from "./presenca-utils";
+import { pedeLocalizacao } from "@shared/presenca";
 import type { RespostaDaPresenca } from "./tipos";
 import type { useAcoesDaPresenca } from "./use-presenca";
 
@@ -47,8 +48,9 @@ export function DialogoMarcar({ alvo, configuracao, marcar, onClose }: {
   useEffect(() => {
     if (!aberto) return;
     setFoto(null); setPrevia(null); setErro(null);
-    if (configuracao.localizacao !== "registrar" || typeof navigator === "undefined" || !navigator.geolocation) {
-      setLocal({ tipo: configuracao.localizacao === "registrar" ? "negado" : "nao_pede" });
+    // Representante nunca é bloqueado: mesmo no modo "exigir" a localização aqui é opcional.
+    if (!pedeLocalizacao(configuracao.localizacao) || typeof navigator === "undefined" || !navigator.geolocation) {
+      setLocal({ tipo: pedeLocalizacao(configuracao.localizacao) ? "negado" : "nao_pede" });
       return;
     }
     setLocal({ tipo: "pedindo" });
@@ -146,7 +148,7 @@ export function DialogoMarcar({ alvo, configuracao, marcar, onClose }: {
             <p className="m-0 text-2xs text-muted-foreground">A foto é reduzida no aparelho antes de enviar. Só o DP, a produção e a própria pessoa a veem.</p>
           </div>
 
-          {configuracao.localizacao === "registrar" && (
+          {pedeLocalizacao(configuracao.localizacao) && (
             <p className={cn("m-0 flex items-center gap-2 rounded-lg border px-3 py-2 text-xs",
               local.tipo === "ok" ? "border-success/25 bg-success-soft/60 text-success" : local.tipo === "negado" ? "border-warning/25 bg-warning-soft/60 text-warning" : "border-border bg-surface-muted text-slate-600")}
               aria-live="polite">

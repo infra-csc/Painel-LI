@@ -32,7 +32,7 @@ import { storage } from "../storage";
 import { budgetActual, type BudgetActual, type Collaborator, type ColaboradorAcesso } from "@shared/schema";
 import {
   BLOQUEIO_MINUTOS, OCORRENCIA_LABEL, TENTATIVAS_ANTES_DO_BLOQUEIO, diaEmBrasilia, diaValido, erroDaSenha, horaEmBrasilia,
-  podeRegistrarEntrada, podeRegistrarSaida, type ConfiguracaoDaPresenca, type EstadoDoDia, type TipoDeOcorrencia,
+  exigeLocalizacao, podeRegistrarEntrada, podeRegistrarSaida, type ConfiguracaoDaPresenca, type EstadoDoDia, type TipoDeOcorrencia,
 } from "@shared/presenca";
 import { cnpjValido, digitosDoCnpj, mascararCnpj } from "@shared/cnpj";
 import { contratoVigenteEm } from "@shared/contratos";
@@ -43,7 +43,7 @@ import { acessosDosColaboradores, colaboradoresPorCpf, consumirCodigoDeAcesso, f
 import { contratosDosColaboradores } from "../storage/contratos";
 import {
   estadosDosDias, lerConfiguracaoDoBanco, lerDataDeCorteDoBanco, montarPrestacao, montarPrestacoes, permissaoDeConfirmar,
-  prestacaoDoFluxoNovo, receberSelfie, registrarMarcacao, salvarConfirmacao, type PrestacaoMontada,
+  localizacaoDoCorpo, prestacaoDoFluxoNovo, receberSelfie, registrarMarcacao, salvarConfirmacao, type PrestacaoMontada,
 } from "../presenca-servico";
 import { createAuditLog, responderErroComStatus } from "./_compartilhado";
 import { valoresVisiveisAoColaborador, podeEnviarNotaDaOc } from "@shared/honorarios-pagamento";
@@ -436,6 +436,14 @@ export function registrarColaboradorPortal(app: Express): void {
     if (!(await receberSelfie(req, res))) return;
     const m = await minhaPrestacao(req, res, colab, config);
     if (!m) return;
+    // 29/10: no modo "exigir" o app não avança sem localização — e o servidor confere
+    // (o corpo vem do multer, já lido acima), não só a tela.
+    if (exigeLocalizacao(config.localizacao) && !localizacaoDoCorpo(req.body).lat) {
+      return res.status(422).json({
+        message: "Para registrar a presença, o app precisa da sua localização. Libere a localização do navegador do celular e tente de novo.",
+        codigo: "localizacao_obrigatoria",
+      });
+    }
     const presenca = await registrarMarcacao({ req, res, m, dia: String(req.params.dia), tipo, por: "colaborador", ator: null, config });
     if (!presenca) return;
     res.status(201).json({

@@ -5,6 +5,7 @@ import {
   Clock, Send, ChevronDown, ChevronUp, History, User, FileText
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { CONFERENCIA_AUTOMATICA } from "@shared/conferencia-automatica";
 
 export interface ActivityLog {
   id: string;
@@ -129,6 +130,7 @@ function buildNarrativeBullets(action: string, prev: Snapshot | null, next: Snap
 
   // ── Aprovação ──
   if (action === 'approve' || action === 'aprovado') {
+    if (next?.rhComment === CONFERENCIA_AUTOMATICA) return [`${CONFERENCIA_AUTOMATICA}: o realizado é igual ao planejado e a prestação segue direto para a OC.`];
     return ['Prestação aprovada pelo DP.'];
   }
 

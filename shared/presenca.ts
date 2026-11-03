@@ -795,9 +795,19 @@ export const CHAVES_DA_PRESENCA = {
 
 export type CampoDaConfiguracao = keyof typeof CHAVES_DA_PRESENCA;
 
-/** "registrar": pede o GPS; se negado, deixa fazer e marca "sem localização". "nao_registrar": não pede. */
-export const MODOS_DE_LOCALIZACAO = ["registrar", "nao_registrar"] as const;
+/**
+ * "exigir" (padrão desde 29/10): o colaborador só faz check-in/out com localização;
+ * sem permissão o app não avança. "registrar": pede o GPS; se negado, deixa fazer e
+ * marca "sem localização". "nao_registrar": não pede.
+ * O representante/produtor NUNCA é bloqueado ("sem check-in: produtor registra").
+ */
+export const MODOS_DE_LOCALIZACAO = ["exigir", "registrar", "nao_registrar"] as const;
 export type ModoDeLocalizacao = (typeof MODOS_DE_LOCALIZACAO)[number];
+
+/** O modo pede o GPS (exigindo ou não)? */
+export const pedeLocalizacao = (modo: ModoDeLocalizacao): boolean => modo !== "nao_registrar";
+/** O modo bloqueia o check-in/out do colaborador sem localização? */
+export const exigeLocalizacao = (modo: ModoDeLocalizacao): boolean => modo === "exigir";
 
 export interface ConfiguracaoDaPresenca {
   selfieObrigatoria: boolean;
@@ -825,7 +835,7 @@ export const TERMO_PADRAO = [
 
 export const CONFIGURACAO_PADRAO: ConfiguracaoDaPresenca = {
   selfieObrigatoria: true,
-  localizacao: "registrar",
+  localizacao: "exigir",
   horaExtraDivisor: 8,
   horaExtraMaxDia: 12,
   produtorAjusteMaxPct: 10,
@@ -897,7 +907,7 @@ export function validarConfiguracaoDaPresenca(
     gravar[CHAVES_DA_PRESENCA.selfieObrigatoria] = String(corpo.selfieObrigatoria);
   }
   if (corpo.localizacao !== undefined) {
-    if (!(MODOS_DE_LOCALIZACAO as readonly unknown[]).includes(corpo.localizacao)) return { erro: "Localização: use \"registrar\" ou \"nao_registrar\"." };
+    if (!(MODOS_DE_LOCALIZACAO as readonly unknown[]).includes(corpo.localizacao)) return { erro: "Localização: use \"exigir\", \"registrar\" ou \"nao_registrar\"." };
     nova.localizacao = corpo.localizacao as ModoDeLocalizacao;
     gravar[CHAVES_DA_PRESENCA.localizacao] = nova.localizacao;
   }

@@ -119,12 +119,13 @@ describe("regras de tela da presença", () => {
 
   it("configuração: texto do termo novo exige versão nova; número fora da faixa explica", () => {
     const atual = CONFIGURACAO_PADRAO;
-    const base = { selfieObrigatoria: true, localizacao: "registrar" as const, horaExtraDivisor: "8", horaExtraMaxDia: "12", produtorAjusteMaxPct: "10", retencaoDias: "365", termoVersao: atual.termoVersao, termoTexto: atual.termoTexto };
+    const base = { selfieObrigatoria: true, localizacao: "exigir" as const, horaExtraDivisor: "8", horaExtraMaxDia: "12", produtorAjusteMaxPct: "10", retencaoDias: "365", termoVersao: atual.termoVersao, termoTexto: atual.termoTexto };
     expect(diferencaDaConfiguracao(base, atual)).toEqual({ corpo: {}, erro: null });
     expect(diferencaDaConfiguracao({ ...base, termoTexto: `${atual.termoTexto} Mais uma linha.` }, atual).erro).toMatch(/versão nova/);
     expect(diferencaDaConfiguracao({ ...base, termoTexto: `${atual.termoTexto} Mais uma linha.`, termoVersao: "v2" }, atual).corpo).toMatchObject({ termoVersao: "v2" });
     expect(diferencaDaConfiguracao({ ...base, produtorAjusteMaxPct: "12,5" }, atual).corpo).toEqual({ produtorAjusteMaxPct: 12.5 });
     expect(diferencaDaConfiguracao({ ...base, retencaoDias: "10" }, atual).erro).toMatch(/Guarda das selfies/);
+    expect(diferencaDaConfiguracao({ ...base, localizacao: "registrar" }, atual).corpo).toEqual({ localizacao: "registrar" });
   });
 });
 

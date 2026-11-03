@@ -98,8 +98,9 @@ export function DialogoCheckoutFinal({ alvo, hoje, checkoutFinal, onClose }: {
         justificativa: semConfirmacao ? justificativa.trim() : null,
       },
     }, {
-      onSuccess: () => {
-        toast({ variant: "success", title: "Check-out final feito", description: `${alvo.nome} · ${reais(valor)} — enviado ao DP para a conferência.` });
+      onSuccess: (nova) => {
+        const destino = nova.realizado.conferenciaAutomatica ? "conferência automática, sem divergência do planejado: segue direto para a OC." : "enviado ao DP para a conferência.";
+        toast({ variant: "success", title: "Check-out final feito", description: `${alvo.nome} · ${reais(valor)} — ${destino}` });
         onClose();
       },
       onError: (e) => {

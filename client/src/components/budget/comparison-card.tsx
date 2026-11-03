@@ -26,6 +26,7 @@ import { memo, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { ChevronDown, ClipboardList, GitFork, Layers, MessageSquare, PencilLine, TriangleAlert, Undo2, UserX } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CONFERENCIA_AUTOMATICA, ehConferenciaAutomatica } from "@shared/conferencia-automatica";
 import { contagemDasDobras, resumoDasDobras } from "@shared/dobra-de-turno";
 import { Checkbox } from "@/components/ui/checkbox";
 import { BudgetChat, BudgetNotesBadge, BudgetNotesSnippet } from "@/components/budget-chat";
@@ -262,7 +263,7 @@ function ComparisonCardBody(props: ComparisonCardProps & { plannedTotal: number;
             <Nota icone={MessageSquare} titulo="Justificativa do responsável"><p className="m-0">{a.changeReason}</p></Nota>
           )}
           {a.rhComment && (
-            <Nota icone={MessageSquare} titulo="Comentário do DP" tom={tomDoItem}><p className="m-0">{a.rhComment}</p></Nota>
+            <Nota icone={MessageSquare} titulo={ehConferenciaAutomatica(a) ? "Conferência DP" : "Comentário do DP"} tom={tomDoItem}><p className="m-0">{a.rhComment}</p></Nota>
           )}
           {rhComment && !a.rhComment && (
             <Nota icone={MessageSquare} titulo="Comentário do DP (geral)" tom="alerta"><p className="m-0">{rhComment}</p></Nota>
@@ -411,6 +412,9 @@ export const ComparisonCard = memo(function ComparisonCard(props: ComparisonCard
             <p className={cn("m-0 mt-1 text-2xs italic truncate", itemRhStatus === "rejeitado" ? "text-danger" : "text-warning")}>
               <span className="not-italic font-medium">DP: </span>“{a.rhComment}”
             </p>
+          )}
+          {ehConferenciaAutomatica(a) && (
+            <p className="m-0 mt-1 text-2xs text-success truncate" data-testid="cmp-conferencia-automatica">{CONFERENCIA_AUTOMATICA}</p>
           )}
           {temNotas && <div className="min-w-0 [&>div]:mt-1"><BudgetNotesSnippet notes={eventNotes} entityId={a.id} /></div>}
         </div>

@@ -877,6 +877,7 @@ const PASSOS: Passo[] = [
   { descricao: "presencas.foto_expurgada_em (selfies apagadas após a guarda)", sql: `ALTER TABLE presencas ADD COLUMN IF NOT EXISTS foto_expurgada_em timestamptz` },
   // 28/10 — ajustes pedidos pelo DP: 1,5 diária num dia (vaga, Planejado e
   // Realizado) e o VR do colaborador da casa (scripts/migrations/2026-10-28-ajustes-dp.sql).
+  { descricao: "team_inclusions.dias_carregamento (dias de carregamento: têm janta)", sql: `ALTER TABLE team_inclusions ADD COLUMN IF NOT EXISTS dias_carregamento text[]` },
   { descricao: "team_inclusions.dias_meia_extra (dias com 1,5 diária)", sql: `ALTER TABLE team_inclusions ADD COLUMN IF NOT EXISTS dias_meia_extra text[]` },
   { descricao: "budget_planned.dias_meia_extra (dias com 1,5 diária)", sql: `ALTER TABLE budget_planned ADD COLUMN IF NOT EXISTS dias_meia_extra text[]` },
   { descricao: "budget_actual.dias_meia_extra (dias com 1,5 diária)", sql: `ALTER TABLE budget_actual ADD COLUMN IF NOT EXISTS dias_meia_extra text[]` },

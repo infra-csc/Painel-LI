@@ -28,6 +28,7 @@ import {
 } from "@shared/honorarios-pagamento";
 import { SITUACAO_DO_CNPJ_LABEL, cpfDoCadastro, situacaoDoCnpjInformado, type SituacaoDoCnpjInformado } from "@shared/presenca";
 import { nfIsentaPorEscalacao } from "@shared/prestacao-rules";
+import { ehConferenciaAutomatica } from "@shared/conferencia-automatica";
 import { cnpjValido, digitosDoCnpj, mascararCnpj } from "@shared/cnpj";
 import { hojeISO } from "@shared/hoje-sp";
 import { pagamentoMascarado } from "@shared/pagamento";
@@ -217,6 +218,8 @@ export interface LinhaDaOc {
   funcao: { id: string | null; nome: string | null; centroDeCusto: string | null };
   valorAprovado: number;
   rhActionAt: string | null;
+  /** Aprovada pela conferência automática (sem divergência), não por uma pessoa do DP. */
+  conferenciaAutomatica: boolean;
   emiteNf: boolean;
   cnpjEmissor: { cnpj: string | null; razaoSocial: string | null; origem: string | null; situacao: SituacaoDoCnpjInformado; rotulo: string; contratoId: string | null };
   oc: {
@@ -261,6 +264,7 @@ export async function linhasDaOc(montadas: readonly PrestacaoDoPagamentoMontada[
       funcao: m.funcao,
       valorAprovado: a.totalValue,
       rhActionAt: iso(a.rhActionAt),
+      conferenciaAutomatica: ehConferenciaAutomatica(a),
       emiteNf: m.emiteNf,
       cnpjEmissor: {
         cnpj: m.cnpj.digitos ? mascararCnpj(m.cnpj.digitos) : null, razaoSocial: m.cnpj.razaoSocial, origem: m.cnpj.origem,

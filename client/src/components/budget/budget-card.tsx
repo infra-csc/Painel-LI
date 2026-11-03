@@ -190,6 +190,11 @@ function BudgetCardBody({ budget, isNotAttended }: { budget: CalculatedBudget; i
             valor={budget.meiaDiariaSemEfeito ? "valor fechado: não soma" : `+${formatCurrency(budget.subtotalMeiasDiarias)}`}
           />
         )}
+        {budget.domingoDaNight && (
+          <span className="text-info" data-testid="planejado-domingo-night" title="Night que termina no sábado: o domingo entra automaticamente para a casa. Para tirar, desmarque o dia no Realizado.">
+            Domingo {budget.domingoDaNight.slice(8, 10)}/{budget.domingoDaNight.slice(5, 7)} incluído (Night)
+          </span>
+        )}
         {/* Memória da deflação por período (>4 dias) */}
         {budget.deflationSegments.length > 1 && (
           <span className="tabular-nums text-primary" title="Deflação por período: 100% até o 4º dia; fatores reduzidos nas faixas seguintes">

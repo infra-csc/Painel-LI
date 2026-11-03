@@ -38,6 +38,7 @@ import {
   isTransporteTerrestre,
   type AtendimentoTipo,
 } from "./atendimento";
+import { domingoDaNight, valemRegrasDe2910 } from "./regras-de-29-10";
 import { calcAlimentacao, dataDeChegadaDaIda, refeicaoCents, refeicaoCentsDia, refeicaoPerfil, isCenotecnicaFunction, vrValido } from "./alimentacao";
 import { cenoEmpreitaTotalCents, isCenoFreelaTipo, usaEmpreitaCenotecnica, vagaComEmpreita, type CenoFreelaTipo, type CenoEmpreitaValor } from "./cenotecnica-empreita";
 import { listarDiasDeTrabalho } from "./dias-de-trabalho";
@@ -79,6 +80,8 @@ export interface VagaParaPlanejado {
   flightReturnDate?: string | null;
   /** Dias com 1,5 diária marcados na Escalação (28/10, shared/meia-diaria.ts). */
   diasMeiaExtra?: (string | null | undefined)[] | null;
+  /** Dias de carregamento (29/10): têm janta mesmo sem logística. */
+  diasCarregamento?: (string | null | undefined)[] | null;
 }
 
 /** Passagem registrada da vaga — os horários REAIS mandam sobre os sugeridos. */
@@ -129,6 +132,9 @@ export interface EntradaDoPlanejado {
   /** system_settings já convertidos (chave → número). */
   settings: ConfiguracoesDoPlanejado;
   eventLocation?: string | null;
+  /** Nome e fim do evento (29/10): ligam as regras de janta e o domingo da Night. */
+  eventName?: string | null;
+  eventEndDate?: string | null;
   ticket?: PassagemParaPlanejado | null;
   override?: OverrideDoPlanejado | null;
   /**
@@ -209,6 +215,12 @@ export interface ResultadoDoPlanejado {
   meiaDiariaSemEfeito: boolean;
   /** Empreita da tabela: mobilidade 0 pela regra (28/10) — `EMPREITA_SEM_MOBILIDADE_RAZAO`. */
   empreitaSemMobilidade: boolean;
+  /** 29/10: sem logística não entra janta (a tela explica a regra certa). */
+  semJantaSemLogistica: boolean;
+  /** Domingo que a Night acrescentou à vaga (29/10), ou null. */
+  domingoDaNight: string | null;
+  /** Dias a gravar no Realizado quando o domingo entrou (a escala não o tem); senão null. */
+  diasDaVagaComDomingo: string[] | null;
   /** VR que entrou no almoço de dia útil (casa com VR cadastrado), senão null. */
   vrDiarioCents: number | null;
 }
@@ -266,7 +278,12 @@ export function calcularPlanejadoDaVaga(e: EntradaDoPlanejado): ResultadoDoPlane
   const ticket = e.ticket ?? null;
 
   const periodo = contarDiasDoPeriodo(inclusion.scheduleStartDate, inclusion.scheduleEndDate, inclusion.dailyRates);
-  const { weekdays, weekends, qtdDiarias, diasPeriodo } = periodo;
+  // Night que termina no sábado (29/10): o domingo entra como dia da vaga.
+  const domingo = domingoDaNight({ nomeDoEvento: e.eventName, fimDoEvento: e.eventEndDate, fimDaEscala: inclusion.scheduleEndDate, collaboratorType: collabType, nomeDaFuncao: fnName });
+  const { weekdays } = periodo;
+  const weekends = periodo.weekends + (domingo ? 1 : 0);
+  const qtdDiarias = periodo.qtdDiarias + (domingo ? 1 : 0);
+  const diasPeriodo = domingo ? [...periodo.diasPeriodo, domingo] : periodo.diasPeriodo;
 
   const collabIsCasa = collabType === "casa" || collabType === "local";
 
@@ -439,6 +456,7 @@ export function calcularPlanejadoDaVaga(e: EntradaDoPlanejado): ResultadoDoPlane
   // (ex.: madrugada de segunda) não corta as refeições do último dia.
   const dataPartidaIda = ticket?.actualDepartureDate || inclusion.flightDepartureDate || null;
   const dataPartidaVolta = ticket?.actualReturnDate || inclusion.flightReturnDate || null;
+  const semJantaSemLogistica = valemRegrasDe2910(e.eventEndDate);
   const alim = calcAlimentacao({
     workDays: semMobilidade ? [] : diasPeriodo, voa,
     chegadaIda: vooChegadaIda, partidaVolta: vooPartidaVolta, chegadaVolta: vooChegadaVolta,
@@ -446,6 +464,8 @@ export function calcularPlanejadoDaVaga(e: EntradaDoPlanejado): ResultadoDoPlane
     dataPartidaVolta,
     almocoCents, jantarCents,
     terrestre,
+    semJantaSemLogistica,
+    diasCarregamento: inclusion.diasCarregamento,
   });
   let calcAlmSem = 0, calcJanSem = 0, calcAlmFds = 0, calcJanFds = 0;
   for (const d of alim.dias) {
@@ -454,8 +474,8 @@ export function calcularPlanejadoDaVaga(e: EntradaDoPlanejado): ResultadoDoPlane
     if (d.jantar) { if (fds) calcJanFds += refFds.jantarCents; else calcJanSem += refUtil.jantarCents; }
   }
   if (!semMobilidade && diasPeriodo.length === 0 && (weekdays + weekends) > 0) {
-    calcAlmSem = weekdays * refUtil.almocoCents; calcJanSem = weekdays * refUtil.jantarCents;
-    calcAlmFds = weekends * refFds.almocoCents; calcJanFds = weekends * refFds.jantarCents;
+    calcAlmSem = weekdays * refUtil.almocoCents; calcJanSem = semJantaSemLogistica && !voa ? 0 : weekdays * refUtil.jantarCents;
+    calcAlmFds = weekends * refFds.almocoCents; calcJanFds = semJantaSemLogistica && !voa ? 0 : weekends * refFds.jantarCents;
   }
   if (funcaoLocal || empreita) { calcAlmSem = 0; calcJanSem = 0; calcAlmFds = 0; calcJanFds = 0; }
   const alimEstimada = voa && !semMobilidade && (fonteVoo !== "passagem" || alim.estimado);
@@ -496,6 +516,9 @@ export function calcularPlanejadoDaVaga(e: EntradaDoPlanejado): ResultadoDoPlane
     meiaDiariaSemEfeito,
     empreitaSemMobilidade,
     vrDiarioCents,
+    semJantaSemLogistica,
+    domingoDaNight: domingo,
+    diasDaVagaComDomingo: domingo ? (periodo.diasPeriodo.length ? [...periodo.diasPeriodo, domingo] : null) : null,
   };
 }
 

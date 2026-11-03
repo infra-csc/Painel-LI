@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CONFIGURACAO_PADRAO, ajusteEmPct, camposDoRealizadoNoCheckoutFinal, cpfDoCadastro, cpfMascarado, dentroDoLimite, diaEmBrasilia,
   diasDaPrestacao, diasPendentes, erroDaSenha, estadoDoDia, faixaDoAjuste, horaEmBrasilia, inclusaoDaPrestacao, instanteEmBrasilia,
-  lerConfiguracaoDaPresenca, periodoDaPrestacao, podeConfirmarPrestacao, podeRegistrarEntrada, podeRegistrarSaida, recalcularValor,
+  exigeLocalizacao, lerConfiguracaoDaPresenca, MODOS_DE_LOCALIZACAO, pedeLocalizacao, periodoDaPrestacao, podeConfirmarPrestacao, podeRegistrarEntrada, podeRegistrarSaida, recalcularValor,
   situacaoDoCnpjInformado, validarConfiguracaoDaPresenca, type RealizadoParaCalculo,
   baseDoCheckoutFinal, baseComDobras, erroDaOcorrencia, realizadoParaCalculo,
 } from "./presenca";
@@ -209,6 +209,28 @@ describe("configurações (padrão provisório)", () => {
     expect(c.horaExtraDivisor).toBe(8);
     expect(c.produtorAjusteMaxPct).toBe(15);
     expect(c.selfieObrigatoria).toBe(false);
+  });
+  it("localização: o padrão é exigir; os três modos valem, valor desconhecido volta ao padrão", () => {
+    expect(CONFIGURACAO_PADRAO.localizacao).toBe("exigir");
+    expect([...MODOS_DE_LOCALIZACAO]).toEqual(["exigir", "registrar", "nao_registrar"]);
+    for (const modo of MODOS_DE_LOCALIZACAO) {
+      expect(lerConfiguracaoDaPresenca([{ key: "presenca_localizacao", value: modo }]).localizacao).toBe(modo);
+    }
+    expect(lerConfiguracaoDaPresenca([{ key: "presenca_localizacao", value: "talvez" }]).localizacao).toBe("exigir");
+    expect(pedeLocalizacao("exigir")).toBe(true);
+    expect(pedeLocalizacao("registrar")).toBe(true);
+    expect(pedeLocalizacao("nao_registrar")).toBe(false);
+    expect(exigeLocalizacao("exigir")).toBe(true);
+    expect(exigeLocalizacao("registrar")).toBe(false);
+    expect(exigeLocalizacao("nao_registrar")).toBe(false);
+  });
+  it("validação da localização: aceita os três modos e recusa o resto", () => {
+    for (const modo of MODOS_DE_LOCALIZACAO) {
+      const r = validarConfiguracaoDaPresenca({ localizacao: modo }, CONFIGURACAO_PADRAO);
+      expect(r).not.toHaveProperty("erro");
+      if (!("erro" in r)) expect(r.gravar).toEqual({ presenca_localizacao: modo });
+    }
+    expect(validarConfiguracaoDaPresenca({ localizacao: "talvez" }, CONFIGURACAO_PADRAO)).toHaveProperty("erro");
   });
   it("o termo padrão é rascunho e diz isso", () => {
     expect(CONFIGURACAO_PADRAO.termoTexto.startsWith("RASCUNHO")).toBe(true);

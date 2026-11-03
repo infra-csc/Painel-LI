@@ -28,6 +28,7 @@ import { isNfEligible, nfIsentaPorEscalacao, type EscalacaoLike } from "./presta
 import { contarNaTrilha, posicaoNaTrilha, type ContagemDaTrilha, type PosicaoNaTrilha } from "./trilha-honorarios";
 import { DATA_DE_CORTE_PADRAO, ehEventoLegado, eventoNoRecorte, type RecorteDoLegado } from "./legado-honorarios";
 import { inclusaoDaPrestacao, periodoDaPrestacao } from "./presenca";
+import { CONFERENCIA_AUTOMATICA, ehConferenciaAutomatica } from "./conferencia-automatica";
 import { contarPrazos, prazoDaPrestacao, type ContagemDosPrazos, type PrazoDaPrestacao, type PrazosDosHonorarios } from "./prazos-honorarios";
 
 // ── Tipos de entrada (o mínimo que o cruzamento lê de cada tabela) ──────────
@@ -255,7 +256,7 @@ export interface LinhaDoControleRh {
   emiteNf: boolean;
   /** Realizado já libera a NF (isNfEligible). */
   nfElegivel: boolean;
-  /** Nome de quem decidiu no RH (actual.rhActionBy), se houver. */
+  /** Nome de quem decidiu no RH (actual.rhActionBy), se houver; aprovação sem pessoa: a conferência automática. */
   rhActionByName: string | null;
   /** Ações pendentes do DP nesta linha (o nome do campo é do contrato antigo). */
   rhPrecisaAgir: boolean;
@@ -525,7 +526,7 @@ export function montarControleRh(entrada: EntradaDoControleRh, filtro?: FiltroDe
       invoice,
       emiteNf: emite,
       nfElegivel: base.actual ? isNfEligible(base.actual) : false,
-      rhActionByName: nomeUsuario(base.actual?.rhActionBy),
+      rhActionByName: ehConferenciaAutomatica(base.actual) ? CONFERENCIA_AUTOMATICA : nomeUsuario(base.actual?.rhActionBy),
       legado,
       conclusaoForaDoFluxo,
       prazo,

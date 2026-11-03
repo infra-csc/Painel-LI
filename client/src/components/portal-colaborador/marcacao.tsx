@@ -8,12 +8,18 @@
  * Passos: botão → câmera frontal do celular (`capture="user"`) → foto reduzida
  * no navegador → prévia (enquanto isso, o GPS) → enviar → hora do servidor.
  * Falhou a rede? A foto continua guardada e "Tentar de novo" reenvia a mesma.
+ *
+ * Localização (29/10, decisão do dono): no modo "exigir" — o padrão — sem
+ * localização o app NÃO avança: o envio fica bloqueado com a explicação do
+ * motivo (negada / tempo / GPS desligado) e "Tentar de novo" pede de novo.
+ * Nos modos "registrar" e "nao_registrar" o comportamento antigo segue.
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useQueryClient } from "@tanstack/react-query";
 import { Camera, CheckCircle2, ImageOff, Loader2, MapPin, MapPinOff, RefreshCw, Send, WifiOff, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { exigeLocalizacao, pedeLocalizacao } from "@shared/presenca";
 import { isApiError } from "@/lib/queryClient";
 import { CHAVE_EU, CHAVE_PRESTACOES, codigoDoErro, ehErroDeRede, enviarMarcacao, mensagemDoErro } from "./api";
 import { obterLocalizacao, prepararFoto, type ResultadoDaLocalizacao } from "./captura";
@@ -35,7 +41,24 @@ type Etapa =
   | { nome: "sucesso"; hora: string }
   | { nome: "erro"; texto: string; rede: boolean; reenviar: boolean; novaFoto: boolean };
 
-type EstadoDaLocalizacao = { nome: "desligada" | "buscando" | "pronta" | "sem" };
+type MotivoSemLocalizacao = Extract<ResultadoDaLocalizacao, { ok: false }>["motivo"];
+type EstadoDaLocalizacao =
+  | { nome: "desligada" | "buscando" | "pronta" }
+  | { nome: "sem"; motivo: MotivoSemLocalizacao };
+
+/** O que dizer (e o que fazer) quando a localização é obrigatória e não veio. */
+export function textoDaLocalizacaoObrigatoria(motivo: MotivoSemLocalizacao): string {
+  switch (motivo) {
+    case "negada":
+      return "A localização está bloqueada para este site. Nas configurações do navegador do celular, permita a localização para este site e toque em “Tentar de novo”.";
+    case "tempo":
+      return "Não deu tempo de pegar a localização. Confira se o GPS do celular está ligado, vá para um lugar com sinal melhor e toque em “Tentar de novo”.";
+    case "sem_suporte":
+      return "Este navegador não informa a localização. Abra o app no Chrome ou no Safari do celular e tente de novo.";
+    default:
+      return "O celular não conseguiu achar a localização. Ligue a localização (GPS) do celular, permita para este site nas configurações do navegador e toque em “Tentar de novo”.";
+  }
+}
 
 interface ContextoDaMarcacao {
   /** Abre a câmera (chame DENTRO do clique: o navegador só abre a câmera com gesto do usuário). */
@@ -64,7 +87,9 @@ export function ProvedorDeMarcacao({ eu, children }: { eu: EuDoPortal; children:
   const [previa, setPrevia] = useState<string | null>(null);
   const [local, setLocal] = useState<EstadoDaLocalizacao>({ nome: "desligada" });
   const pedidoDeLocal = useRef<Promise<ResultadoDaLocalizacao> | null>(null);
-  const registrarLocal = eu.configuracao.localizacao === "registrar";
+  const modoDeLocal = eu.configuracao.localizacao;
+  const pedirLocal = pedeLocalizacao(modoDeLocal);
+  const exigirLocal = exigeLocalizacao(modoDeLocal);
 
   // URL da prévia: criada a cada foto nova e liberada depois.
   useEffect(() => {
@@ -75,14 +100,24 @@ export function ProvedorDeMarcacao({ eu, children }: { eu: EuDoPortal; children:
   }, [foto]);
 
   const pedirLocalizacao = useCallback(() => {
-    if (!registrarLocal) { setLocal({ nome: "desligada" }); pedidoDeLocal.current = null; return; }
+    if (!pedirLocal) { setLocal({ nome: "desligada" }); pedidoDeLocal.current = null; return; }
     // Já tem uma localização boa desta abertura: não pergunta de novo.
     if (pedidoDeLocal.current) return;
     setLocal({ nome: "buscando" });
     const pedido = obterLocalizacao();
     pedidoDeLocal.current = pedido;
-    void pedido.then((r) => setLocal({ nome: r.ok ? "pronta" : "sem" }));
-  }, [registrarLocal]);
+    void pedido.then((r) => {
+      if (pedidoDeLocal.current !== pedido) return; // pedido antigo: já veio outro (ou fechou)
+      if (!r.ok) pedidoDeLocal.current = null; // falhou: a próxima foto / "Tentar de novo" pede de novo
+      setLocal(r.ok ? { nome: "pronta" } : { nome: "sem", motivo: r.motivo });
+    });
+  }, [pedirLocal]);
+
+  /** "Tentar de novo" da localização: pede outra vez (a foto continua guardada). */
+  const tentarLocalizacaoDeNovo = useCallback(() => {
+    pedidoDeLocal.current = null;
+    pedirLocalizacao();
+  }, [pedirLocalizacao]);
 
   const abrirCamera = useCallback((novo: AlvoDaMarcacao) => {
     alvoPendente.current = novo;
@@ -124,6 +159,12 @@ export function ProvedorDeMarcacao({ eu, children }: { eu: EuDoPortal; children:
     if (!alvo) return;
     setEtapa({ nome: "enviando" });
     const r = pedidoDeLocal.current ? await pedidoDeLocal.current : null;
+    // Exigida e sem ela: não envia nada — volta para a prévia com o aviso e o botão de tentar de novo.
+    if (exigirLocal && !(r && r.ok)) {
+      setLocal({ nome: "sem", motivo: r && !r.ok ? r.motivo : "indisponivel" });
+      setEtapa({ nome: "previa" });
+      return;
+    }
     const localizacao = r && r.ok ? { lat: r.lat, lng: r.lng, precisao: r.precisao } : null;
     try {
       const resposta = await enviarMarcacao({ actualId: alvo.actualId, dia: alvo.dia, tipo: alvo.tipo, foto, localizacao });
@@ -133,6 +174,12 @@ export function ProvedorDeMarcacao({ eu, children }: { eu: EuDoPortal; children:
     } catch (falha) {
       const rede = ehErroDeRede(falha);
       const status = isApiError(falha) ? falha.status : 0;
+      if (codigoDoErro(falha) === "localizacao_obrigatoria") {
+        // O servidor recusou por falta de localização (a tela já devia ter bloqueado): mesmo bloqueio.
+        setLocal({ nome: "sem", motivo: "negada" });
+        setEtapa({ nome: "previa" });
+        return;
+      }
       if (codigoDoErro(falha) === "termo_pendente") void queryClient.invalidateQueries({ queryKey: CHAVE_EU });
       if (status === 409) void queryClient.invalidateQueries({ queryKey: CHAVE_PRESTACOES });
       setEtapa({
@@ -179,6 +226,8 @@ export function ProvedorDeMarcacao({ eu, children }: { eu: EuDoPortal; children:
         previa={previa}
         temFoto={!!foto}
         local={local}
+        exigirLocal={exigirLocal}
+        aoTentarLocal={tentarLocalizacaoDeNovo}
         aoEnviar={() => void enviar()}
         aoTirarOutra={() => alvo && abrirCamera(alvo)}
       />
@@ -186,8 +235,9 @@ export function ProvedorDeMarcacao({ eu, children }: { eu: EuDoPortal; children:
   );
 }
 
-function LinhaDaLocalizacao({ local }: { local: EstadoDaLocalizacao }) {
+function LinhaDaLocalizacao({ local, exigirLocal }: { local: EstadoDaLocalizacao; exigirLocal: boolean }) {
   if (local.nome === "desligada") return null;
+  if (exigirLocal && local.nome === "sem") return null; // o bloqueio abaixo explica
   if (local.nome === "buscando") {
     return (
       <p className="m-0 flex items-center gap-2 text-sm text-muted-foreground">
@@ -210,10 +260,13 @@ function LinhaDaLocalizacao({ local }: { local: EstadoDaLocalizacao }) {
   );
 }
 
-function DialogoDaMarcacao({ aberto, aoFechar, travado, alvo, etapa, previa, temFoto, local, aoEnviar, aoTirarOutra }: {
+function DialogoDaMarcacao({ aberto, aoFechar, travado, alvo, etapa, previa, temFoto, local, exigirLocal, aoTentarLocal, aoEnviar, aoTirarOutra }: {
   aberto: boolean; aoFechar: () => void; travado: boolean; alvo: AlvoDaMarcacao | null; etapa: Etapa;
-  previa: string | null; temFoto: boolean; local: EstadoDaLocalizacao; aoEnviar: () => void; aoTirarOutra: () => void;
+  previa: string | null; temFoto: boolean; local: EstadoDaLocalizacao; exigirLocal: boolean;
+  aoTentarLocal: () => void; aoEnviar: () => void; aoTirarOutra: () => void;
 }) {
+  // Localização exigida e não veio: nada de enviar — só tentar de novo.
+  const semLocalObrigatoria = exigirLocal && local.nome === "sem" && etapa.nome === "previa";
   const rotulo = alvo ? ROTULO_DA_MARCACAO[alvo.tipo] : ROTULO_DA_MARCACAO.entrada;
   const quando = alvo ? `${diaDaSemanaCurto(alvo.dia)}, ${dataCurta(alvo.dia)}` : "";
   const titulo = etapa.nome === "sucesso" ? rotulo.feito
@@ -261,7 +314,7 @@ function DialogoDaMarcacao({ aberto, aoFechar, travado, alvo, etapa, previa, tem
                 <p className="m-0 mt-3 text-[15px] text-muted-foreground">
                   {alvo?.tipo === "saida" ? "Obrigado pelo dia de trabalho!" : "Bom trabalho! Na saída, faça o check-out."}
                 </p>
-                {local.nome === "sem" && (
+                {local.nome === "sem" && !exigirLocal && (
                   <p className="m-0 mt-4 flex items-center gap-2 text-sm text-muted-foreground">
                     <MapPinOff className="h-4 w-4" aria-hidden="true" /> Sem localização — tudo bem, o produtor confere.
                   </p>
@@ -288,7 +341,12 @@ function DialogoDaMarcacao({ aberto, aoFechar, travado, alvo, etapa, previa, tem
                     </div>
                   )}
                 </div>
-                <div className="flex justify-center"><LinhaDaLocalizacao local={local} /></div>
+                <div className="flex justify-center"><LinhaDaLocalizacao local={local} exigirLocal={exigirLocal} /></div>
+                {semLocalObrigatoria && local.nome === "sem" && (
+                  <Aviso role="alert" tom="atencao" icone={MapPinOff} titulo="Precisamos da sua localização" id="portal-sem-localizacao">
+                    {textoDaLocalizacaoObrigatoria(local.motivo)}
+                  </Aviso>
+                )}
                 {etapa.nome === "erro" && (
                   <Aviso role="alert" tom={etapa.rede ? "atencao" : "erro"} icone={etapa.rede ? WifiOff : undefined} titulo={etapa.rede ? "Não conseguimos falar com o servidor" : undefined}>
                     {etapa.texto}
@@ -312,6 +370,15 @@ function DialogoDaMarcacao({ aberto, aoFechar, travado, alvo, etapa, previa, tem
               ) : (
                 <BotaoPrincipal type="button" onClick={aoFechar}>Fechar</BotaoPrincipal>
               )
+            ) : semLocalObrigatoria ? (
+              <>
+                <BotaoPrincipal type="button" onClick={aoTentarLocal} icone={RefreshCw}>Tentar de novo</BotaoPrincipal>
+                {temFoto && (
+                  <BotaoTexto onClick={aoTirarOutra} className="w-full text-muted-foreground hover:text-foreground">
+                    <Camera className="h-4 w-4" aria-hidden="true" /> Tirar outra foto
+                  </BotaoTexto>
+                )}
+              </>
             ) : (
               <>
                 <BotaoPrincipal
