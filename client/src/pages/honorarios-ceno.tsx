@@ -365,6 +365,21 @@ export default function HonorariosCenoPage() {
     pelaLiberacao ? pagos : undefined,
   );
 
+  // O evento inteiro, não só o que resta na lista: liberar uma linha não faz o "Aprovado" do evento cair (03/11).
+  const numerosDoEvento = (g: HonorarioDoFinanceiro[]) => {
+    const doGrupo = somar(noPeriodo.filter((h) => h.eventId === g[0].eventId));
+    return (
+      <>
+        <Numero rotulo="Aprovado" valor={brl(doGrupo.aprovado)} />
+        <Numero rotulo="Liberado" valor={brl(doGrupo.liberado)} />
+        <Numero rotulo="A liberar" valor={brl(doGrupo.aLiberar)} tom="warning" />
+      </>
+    );
+  };
+  const faltamNoEvento = liberando
+    ? todas.filter((h) => h.eventId === liberando.eventId && h.id !== liberando.id && h.falta > 0 && (h.status === "aprovado" || h.status === "aprovado_ajuste")).length
+    : 0;
+
   const barra = (
     <PageHeader
       variant="bar"
@@ -399,6 +414,9 @@ export default function HonorariosCenoPage() {
         <div className={cn(MOLDURA, "space-y-2 p-4")}>{[0, 1, 2, 3].map((i) => <div key={i} className="val-osso h-11 w-full" />)}</div>
       </div>
     );
+  } else if (acesso.isError && !acesso.data) {
+    // A falha NÃO é "sem acesso" (03/11): o cadeado aparecia até para o administrador, sem como tentar de novo.
+    conteudo = <EstadoDaValidacao tom="erro" icone={<CloudOff aria-hidden="true" />} titulo="Não foi possível conferir o seu acesso" texto={apiErrorMessage(acesso.error, "Verifique sua conexão e tente novamente.")} acao={<BotaoTentarDeNovo onClick={() => acesso.refetch()} tentando={acesso.isFetching} />} testId="hon-fin-acesso-erro" />;
   } else if (soQuemLanca) {
     conteudo = (
       <AprovadosDeTodosOsEventos visao="quem-lanca" podeInformarOc={false}
@@ -486,7 +504,7 @@ export default function HonorariosCenoPage() {
               : comPeriodo && noPeriodo.length === 0 ? <EstadoDaValidacao icone={<SearchX aria-hidden="true" />} titulo="Nenhum evento neste período" texto={`Nenhum honorário de evento que começa em ${periodoTexto}.`} acao={limparFiltros} testId="hon-fin-periodo-vazio" />
               : <EstadoDaValidacao icone={<CheckCircle2 aria-hidden="true" />} titulo="Nada a liberar" texto={t.aguardando > 0 ? `Tudo o que foi aprovado já tem verba. Há ${brl(t.aguardando)} aguardando o aprovador da escala.` : "Tudo o que foi aprovado já tem verba liberada."} testId="hon-fin-nada-a-liberar" />
           ) : (
-            <PorEvento linhas={aLiberar} render={(g) => !largo ? (
+            <PorEvento linhas={aLiberar} numeros={numerosDoEvento} render={(g) => !largo ? (
               <ul className="grid gap-2.5 md:grid-cols-2">{g.map((h) => <CartaoALiberar key={h.id} h={h} onLiberar={() => setLiberando(h)} onHistorico={() => setHistoricoId(h.id)} />)}</ul>
             ) : (
               <div className="apr-tabela xl:rounded-xl xl:border xl:border-border xl:bg-card xl:shadow-[0_1px_2px_hsl(222_47%_11%/0.04)]">
@@ -541,7 +559,7 @@ export default function HonorariosCenoPage() {
     <PageContainer fluid className="pb-16">
       {barra}
       <div className="mx-auto w-full max-w-[1560px] space-y-5">{conteudo}</div>
-      <LiberacaoDialog h={liberando} onClose={() => setLiberando(null)} />
+      <LiberacaoDialog h={liberando} onClose={() => setLiberando(null)} faltamNoEvento={faltamNoEvento} />
       <EstornoDialog alvo={estornando} onClose={() => setEstornando(null)} />
       <InformarOcDialog alvo={alvoDaOc} onClose={() => setAlvoDaOc(null)} />
       <HistoricoSheet id={historicoId} aberto={!!historicoId} onOpenChange={(o) => { if (!o) setHistoricoId(null); }} visao="financeiro"

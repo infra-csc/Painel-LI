@@ -12,7 +12,7 @@
  * decisões são as de sempre (aprovacao-painel.tsx); nada aqui mexe na escala.
  */
 import { useMemo } from "react";
-import { CalendarX, CheckCircle2, Hourglass, Lock } from "lucide-react";
+import { CalendarX, CheckCircle2, CloudOff, Hourglass, Lock } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Event } from "@shared/schema";
 import { ehAprovado } from "@shared/honorarios-ceno";
@@ -21,8 +21,8 @@ import { PageHeader } from "@/components/common/page-header";
 import { usePageTitle } from "@/components/common/use-page-title";
 import { EventSearchSelect } from "@/components/event-select";
 import { campo, useUrlState } from "@/lib/use-url-state";
-import { cn } from "@/lib/utils";
-import { EstadoDaValidacao } from "@/components/scaling-validation/validation-page/estados";
+import { apiErrorMessage, cn } from "@/lib/utils";
+import { BotaoTentarDeNovo, EstadoDaValidacao } from "@/components/scaling-validation/validation-page/estados";
 import { MOLDURA } from "@/components/scaling-approval/tokens";
 import { useAcessoHonorarios, useFilaDeAprovacao, type Honorario } from "@/components/honorarios-ceno/api";
 import { AprovacaoPainel } from "@/components/honorarios-ceno/aprovacao-painel";
@@ -61,7 +61,7 @@ export default function AprovacaoDeHonorariosPage() {
   const eventoEscolhido = eventos.find((e) => e.id === url.evento);
   // 28/10 (dono): `?evento=` de um evento que saiu das duas filas (link antigo,
   // sininho) escondia tudo sem aviso — agora a tela diz e oferece "Ver todos".
-  const eventoForaDaFila = !!url.evento && !eventoEscolhido && !pend.isLoading && !dec.isLoading;
+  const eventoForaDaFila = !!url.evento && !eventoEscolhido && !pend.isLoading && !dec.isLoading && !pend.isError && !dec.isError;
   const doEvento = (l: Honorario[] | undefined) => (l ?? []).filter((h) => !url.evento || h.eventId === url.evento);
   const pendentes = doEvento(pend.data);
   const decididos = doEvento(dec.data);
@@ -69,6 +69,9 @@ export default function AprovacaoDeHonorariosPage() {
   const aprovados = decididos.filter((h) => ehAprovado(h.status));
   const devolvidos = decididos.filter((h) => h.status === "devolvido");
   const falta = soma(aprovados, (h) => h.falta);
+  // Fila que falhou não soma (03/11): a faixa dizia "Aprovado R$ 0" sem nenhum aviso.
+  const falhouPendentes = pend.isError && !pend.data;
+  const falhouDecididos = dec.isError && !dec.data;
 
   const barra = (
     <PageHeader
@@ -94,6 +97,14 @@ export default function AprovacaoDeHonorariosPage() {
         <div className={cn(MOLDURA, "space-y-2 p-4")}>{[0, 1, 2, 3].map((i) => <div key={i} className="val-osso h-11 w-full" />)}</div>
       </div>
     );
+  } else if (acesso.isError && !acesso.data) {
+    // A falha NÃO é "sem acesso" (03/11): o cadeado mandava o próprio administrador falar com o administrador.
+    conteudo = (
+      <EstadoDaValidacao tom="erro" icone={<CloudOff aria-hidden="true" />} titulo="Não foi possível conferir o seu acesso"
+        texto={apiErrorMessage(acesso.error, "Verifique sua conexão e tente novamente.")}
+        acao={<BotaoTentarDeNovo onClick={() => acesso.refetch()} tentando={acesso.isFetching} />}
+        testId="hon-apr-acesso-erro" />
+    );
   } else if (!podeVer) {
     conteudo = (
       <EstadoDaValidacao icone={<Lock aria-hidden="true" />} titulo="Tela do aprovador de honorários"
@@ -116,11 +127,18 @@ export default function AprovacaoDeHonorariosPage() {
     conteudo = (
       <>
         <FaixaDeTotais testId="hon-apr-totais" itens={[
-          { rotulo: podeAprovar ? "Aguardando a sua decisão" : "Aguardando aprovação", valor: brlCurto(soma(meus, (h) => h.valorPedido)), detalhe: plural(meus.length, "pedido", "pedidos"), destaque: meus.length ? "warning" : undefined },
-          { rotulo: "Aprovado", valor: brlCurto(soma(aprovados, (h) => h.valorAprovado ?? 0)), detalhe: plural(aprovados.length, "pedido", "pedidos"), destaque: aprovados.length ? "success" : undefined },
-          { rotulo: "Devolvidos para negociar", valor: String(devolvidos.length), detalhe: devolvidos.length ? "com a cenotécnica, na Escalação" : "—", destaque: devolvidos.length ? "primary" : undefined },
-          { rotulo: "Liberado pelo Financeiro", valor: brlCurto(soma(aprovados, (h) => h.liberado)), detalhe: falta > 0 ? `faltam ${brlCurto(falta)}` : aprovados.length ? "tudo liberado" : "—" },
+          { rotulo: podeAprovar ? "Aguardando a sua decisão" : "Aguardando aprovação", valor: falhouPendentes ? "—" : brlCurto(soma(meus, (h) => h.valorPedido)), detalhe: falhouPendentes ? "não carregou" : plural(meus.length, "pedido", "pedidos"), destaque: meus.length ? "warning" : undefined },
+          { rotulo: "Aprovado", valor: falhouDecididos ? "—" : brlCurto(soma(aprovados, (h) => h.valorAprovado ?? 0)), detalhe: falhouDecididos ? "não carregou" : plural(aprovados.length, "pedido", "pedidos"), destaque: aprovados.length ? "success" : undefined },
+          { rotulo: "Devolvidos para negociar", valor: falhouDecididos ? "—" : String(devolvidos.length), detalhe: falhouDecididos ? "não carregou" : devolvidos.length ? "com a cenotécnica, na Escalação" : "—", destaque: devolvidos.length ? "primary" : undefined },
+          { rotulo: "Liberado pelo Financeiro", valor: falhouDecididos ? "—" : brlCurto(soma(aprovados, (h) => h.liberado)), detalhe: falhouDecididos ? "não carregou" : falta > 0 ? `faltam ${brlCurto(falta)}` : aprovados.length ? "tudo liberado" : "—" },
         ]} />
+
+        {(falhouPendentes || falhouDecididos) && (
+          <div role="alert" data-testid="hon-apr-totais-erro" className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg border border-danger/25 bg-danger-soft px-3 py-2 text-xs text-danger">
+            <span>Não foi possível carregar {falhouPendentes && falhouDecididos ? "as filas" : falhouPendentes ? "os pedidos aguardando" : "os pedidos decididos"}. Os totais com "—" não são zero.</span>
+            <button type="button" className="val-alvo font-semibold underline underline-offset-2" onClick={() => { if (falhouPendentes) void pend.refetch(); if (falhouDecididos) void dec.refetch(); }}>Carregar de novo</button>
+          </div>
+        )}
 
         <div className="border-b border-border">
           <div role="tablist" aria-label="Honorários" className="flex min-w-max items-end gap-1">

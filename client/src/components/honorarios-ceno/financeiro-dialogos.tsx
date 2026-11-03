@@ -23,7 +23,12 @@ import { HONORARIO_OC_MAX, HONORARIO_TEXTO_MAX, faltaLiberar, temOc, textoDaOc, 
 import { useMutacoesDoFinanceiro, type Honorario, type Liberacao } from "./api";
 import { BarraDaVerba, OrigemDaLinha, brl, dataBr, useFocoDeVolta } from "./pecas";
 
-export function LiberacaoDialog({ h, onClose }: { h: Honorario | null; onClose: () => void }) {
+export function LiberacaoDialog({ h, onClose, faltamNoEvento = 0 }: {
+  h: Honorario | null;
+  onClose: () => void;
+  /** Quantos OUTROS pedidos do evento seguem a liberar: o aviso diz que só este foi liberado (03/11). */
+  faltamNoEvento?: number;
+}) {
   const { liberar } = useMutacoesDoFinanceiro();
   const { toast } = useToast();
   const [para, setPara] = useState<string | null>(null);
@@ -47,8 +52,8 @@ export function LiberacaoDialog({ h, onClose }: { h: Honorario | null; onClose: 
       const r = await liberar.mutateAsync({ id: h.id, versao: h.versao, data, oc: oc.trim(), valor, observacao: obs.trim() || null });
       toast({
         variant: "success",
-        title: r.falta > 0 ? "Liberação parcial registrada" : "Verba liberada por completo",
-        description: `${h.nome} · ${textoDaOc(oc)} · ${brl(valor)}${r.falta > 0 ? ` — faltam ${brl(r.falta)}` : ""}${temOc(oc) ? "" : ". O DP informa a OC depois."}`,
+        title: r.falta > 0 ? "Liberação parcial registrada" : `Liberado para ${h.nome}`,
+        description: `${r.falta > 0 ? `${h.nome} · ` : ""}${textoDaOc(oc)} · ${brl(valor)}${r.falta > 0 ? ` — faltam ${brl(r.falta)}` : ""}${temOc(oc) ? "" : ". O DP informa a OC depois."}${faltamNoEvento > 0 ? ` Neste evento, ${faltamNoEvento === 1 ? "falta 1 pedido" : `faltam ${faltamNoEvento} pedidos`} a liberar.` : ""}`,
       });
       onClose();
     } catch (err) {
@@ -94,17 +99,17 @@ export function LiberacaoDialog({ h, onClose }: { h: Honorario | null; onClose: 
           </div>
           <div className="space-y-1.5">
             <div className="flex items-center justify-between gap-2">
-              <Label htmlFor="hon-lib-valor">Valor liberado</Label>
+              <Label htmlFor="hon-lib-valor">Valor a liberar</Label>
               {valor !== falta && (
                 <button type="button" className="text-2xs font-medium text-primary hover:underline" onClick={() => { setErro(null); setValor(falta); }}>Liberar tudo ({brl(falta)})</button>
               )}
             </div>
             <div className="relative">
               <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
-              <CurrencyInput id="hon-lib-valor" value={valor} onChange={(c) => { setErro(null); setValor(c); }} className="h-11 bg-card pl-9 text-base tabular-nums" aria-label="Valor liberado" />
+              <CurrencyInput id="hon-lib-valor" value={valor} onChange={(c) => { setErro(null); setValor(c); }} className="h-11 bg-card pl-9 text-base tabular-nums" aria-label="Valor a liberar" />
             </div>
             <p className={cn("text-2xs", parcial ? "text-info" : "text-muted-foreground")} aria-live="polite">
-              {valor > falta ? "Passa do que falta liberar." : parcial ? `Liberação parcial — ficam ${brl(falta - valor)} a liberar.` : "Libera o que falta por completo."}
+              {valor > falta ? "Passa do que falta liberar." : parcial ? `Liberação parcial — ficam ${brl(falta - valor)} a liberar.` : `Libera ${brl(falta)} de ${h.nome}. Os outros do evento não mudam.`}
             </p>
           </div>
           <div className="space-y-1.5">

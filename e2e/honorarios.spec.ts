@@ -168,9 +168,9 @@ test("Financeiro: libera a empreita inteira e o relatório por evento conta a em
   await page.getByRole("button", { name: `Registrar liberação de ${EMPREITA}` }).click();
   const dialogo = page.getByRole("dialog");
   await dialogo.getByLabel("Nº da OC/DP").fill("E2E-EMP");
-  await expect(dialogo.getByLabel("Valor liberado")).toHaveValue("3000,00");
+  await expect(dialogo.getByLabel("Valor a liberar")).toHaveValue("3000,00");
   await dialogo.getByRole("button", { name: /^Liberar R\$\s?3\.000,00/ }).click();
-  await esperarToast(page, /Verba liberada|Liberação registrada|liberada/);
+  await esperarToast(page, /Liberado para|Liberação parcial/);
 
   const fin = (await (await api(page).get(`/api/honorarios-ceno/financeiro?eventId=${eventId}`)).json()) as { nome: string; tipo: string; vagasDaEmpreita: unknown[] }[];
   expect(fin.filter((h) => h.nome === EMPREITA)).toHaveLength(1);
@@ -204,7 +204,7 @@ test("perfil Honorários (23/10): entra direto na tela, libera a vaga aberta, fi
   const dialogo = page.getByRole("dialog");
   await dialogo.getByLabel("Nº da OC/DP").fill("E2E-HON");
   await dialogo.getByRole("button", { name: /^Liberar R\$/ }).click();
-  await esperarToast(page, /Verba liberada|Liberação registrada|liberada/);
+  await esperarToast(page, /Liberado para|Liberação parcial/);
 
   // Liberados de "este mês" pela data da liberação (padrão): a OC de hoje aparece.
   await page.goto(`/honorarios-ceno?evento=${eventId}&aba=liberados&periodo=este-mes`);

@@ -174,7 +174,9 @@ export async function listarHonorarios(filtros: SQL[], opts: { limite?: number; 
     .where(filtros.length ? and(...filtros) : undefined)
     .orderBy(...(opts.ordem === "decidido"
       ? [desc(honorariosCeno.decididoEm), desc(honorariosCeno.updatedAt)]
-      : [desc(events.startDate), honorariosCeno.tipo, honorariosCeno.nome]));
+      // Evento antes de tipo e nome (03/11, dono): com a mesma data, as linhas de dois eventos
+      // se misturavam e, ao liberar a primeira, o outro evento tomava o lugar na lista.
+      : [desc(events.startDate), events.name, events.id, honorariosCeno.tipo, honorariosCeno.nome]));
   const linhas = opts.limite ? await q.limit(opts.limite) : await q;
   return completar(linhas.map(comContexto));
 }

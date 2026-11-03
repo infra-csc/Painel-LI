@@ -212,6 +212,36 @@ describe("Honorários — Financeiro", () => {
     ...p,
   });
 
+  it("falha ao conferir o acesso não vira cadeado de sem acesso (03/11)", async () => {
+    mockarFetch(roteador({ "GET /api/honorarios-ceno/acesso": () => respostaJson({ message: "Erro interno" }, 500) }, []));
+    renderComTudo(<HonorariosCenoPage />, { user: rh, rota: "/honorarios-ceno" });
+    expect(await screen.findByTestId("hon-fin-acesso-erro")).toHaveTextContent("Não foi possível conferir o seu acesso");
+    expect(screen.queryByText("Tela do Financeiro")).toBeNull();
+    expect(screen.getByRole("button", { name: "Tentar de novo" })).toBeInTheDocument();
+  });
+
+  it("o cabeçalho do evento soma o evento inteiro, e a janela diz que só este pedido muda (03/11)", async () => {
+    mockarFetch(roteador({
+      "GET /api/honorarios-ceno/acesso": ACESSO({ podeLiberar: true }),
+      "GET /api/honorarios-ceno/financeiro": () => respostaJson([
+        aprovado({ id: "f1", nome: "Já Liberado", liberado: 100_000, falta: 0, podeLiberar: false }),
+        aprovado({ id: "f2", nome: "Pessoa Dois" }),
+      ]),
+    }, []));
+    const { user } = renderComTudo(<HonorariosCenoPage />, { user: rh, rota: "/honorarios-ceno" });
+    const botao = await screen.findByRole("button", { name: "Registrar liberação de Pessoa Dois" });
+    const grupo = botao.closest("section")!;
+    const cabecalho = within(grupo as HTMLElement).getByRole("heading", { level: 3 }).closest("header")!;
+    expect(cabecalho).toHaveTextContent("Aprovado");
+    expect(cabecalho).toHaveTextContent("R$ 2.000,00");
+    expect(cabecalho).toHaveTextContent("Liberado");
+    expect(cabecalho).toHaveTextContent("A liberar");
+    await user.click(botao);
+    const dialogo = await screen.findByRole("dialog");
+    expect(within(dialogo).getByText(/Libera R\$\s?1\.000,00 de Pessoa Dois\. Os outros do evento não mudam\./)).toBeInTheDocument();
+    expect(within(dialogo).queryByText(/por completo/)).toBeNull();
+  });
+
   it("totais, liberação parcial e o relatório por evento", async () => {
     const chamadas: Chamada[] = [];
     mockarFetch(roteador({
@@ -231,7 +261,7 @@ describe("Honorários — Financeiro", () => {
     await user.click(screen.getByRole("button", { name: "Registrar liberação de Pessoa Um" }));
     const dialogo = await screen.findByRole("dialog");
     await user.type(within(dialogo).getByLabelText(/^Nº da OC\/DP/), "45123");
-    const valor = within(dialogo).getByLabelText("Valor liberado");
+    const valor = within(dialogo).getByLabelText("Valor a liberar");
     await user.clear(valor);
     await user.type(valor, "400");
     expect(within(dialogo).getByText(/Liberação parcial — ficam R\$\s?600,00/)).toBeInTheDocument();
@@ -261,7 +291,7 @@ describe("Honorários — Financeiro", () => {
     await user.click(await screen.findByRole("button", { name: "Registrar liberação de Pessoa Um" }));
     let dialogo = await screen.findByRole("dialog");
     await user.type(within(dialogo).getByLabelText(/^Nº da OC\/DP/), "45123");
-    const valor = within(dialogo).getByLabelText("Valor liberado");
+    const valor = within(dialogo).getByLabelText("Valor a liberar");
     await user.clear(valor);
     await user.type(valor, "400");
     await user.click(within(dialogo).getByRole("button", { name: /^Liberar R\$/ }));
@@ -270,7 +300,7 @@ describe("Honorários — Financeiro", () => {
     await user.click(await screen.findByRole("button", { name: "Registrar liberação de Pessoa Um" }));
     dialogo = await screen.findByRole("dialog");
     expect(within(dialogo).getByLabelText(/^Nº da OC\/DP/)).toHaveValue("");
-    expect(within(dialogo).getByLabelText("Valor liberado")).toHaveValue("600,00");
+    expect(within(dialogo).getByLabelText("Valor a liberar")).toHaveValue("600,00");
     expect(within(dialogo).queryByText("Passa do que falta liberar.")).not.toBeInTheDocument();
   });
 
@@ -491,6 +521,28 @@ describe("Honorários — tela Aprovação de honorários", () => {
     expect(await screen.findByTestId("hon-apr-total-evento")).toHaveTextContent("R$ 2.000,00");
     await user.click(screen.getByRole("tab", { name: /Decididos/ }));
     expect(await screen.findByTestId("hon-decididos")).toHaveTextContent("Já Aprovado");
+  });
+
+  it("falha ao conferir o acesso não vira cadeado (03/11)", async () => {
+    mockarFetch(roteador({ "GET /api/honorarios-ceno/acesso": () => respostaJson({ message: "Erro interno" }, 500) }, []));
+    renderComTudo(<AprovacaoDeHonorariosPage />, { user: aprovador, rota: "/aprovacao-de-honorarios" });
+    expect(await screen.findByTestId("hon-apr-acesso-erro")).toHaveTextContent("Não foi possível conferir o seu acesso");
+    expect(screen.queryByTestId("hon-apr-sem-acesso")).toBeNull();
+  });
+
+  it("fila de decididos falhando: a faixa mostra — e avisa, nunca R$ 0 (03/11)", async () => {
+    mockarFetch(roteador({
+      "GET /api/honorarios-ceno/acesso": ACESSO({ podeAprovar: true }),
+      "GET /api/honorarios-ceno/aprovacao": (c) => c.url.includes("decididos")
+        ? respostaJson({ message: "Erro interno" }, 500)
+        : respostaJson([pendente({ id: "a1", valorPedido: 120_000 })]),
+    }, []));
+    renderComTudo(<AprovacaoDeHonorariosPage />, { user: aprovador, rota: "/aprovacao-de-honorarios" });
+    expect(await screen.findByTestId("hon-apr-totais-erro")).toHaveTextContent("os pedidos decididos");
+    const totais = screen.getByTestId("hon-apr-totais");
+    expect(totais).toHaveTextContent("R$ 1.200");
+    expect(totais).not.toHaveTextContent("R$ 0");
+    expect(totais).toHaveTextContent("não carregou");
   });
 
   it("quem não aprova nem lança vê a tela fechada, sem buscar a fila", async () => {

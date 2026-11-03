@@ -310,6 +310,26 @@ describe("Honorários da cenotécnica — quem vê e quem decide", () => {
   });
 });
 
+describe("Honorários da cenotécnica — ordem da lista", () => {
+  it("eventos com a mesma data não se misturam: as linhas de cada um ficam juntas (03/11, dono)", async () => {
+    // Mesma data (a padrão da semente) e nomes que, só por tipo e nome, intercalariam os dois eventos.
+    const [a, b] = [await cenario(), await cenario()];
+    for (const c of [a, b]) {
+      const r1 = await criarRascunho(c, c.vagaFreela.id);
+      const r2 = await criarRascunho(c, c.vagaViagem.id);
+      await enviar(c, [{ id: r1.id, versao: r1.versao }, { id: r2.id, versao: r2.versao }]);
+    }
+    const financeiro = await agenteDe(await criarUsuario("admin"));
+    const r = await financeiro.get("/api/honorarios-ceno/financeiro");
+    expect(r.status, r.text).toBe(200);
+    const ids = (r.body as { eventId: string }[]).map((h) => h.eventId).filter((id) => id === a.eventoId || id === b.eventoId);
+    expect(ids).toHaveLength(4);
+    expect(ids[0]).toBe(ids[1]);
+    expect(ids[2]).toBe(ids[3]);
+    expect(ids[1]).not.toBe(ids[2]);
+  });
+});
+
 describe("Honorários da cenotécnica — corrida, lote e somas", () => {
   async function aguardando(c: Cenario, vagaId: string, valor: number) {
     const p = await criarRascunho(c, vagaId, valor);
