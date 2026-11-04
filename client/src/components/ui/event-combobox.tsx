@@ -277,7 +277,7 @@ export default function EventCombobox({
                   <div className="flex-1 min-w-0">
                     <div className={`text-sm whitespace-normal break-words ${isSelected ? "font-semibold" : ""}`}>{event.name}</div>
                     {dateLabel && (
-                      <div className={`text-2xs mt-0.5 ${isSelected ? "text-primary/70" : "text-muted-foreground"}`}>{dateLabel}</div>
+                      <div className={`text-2xs mt-0.5 ${isSelected ? "text-primary" : "text-muted-foreground"}`}>{dateLabel}</div>
                     )}
                   </div>
                   {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" aria-hidden="true" />}

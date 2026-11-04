@@ -464,7 +464,7 @@ export function BudgetSheet(p: BudgetSheetProps) {
         ) : (
           <div ref={refTabela} className={modoCartao ? "pla-cartao" : "pla-tabela"} data-testid="budget-sheet-scroll">
             <div ref={batchPopoverRef}>
-              <table className={cn("w-full border-collapse text-left", !modoCartao && "table-fixed")}>
+              <table aria-rowcount={filteredBudgets.length + 1} className={cn("w-full border-collapse text-left", !modoCartao && "table-fixed")}>
                 <caption className="sr-only">Planilha do planejado: colaborador, dias, diária, alimentação, mobilidade e subtotal</caption>
                 {!modoCartao && (
                   <colgroup>
@@ -534,7 +534,7 @@ export function BudgetSheet(p: BudgetSheetProps) {
                     </th>
                   </tr>
                 </thead>
-                <tbody aria-rowcount={filteredBudgets.length + 1}>
+                <tbody>
                   <EspacadorLinha altura={linhasPlanilha.espacoAntes} colunas={COL_SPAN_TOTAL} />
                   {linhasPlanilha.linhas.map(({ item: budget, index: rowIdx, medir }) => {
                     const sid = budget.inclusion.id;

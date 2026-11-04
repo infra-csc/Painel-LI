@@ -279,14 +279,14 @@ export function exportScalingPdf(input: ExportScalingInput, selected?: string[])
   .sub { font-size: 9px; color: #64748B; margin: 0 0 8px; }
   table { width: 100%; border-collapse: collapse; font-size: ${fontePx}px; }
   thead { display: table-header-group; }
-  th { background: #EEF2FF; color: #0033CC; text-align: left; padding: 3px 4px;
+  th { background: #EEF2FF; color: #0030CC; text-align: left; padding: 3px 4px;
        border: 0.5px solid #C7D2FE; font-weight: 600; }
   td { padding: 2.5px 4px; border: 0.5px solid #E2E8F0; vertical-align: top; }
   tbody tr:nth-child(even) td { background: #F8FAFC; }
   tr { break-inside: avoid; }
 </style></head><body>
 <h1>Escalações</h1>
-<p class="sub">${rows.length} linha(s) · ${keys.length} coluna(s) · gerado em ${hoje} · Painel LI${esc(nota)}</p>
+<p class="sub">${rows.length} linha(s) · ${keys.length} coluna(s) · gerado em ${hoje} · Trupp${esc(nota)}</p>
 <table><thead><tr>${keys.map(k => `<th>${esc(k)}</th>`).join("")}</tr></thead>
 <tbody>${rows.map(r => `<tr>${keys.map(k => `<td>${esc(r[k] ?? "")}</td>`).join("")}</tr>`).join("")}</tbody></table>
 <script>window.onload = () => { window.focus(); window.print(); };<\/script>

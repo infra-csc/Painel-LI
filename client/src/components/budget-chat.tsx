@@ -270,7 +270,7 @@ export function BudgetNotesSnippet({ notes, entityId }: { notes: BudgetNote[]; e
   if (!last) return null;
   return (
     <div className="flex items-start gap-1.5 mt-1 px-0">
-      <MessageSquare className="w-3 h-3 text-primary/70 flex-shrink-0 mt-0.5" aria-hidden="true" />
+      <MessageSquare className="w-3 h-3 text-primary flex-shrink-0 mt-0.5" aria-hidden="true" />
       <p className="text-2xs text-muted-foreground leading-snug line-clamp-1 flex-1">
         <span className="font-medium text-primary">{last.authorName.split(" ")[0]}: </span>
         {last.content}

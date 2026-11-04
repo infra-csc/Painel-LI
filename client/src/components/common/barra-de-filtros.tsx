@@ -164,7 +164,7 @@ export function EtiquetaDeFiltro({ etiqueta, valor, titulo, onTirar }: {
 }) {
   return (
     <span className="pas-entra inline-flex max-w-full items-center gap-1 h-6 rounded-md border border-primary/25 bg-brand-soft pl-2 pr-0.5 text-xs font-medium text-primary">
-      <span className="text-2xs font-semibold uppercase tracking-wide text-primary/70">{etiqueta}</span>
+      <span className="text-2xs font-semibold uppercase tracking-wide text-primary">{etiqueta}</span>
       <span className="truncate">{valor}</span>
       <button
         type="button"

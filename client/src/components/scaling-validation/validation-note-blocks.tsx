@@ -64,6 +64,7 @@ export function ValidationNoteHint({ note, className }: { note: string | null | 
       <TooltipTrigger asChild>
         <span
           tabIndex={0}
+          role="img"
           aria-label={VALIDATION_NOTE_HINT_LABEL}
           className={cn("inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-info focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", className)}
         >

@@ -69,7 +69,7 @@ const semMedicao = () => {};
  * Linhas virtuais para `<tbody>`. Uso:
  *
  *   const v = useLinhasVirtuais(itens, { scrollRef, alturaEstimada: 56 });
- *   <tbody aria-rowcount={itens.length}>
+ *   <table aria-rowcount={itens.length}><tbody>
  *     <EspacadorLinha altura={v.espacoAntes} colunas={11} />
  *     {v.linhas.map(l => <Linha key={l.item.id} ref={l.medir} data-index={l.index} … />)}
  *     <EspacadorLinha altura={v.espacoDepois} colunas={11} />

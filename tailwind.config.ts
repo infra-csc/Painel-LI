@@ -16,7 +16,6 @@ const token = (name: string) =>
       : `color-mix(in srgb, var(--${name}) calc(${opacityValue} * 100%), transparent)`) as unknown as string;
 
 export default {
-  darkMode: ["class"],
   content: ["./client/index.html", "./client/src/**/*.{js,jsx,ts,tsx}"],
   theme: {
     extend: {
@@ -70,23 +69,6 @@ export default {
         border: token("border"),
         input: token("input"),
         ring: token("ring"),
-        chart: {
-          "1": token("chart-1"),
-          "2": token("chart-2"),
-          "3": token("chart-3"),
-          "4": token("chart-4"),
-          "5": token("chart-5"),
-        },
-        sidebar: {
-          DEFAULT: token("sidebar-background"),
-          foreground: token("sidebar-foreground"),
-          primary: token("sidebar-primary"),
-          "primary-foreground": token("sidebar-primary-foreground"),
-          accent: token("sidebar-accent"),
-          "accent-foreground": token("sidebar-accent-foreground"),
-          border: token("sidebar-border"),
-          ring: token("sidebar-ring"),
-        },
       },
       // Elevação em 3 níveis (23/09) — substitui 25 sombras arbitrárias com 6 cores-base.
       boxShadow: {

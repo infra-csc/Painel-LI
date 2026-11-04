@@ -170,7 +170,7 @@ export default function TicketsTable({
       {/* `table-fixed` na tabela: as larguras do colgroup mandam e o texto que
           não cabe quebra (ou corta com reticências) dentro da célula — sem isso
           um resumo longo empurrava a coluna de ações para fora da tela. */}
-      <table className={`w-full text-left border-collapse ${modoCartao ? "" : "table-fixed"}`}>
+      <table aria-rowcount={rows.length + 1} className={`w-full text-left border-collapse ${modoCartao ? "" : "table-fixed"}`}>
         {/* Larguras-guia: o nome do evento fica com a sobra; datas e situação
             não quebram no meio. */}
         {!modoCartao && (
@@ -217,7 +217,7 @@ export default function TicketsTable({
             </th>
           </tr>
         </thead>
-        <tbody aria-rowcount={rows.length}>
+        <tbody>
           <EspacadorLinha altura={virtuais.espacoAntes} colunas={9} />
           {virtuais.linhas.map(({ item: inclusion, index: rowIdx, medir }) => (
             <TicketRow

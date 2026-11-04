@@ -86,7 +86,7 @@ export function CelulaDaGrade({ functionId, funcao, dia, count, chip, celula, ct
               {saem.length > 0 && <Marcador Icone={PlaneTakeoff} lista={saem} falta={faltaNa(saem)} testId={`marcador-saem-${functionId}-${dia}`} />}
               {noite > 0 && (
                 <BedDouble
-                  className={cn("h-3 w-3", semReserva > 0 ? "text-warning" : "text-slate-400")}
+                  className={cn("h-3 w-3", semReserva > 0 ? "text-warning" : "text-muted-foreground")}
                   data-testid={`marcador-hotel-${functionId}-${dia}`}
                   data-pendente={semReserva > 0 ? "sim" : "nao"}
                 />

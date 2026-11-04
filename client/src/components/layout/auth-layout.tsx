@@ -61,6 +61,8 @@ export function AuthLayout({ children, rodape }: { children: ReactNode; rodape?:
 
       {/* ── Coluna do formulário ── */}
       <main className="flex-1 flex flex-col items-center justify-center px-4 py-10 sm:px-8">
+        {/* Logo com assinatura do kit (03/11): abaixo de lg não há o painel de marca. */}
+        <img src="/logo-trupp-assinatura.svg" alt="Trupp, Operação de Eventos" className="mb-6 block h-16 w-auto lg:hidden" />
         <div className="casca-surgir w-full max-w-[400px] rounded-2xl border border-border bg-card p-6 shadow-1 sm:p-8 lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none">
           {children}
         </div>

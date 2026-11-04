@@ -216,7 +216,7 @@ function ChipsDaSelecao({ grupo, marcados, onMarcados, opcoes, nomeFallback }: {
             className="inline-flex max-w-[360px] items-center gap-1 rounded-md border border-primary/25 bg-brand-soft py-0.5 pl-2 pr-1 text-xs font-medium text-primary"
             data-testid={`chip-${grupo}-${id}`}
           >
-            <span className="text-2xs font-semibold uppercase tracking-wide text-primary/70">{grupo}</span>
+            <span className="text-2xs font-semibold uppercase tracking-wide text-primary">{grupo}</span>
             <span className="truncate">{nome}</span>
             <button
               type="button"
@@ -400,7 +400,7 @@ export default function ScalingFilterBar(p: Props) {
                 }`}
               >
                 {RECORTE_EVENTOS_LABEL[k]}
-                <span className={`text-2xs tabular-nums ${on ? "text-primary/70" : "text-muted-foreground"}`}>{p.contagemPorRecorte[k]}</span>
+                <span className={`text-2xs tabular-nums ${on ? "text-primary" : "text-muted-foreground"}`}>{p.contagemPorRecorte[k]}</span>
               </button>
             );
           })}

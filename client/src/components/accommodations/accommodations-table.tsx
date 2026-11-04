@@ -176,7 +176,7 @@ export default function AccommodationsTable({
         className={modoCartao ? "pas-cartao hos-cartao" : estreita ? "pas-tabela pas-estreita" : "pas-tabela"}
         data-testid="accommodations-table"
       >
-        <table className={`w-full text-left border-collapse ${modoCartao ? "" : "table-fixed"}`}>
+        <table aria-rowcount={rows.length + 1} className={`w-full text-left border-collapse ${modoCartao ? "" : "table-fixed"}`}>
           {/* Larguras-guia: evento e colaborador ficam com a sobra; datas e
               situação não quebram no meio. */}
           {!modoCartao && (
@@ -222,7 +222,7 @@ export default function AccommodationsTable({
               </th>
             </tr>
           </thead>
-          <tbody aria-rowcount={rows.length}>
+          <tbody>
             <EspacadorLinha altura={virtuais.espacoAntes} colunas={9} />
             {virtuais.linhas.map(({ item: inclusion, index: rowIdx, medir }) => {
               const collaborator = inclusion.collaboratorId ? collaboratorById.get(inclusion.collaboratorId) : undefined;

@@ -159,7 +159,7 @@ export function AlimentacaoCard({ s }: { s: SplitState }) {
         </div>
         <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 mb-3">
           <div className="flex items-center gap-1">
-            <Moon className="w-3 h-3 text-primary/70" aria-hidden="true" />
+            <Moon className="w-3 h-3 text-primary" aria-hidden="true" />
             <span className="text-2xs font-semibold text-slate-600">Jantar</span>
           </div>
           <div className={cell}>

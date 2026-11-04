@@ -426,13 +426,13 @@ function AlimentacaoBlock(p: CustosTabRealizadoProps) {
         {showAlimUtil && (
           <>
             {linha(<Sun className="w-3.5 h-3.5 text-warning-strong shrink-0" aria-hidden="true" />, "Almoço", `dias úteis · ${activeWeekdays}`, "weekdayLunch")}
-            {linha(<Moon className="w-3.5 h-3.5 text-primary/70 shrink-0" aria-hidden="true" />, "Jantar", `dias úteis · ${activeWeekdays}`, "weekdayDinner")}
+            {linha(<Moon className="w-3.5 h-3.5 text-primary shrink-0" aria-hidden="true" />, "Jantar", `dias úteis · ${activeWeekdays}`, "weekdayDinner")}
           </>
         )}
         {showAlimFds && (
           <>
             {linha(<Sun className="w-3.5 h-3.5 text-warning shrink-0" aria-hidden="true" />, "Almoço", `fins de semana · ${activeWeekends}`, "weekendLunch")}
-            {linha(<Moon className="w-3.5 h-3.5 text-primary/70 shrink-0" aria-hidden="true" />, "Jantar", `fins de semana · ${activeWeekends}`, "weekendDinner")}
+            {linha(<Moon className="w-3.5 h-3.5 text-primary shrink-0" aria-hidden="true" />, "Jantar", `fins de semana · ${activeWeekends}`, "weekendDinner")}
           </>
         )}
       </div>

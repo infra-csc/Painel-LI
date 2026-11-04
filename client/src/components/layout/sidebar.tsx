@@ -274,7 +274,7 @@ export default function Sidebar() {
           >
             {/* Etapa do fluxo dos honorários (26/10): o número antes do nome, mais leve. */}
             {tab.etapa && (
-              <span className={cn("mr-1.5 text-xs font-semibold tabular-nums", isActive ? "text-primary/70" : "text-muted-foreground")} data-testid={`etapa-${tab.id}`}>
+              <span className={cn("mr-1.5 text-xs font-semibold tabular-nums", isActive ? "text-primary" : "text-muted-foreground")} data-testid={`etapa-${tab.id}`}>
                 {tab.etapa}<span aria-hidden="true"> ·</span>
               </span>
             )}
@@ -297,7 +297,7 @@ export default function Sidebar() {
                   // Só aparece favoritada, no hover da linha ou no foco (28/09).
                   fav
                     ? "text-warning-strong"
-                    : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-slate-400 hover:text-warning-strong",
+                    : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-muted-foreground hover:text-warning-strong",
                 )}
               >
                 <Star className="w-3.5 h-3.5" fill={fav ? "currentColor" : "none"} aria-hidden="true" />

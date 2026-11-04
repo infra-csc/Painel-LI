@@ -37,7 +37,7 @@ export function EventScheduleTab({ h }: { h: EventHistory }) {
               >
                 <span className={cn("h-2 w-2 shrink-0 rounded-full", ORIGIN_DOT[l.key])} aria-hidden="true" />
                 {l.label}
-                <span className={cn("tabular-nums", active ? "text-primary/70" : "text-muted-foreground")}>{l.n}</span>
+                <span className={cn("tabular-nums", active ? "text-primary" : "text-muted-foreground")}>{l.n}</span>
               </button>
             );
           })}

@@ -254,7 +254,7 @@ export default function TeamInclusionTable({ data }: { data: TeamInclusionData }
               className={`overflow-auto overscroll-contain max-h-[calc(100dvh-var(--sticky-top,3.5rem)-3.5rem-2rem)] ${linhasVirtuais.ativo ? "min-h-[min(480px,60dvh)]" : ""} ${modoCartao ? "inc-cartao" : compacta ? "inc-tabela inc-compacta" : "inc-tabela"}`}
               data-testid="team-inclusion-scroll"
             >
-              <table className={`w-full text-left border-collapse ${modoCartao ? "" : "table-fixed"}`}>
+              <table aria-rowcount={n + 1} className={`w-full text-left border-collapse ${modoCartao ? "" : "table-fixed"}`}>
                 <caption className="sr-only">Inclusões de equipe: vaga (função e evento), colaborador, período, diárias, logística e situação de cada vaga</caption>
                 {!modoCartao && (
                   <colgroup>
@@ -295,7 +295,7 @@ export default function TeamInclusionTable({ data }: { data: TeamInclusionData }
                     <th scope="col" className="pl-1 pr-3 py-2.5 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground text-right">Ações</th>
                   </tr>
                 </thead>
-                <tbody aria-rowcount={n + 1}>
+                <tbody>
                   <EspacadorLinha altura={linhasVirtuais.espacoAntes} colunas={COLUNAS_TABELA} />
                   {linhasVirtuais.linhas.map(({ item: inclusion, index, medir }) => {
                     const empreita = !inclusion.collaboratorId && vagaComEmpreita(inclusion);

@@ -142,7 +142,7 @@ export function EventTimeline({ h, tl, eventId, onPickEvent }: EventTimelineProp
               >
                 <span className={cn("h-2 w-2 shrink-0 rounded-full", c.dot, !on && "opacity-50")} aria-hidden="true" />
                 {c.label}
-                <span className={cn("tabular-nums", on ? "text-primary/70" : "text-muted-foreground")}>{n}</span>
+                <span className={cn("tabular-nums", on ? "text-primary" : "text-muted-foreground")}>{n}</span>
               </button>
             );
           })}

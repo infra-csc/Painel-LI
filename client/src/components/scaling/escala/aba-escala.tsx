@@ -458,7 +458,7 @@ function BlocoDoMovimento({ tipo, lista, dia, onAbrir }: { tipo: "chegam" | "sae
           </span>
         ))}
       </span>
-      <span className="ml-auto inline-flex shrink-0 items-center gap-0.5 pl-1 text-2xs font-medium text-slate-400 transition-colors group-hover:text-primary sm:ml-0">
+      <span className="ml-auto inline-flex shrink-0 items-center gap-0.5 pl-1 text-2xs font-medium text-muted-foreground transition-colors group-hover:text-primary sm:ml-0">
         <span className="hidden group-hover:inline group-focus-visible:inline">ver lista</span>
         <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
       </span>

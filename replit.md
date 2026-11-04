@@ -1,4 +1,4 @@
-# Painel LI (Logística Interna) — notas para o Replit
+# Trupp (Painel-LI, Logística Interna) — notas para o Replit
 
 Este arquivo é lido pelo agente do Replit. A documentação de verdade está em:
 

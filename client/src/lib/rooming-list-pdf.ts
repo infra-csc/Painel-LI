@@ -19,12 +19,12 @@ import type { RoomingList } from "@shared/rooming-list";
 type RGB = [number, number, number];
 const COR = {
   texto: [15, 23, 42] as RGB,        // --foreground
-  suave: [100, 116, 139] as RGB,     // --neutral / muted
+  suave: [87, 104, 127] as RGB,      // --neutral / muted
   linha: [226, 232, 240] as RGB,     // --border
   linhaForte: [203, 213, 225] as RGB,
   fundo: [248, 250, 252] as RGB,     // --surface-muted
   cabecalho: [241, 245, 249] as RGB, // --neutral-soft
-  marca: [0, 51, 204] as RGB,        // --primary #0033CC
+  marca: [0, 48, 204] as RGB,        // --primary #0030CC
   alerta: [185, 28, 28] as RGB,      // --danger #B91C1C
 };
 

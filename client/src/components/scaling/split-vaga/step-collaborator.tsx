@@ -31,15 +31,15 @@ function ContextBanner({ item, collaborators, s }: { item: BudgetActual; collabo
       </div>
       <div className="flex items-center gap-3 flex-shrink-0">
         <div className="text-center pl-3 border-l border-primary/25">
-          <p className="text-2xs font-semibold text-primary/70 uppercase tracking-wide m-0">Total</p>
+          <p className="text-2xs font-semibold text-primary uppercase tracking-wide m-0">Total</p>
           <p className="text-xl font-bold text-primary m-0 leading-tight">{totalDays}</p>
-          <p className="text-2xs text-primary/70 m-0">{totalDays === 1 ? 'dia' : 'dias'}</p>
+          <p className="text-2xs text-primary m-0">{totalDays === 1 ? 'dia' : 'dias'}</p>
         </div>
         {selCount > 0 && (
           <div className="text-center pl-3 border-l border-primary/25">
-            <p className="text-2xs font-semibold text-primary/70 uppercase tracking-wide m-0">Para novo</p>
+            <p className="text-2xs font-semibold text-primary uppercase tracking-wide m-0">Para novo</p>
             <p className="text-xl font-bold text-primary m-0 leading-tight">{selCount}</p>
-            <p className="text-2xs text-primary/70 m-0">{selCount === 1 ? 'dia' : 'dias'}</p>
+            <p className="text-2xs text-primary m-0">{selCount === 1 ? 'dia' : 'dias'}</p>
           </div>
         )}
         {selCount > 0 && (
