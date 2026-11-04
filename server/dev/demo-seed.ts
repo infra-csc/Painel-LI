@@ -578,6 +578,7 @@ export async function semearDemo(db: Db): Promise<ResumoDoSeed> {
       const [quarto] = await db.insert(schema.hotelRoomGroups).values({
         eventId: ev.id, hotelName: HOTEIS[0], roomType: grupo.length > 1 ? "double" : "single", genderRule: regra,
         checkInDate: addDias(ev.startDate, -1), checkOutDate: addDias(ev.endDate, 1), suggested: true, confirmed: regra === "male",
+        ...(regra === "male" ? { fornecedor: "flytour", formaPagamento: "faturado" } : {}),
       }).returning();
       await db.insert(schema.hotelRoomGroupMembers).values(grupo.map((v) => ({
         hotelRoomGroupId: quarto.id, collaboratorId: v.collaboratorId!, checkInDate: null, checkOutDate: null, confirmed: regra === "male",

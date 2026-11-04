@@ -18,6 +18,9 @@
  * há tarifas, uma caixa separada — "Com valores (uso interno)", desligada por
  * padrão — gera a versão de conferência, marcada "uso interno" no topo e no
  * nome do arquivo.
+ *
+ * 04/11: a versão interna também leva a função, o fornecedor e o pagamento, e por
+ * isso aparece mesmo sem tarifa (aí sai sem a coluna Valor).
  */
 import { useMemo, useState } from "react";
 import { AlertTriangle, Building2, FileDown, Info, Loader2 } from "lucide-react";
@@ -41,11 +44,11 @@ const SEM_HOTEL = "__sem_hotel__";
 
 const quartosTxt = (n: number) => `${n} ${n === 1 ? "quarto" : "quartos"}`;
 
-export function RoomingListPdf({ evento, quartos, comValoresDisponivel = false, tiposDoHotel }: {
+export function RoomingListPdf({ evento, quartos, usoInternoDisponivel = false, tiposDoHotel }: {
   evento: MirrorEvent;
   quartos: QuartoDaRoomingList[];
-  /** Há valores calculados (tarifas definidas): oferece a versão de uso interno. */
-  comValoresDisponivel?: boolean;
+  /** A pessoa pode ver os valores do hotel: oferece a versão de uso interno. */
+  usoInternoDisponivel?: boolean;
   /** Apartamentos que o hotel tem (22/10): o PDF usa o tipo que o hotel usa e avisa do quarto que excede. */
   tiposDoHotel?: TiposDoHotel;
 }) {
@@ -56,7 +59,7 @@ export function RoomingListPdf({ evento, quartos, comValoresDisponivel = false, 
   const [nomeNoPdf, setNomeNoPdf] = useState("");
   const [incluirCpf, setIncluirCpf] = useState(false);
   const [comValoresMarcado, setComValores] = useState(false);
-  const comValores = comValoresDisponivel && comValoresMarcado;
+  const comValores = usoInternoDisponivel && comValoresMarcado;
   const [gerando, setGerando] = useState(false);
   const podeCpf = hasRole(user, ...ROLE_GROUPS.dadosPessoais);
 
@@ -135,7 +138,7 @@ export function RoomingListPdf({ evento, quartos, comValoresDisponivel = false, 
             <DialogTitle className="pr-6 text-base">{comValores ? "PDF de uso interno" : "PDF para o hotel"}</DialogTitle>
             <DialogDescription className="text-sm leading-relaxed">
               {comValores
-                ? "Rooming list com o valor de cada hóspede e de cada quarto — para conferência e fechamento, não para o hotel."
+                ? "Rooming list com função, fornecedor, pagamento e valores — para conferência e fechamento, não para o hotel."
                 : "Rooming list com cada quarto, os hóspedes e a entrada e saída de cada um — pronta para enviar ao hotel."}
             </DialogDescription>
           </DialogHeader>
@@ -227,13 +230,13 @@ export function RoomingListPdf({ evento, quartos, comValoresDisponivel = false, 
               </label>
             )}
 
-            {comValoresDisponivel && opcoes.length > 0 && (
+            {usoInternoDisponivel && opcoes.length > 0 && (
               <div className="space-y-2">
                 <label className="flex cursor-pointer items-start gap-2.5 text-sm">
                   <Checkbox checked={comValoresMarcado} onCheckedChange={(v) => setComValores(v === true)} className="mt-0.5" data-testid="rooming-com-valores" />
                   <span>
-                    <span className="font-medium text-foreground">Com valores (uso interno)</span>
-                    <span className="block text-xs leading-snug text-muted-foreground">Valor de cada hóspede e de cada quarto, para conferência e fechamento.</span>
+                    <span className="font-medium text-foreground">Versão de uso interno</span>
+                    <span className="block text-xs leading-snug text-muted-foreground">Função de cada hóspede, fornecedor e pagamento de cada reserva e os valores, para conferência e fechamento.</span>
                   </span>
                 </label>
                 {comValores && (

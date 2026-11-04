@@ -60,6 +60,8 @@ import { seloDaOrigem } from "@shared/datas-do-quarto";
 import { motivoDoTipoQueOHotelNaoTem, observacaoDeDatas, PREFIXO_DATAS_DIFERENTES, tipoQueOHotelNaoTem, tiposDoHotelOuPadrao } from "@shared/room-pairing";
 import { ocupacaoPorNoite, rotuloDoTipo, trechosPorApartamento, type TipoDoTrecho } from "@shared/ocupacao-por-noite";
 import { chaveDoHotel, hotelDoEvento, nomeDeHotelLimpo, type QuartoDaRoomingList } from "@shared/rooming-list";
+import { chaveDoCanal, resumoDosFornecedores } from "@shared/fornecedores-de-hotel";
+import { CanalDoQuarto, ResumoDosFornecedores } from "./fornecedor-do-quarto";
 import { chaveDoOcupante, custoDoHotel, dividirCentavos, entradaDoCustoDoHotel, periodoNoQuarto, type ValoresDoHotelSalvos } from "@shared/custo-dos-quartos";
 import { fonteDoHotel } from "@shared/operational-mirror-types";
 import { avisoDeQuemSaiu } from "@shared/vagas-canceladas";
@@ -249,6 +251,7 @@ export type QuartosViewProps = GroupViewProps<RoomGroup> & {
 
 export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPatch, onSeparar, onMover, pendingId, onPatchMembro, onRecalc, recalcPending, evento, valores }: QuartosViewProps) {
   const mutacoesDeValores = useValoresDoHotel(evento?.id ?? "");
+  const [filtroEscolhido, setFiltroEscolhido] = useState<string | null>(null);
   /* Apartamentos que o hotel tem (22/10). Servidor antigo / sem tabelas: todos. */
   const tiposDoHotel = tiposDoHotelOuPadrao(valores?.tipos);
   const chipsDosTipos = evento && valores !== undefined ? (
@@ -365,6 +368,14 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
   const comPainel = !!evento && valores !== undefined;
   const custo = custoDoHotel(entradaDoCustoDoHotel(groups, rows, valores ?? null));
   const comValores = comPainel && custo.temValores;
+  // Fornecedores e pagamentos do evento (04/11): o resumo soma e também filtra a lista.
+  const resumoDeFornecedores = resumoDosFornecedores(quartos.map((q) => ({
+    fornecedor: q.g.fornecedor, formaPagamento: q.g.formaPagamento, hospedes: q.lista.length,
+    valorCentavos: comValores ? custo.porQuarto.get(q.g.id)?.totalCentavos ?? null : null,
+  })));
+  // Filtro cuja linha sumiu (o último quarto mudou de fornecedor) volta a mostrar tudo.
+  const filtroDoCanal = resumoDeFornecedores.some((l) => l.chave === filtroEscolhido) ? filtroEscolhido : null;
+  const quartosVisiveis = filtroDoCanal ? quartos.filter((q) => chaveDoCanal(q.g.fornecedor, q.g.formaPagamento) === filtroDoCanal) : quartos;
   const numeroDoQuarto = new Map(quartos.map((q) => [q.g.id, q.numero]));
   const escolhasDeLate = new Set((valores?.lateCheckouts ?? []).map((l) => l.collaboratorId));
   /** "R$ 200,00 a noite (R$ 100,00 para cada um)" do trecho — no título do selo de ocupação. */
@@ -534,6 +545,8 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
     const cq = comValores ? custo.porQuarto.get(q.g.id) : undefined;
     return {
       hotelName: q.g.hotelName,
+      fornecedor: q.g.fornecedor,
+      formaPagamento: q.g.formaPagamento,
       observacao: q.g.notes && !q.g.notes.startsWith(PREFIXO_DATAS_DIFERENTES) ? q.g.notes : null,
       hospedes: q.lista.map((o) => ({
         collaboratorId: o.m.id ?? null, nome: o.m.name, checkIn: dia(o.ini), checkOut: dia(o.fim),
@@ -554,7 +567,7 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
         </p>
         <p className="hidden text-xs text-muted-foreground xl:block">· mesmas datas primeiro, depois a mesma função</p>
         <span className="ml-auto flex flex-wrap items-center gap-2">
-          {evento && <RoomingListPdf evento={evento} quartos={quartosParaPdf} comValoresDisponivel={comValores} tiposDoHotel={tiposDoHotel} />}
+          {evento && <RoomingListPdf evento={evento} quartos={quartosParaPdf} usoInternoDisponivel={comPainel} tiposDoHotel={tiposDoHotel} />}
           {refazer}
         </span>
       </header>
@@ -576,6 +589,8 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
           numeroDoQuarto={numeroDoQuarto} totalDeQuartos={groups.length} mutacoes={mutacoesDeValores} />
       )}
 
+      <ResumoDosFornecedores linhas={resumoDeFornecedores} total={quartos.length} filtro={filtroDoCanal} aoFiltrar={setFiltroEscolhido} />
+
       <div className="esp-quartos-lista" data-valores={comValores || undefined}>
         {/* Uma régua de colunas para todos os blocos — a mesma grade das linhas. */}
         <div className="esp-quartos-colunas" aria-hidden="true">
@@ -586,7 +601,7 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
           {comValores && <span className="esp-col-val">Valor</span>}
         </div>
 
-        {quartos.map((q) => {
+        {quartosVisiveis.map((q) => {
           const { g } = q;
           return (
             <article key={g.id} className="esp-quarto group/quarto" data-confirmado={g.confirmed ? "true" : undefined}
@@ -616,6 +631,8 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
                   {situacao(g)}
                 </span>
               </div>
+              <CanalDoQuarto quarto={q.numero} fornecedor={g.fornecedor} formaPagamento={g.formaPagamento} canEdit={canEdit}
+                aoSalvar={(campos) => onPatch(g.id, campos)} />
               {avisos(q)}
               <ul className="esp-quarto-ocupantes">
                 {q.lista.map((o) => (

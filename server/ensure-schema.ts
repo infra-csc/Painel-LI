@@ -880,6 +880,9 @@ const PASSOS: Passo[] = [
   { descricao: "team_inclusions.dias_carregamento (dias de carregamento: têm janta)", sql: `ALTER TABLE team_inclusions ADD COLUMN IF NOT EXISTS dias_carregamento text[]` },
   { descricao: "budget_planned.janta_a_mao_semana (janta lançada à mão, dias úteis)", sql: `ALTER TABLE budget_planned ADD COLUMN IF NOT EXISTS janta_a_mao_semana integer` },
   { descricao: "budget_planned.janta_a_mao_fds (janta lançada à mão, fim de semana)", sql: `ALTER TABLE budget_planned ADD COLUMN IF NOT EXISTS janta_a_mao_fds integer` },
+  // 04/11 — por qual canal cada reserva foi feita e como foi paga (scripts/migrations/2026-11-04-fornecedor-da-reserva.sql).
+  { descricao: "hotel_room_groups.fornecedor (canal da reserva)", sql: `ALTER TABLE hotel_room_groups ADD COLUMN IF NOT EXISTS fornecedor text` },
+  { descricao: "hotel_room_groups.forma_pagamento (como a reserva foi paga)", sql: `ALTER TABLE hotel_room_groups ADD COLUMN IF NOT EXISTS forma_pagamento text` },
   { descricao: "team_inclusions.dias_meia_extra (dias com 1,5 diária)", sql: `ALTER TABLE team_inclusions ADD COLUMN IF NOT EXISTS dias_meia_extra text[]` },
   { descricao: "budget_planned.dias_meia_extra (dias com 1,5 diária)", sql: `ALTER TABLE budget_planned ADD COLUMN IF NOT EXISTS dias_meia_extra text[]` },
   { descricao: "budget_actual.dias_meia_extra (dias com 1,5 diária)", sql: `ALTER TABLE budget_actual ADD COLUMN IF NOT EXISTS dias_meia_extra text[]` },

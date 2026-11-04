@@ -1913,6 +1913,9 @@ export const hotelRoomGroups = pgTable("hotel_room_groups", {
   notes: text("notes"),
   suggested: boolean("suggested").notNull().default(true),
   confirmed: boolean("confirmed").notNull().default(false),
+  // Canal da reserva e como foi paga (04/11): regras em shared/fornecedores-de-hotel.ts.
+  fornecedor: text("fornecedor"),
+  formaPagamento: text("forma_pagamento"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [

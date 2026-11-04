@@ -80,6 +80,7 @@ colateral. **ES** = a estrutura também é reposta no boot por
 | 2026-10-30 | `2026-10-30-paineis-atividade.sql` | Índice `team_inclusion_logs_created_idx` (`created_at DESC`) para a Atividade recente dos Painéis (últimas mudanças de todas as vagas). Nenhum dado alterado. | DDL | sim (`IF NOT EXISTS`) |
 | 2026-11-03 | `2026-11-03-dias-carregamento.sql` | Dias de carregamento da vaga (`team_inclusions.dias_carregamento`): o dia marcado na Escalação tem janta mesmo sem logística. Também roda no boot. |
 | 2026-11-03 | `2026-11-03-janta-a-mao.sql` | Janta lançada à mão no Planejado (`budget_planned.janta_a_mao_semana` e `janta_a_mao_fds`): sobrevive ao recálculo sem prender a janta da regra. Também roda no boot. |
+| 2026-11-04 | `2026-11-04-fornecedor-da-reserva.sql` | Fornecedor e forma de pagamento de cada reserva de hotel (`hotel_room_groups.fornecedor` e `forma_pagamento`). Também roda no boot. |
 | — | `check-bagagem-match.ts` | Conferência (só leitura) do casamento do seed de bagagem com os colaboradores, por CPF e nome. `npx tsx … <json>`. | Diag | n/a |
 
 Fora desta pasta, mas do mesmo tipo: `scripts/2026-08-31-uber-quartos-por-pessoa.ts`

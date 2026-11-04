@@ -61,6 +61,52 @@ const corpo = (init?: RequestInit) => JSON.parse(String(init?.body ?? "{}"));
 const sp = (s: string | null | undefined) => String(s ?? "").replace(/ /g, " ");
 afterEach(() => { vi.unstubAllGlobals(); });
 
+describe("Fornecedor e forma de pagamento da reserva (04/11)", () => {
+  const comPatch = (groups: RoomGroup[]) => {
+    const onPatch = vi.fn();
+    const rows = [linha("mau", "Mauricio Alves"), linha("edn", "Edney Souza")];
+    const collabById = new Map<string, MirrorCollaborator>(rows.map((r) => [r.collaborator.id as string, r.collaborator]));
+    const r = renderComTudo(
+      <QuartosView groups={groups} rows={rows} collabById={collabById} canEdit evento={evento} valores={TARIFAS}
+        onConfirm={() => {}} onPatch={onPatch} onMover={() => {}} pendingId={null} />,
+      { user: usuarioFake({ role: "purchasing" }) },
+    );
+    return { ...r, onPatch };
+  };
+  const umQuarto = (id: string, membro: string, canal: object) => ({ ...duplo(id, [{ c: membro, de: "2026-04-22", ate: "2026-04-27" }]), ...canal } as RoomGroup);
+
+  it("um clique escolhe o fornecedor; agência mostra faturado sem pedir nada", async () => {
+    mockarFetch(() => respostaJson([]));
+    const { user, onPatch } = comPatch([umQuarto("q1", "mau", {})]);
+    expect(screen.queryByTestId("forma-1")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Flytour" }));
+    expect(onPatch).toHaveBeenCalledWith("q1", { fornecedor: "flytour", formaPagamento: null });
+  });
+
+  it("direto com o hotel pede PIX ou faturado; agência já diz a forma; o selecionado clicado de novo sai", async () => {
+    mockarFetch(() => respostaJson([]));
+    const { user, onPatch } = comPatch([umQuarto("q1", "mau", { fornecedor: "direto", formaPagamento: null }), umQuarto("q2", "edn", { fornecedor: "onfly", formaPagamento: "faturado" })]);
+    expect(screen.getByTestId("forma-1-falta")).toHaveTextContent("escolha a forma");
+    await user.click(screen.getByTestId("forma-1-pix"));
+    expect(onPatch).toHaveBeenCalledWith("q1", { fornecedor: "direto", formaPagamento: "pix" });
+    expect(screen.getByTestId("forma-2")).toHaveTextContent("Faturado");
+    await user.click(screen.getByTestId("canal-2-onfly"));
+    expect(onPatch).toHaveBeenCalledWith("q2", { fornecedor: null, formaPagamento: null });
+  });
+
+  it("o resumo conta por fornecedor e filtra os quartos, mantendo o número de cada um", async () => {
+    mockarFetch(() => respostaJson([]));
+    const { user } = comPatch([umQuarto("q1", "mau", { fornecedor: "direto", formaPagamento: "pix" }), umQuarto("q2", "edn", { fornecedor: "flytour", formaPagamento: "faturado" })]);
+    const resumo = screen.getByTestId("resumo-fornecedores");
+    expect(resumo).toHaveTextContent("todos os 2 quartos com fornecedor");
+    await user.click(within(resumo).getByTestId("resumo-fornecedor-flytour|faturado"));
+    expect(screen.queryByTestId("room-card-q1")).toBeNull();
+    expect(within(screen.getByTestId("room-card-q2")).getByRole("heading", { name: "Quarto 2" })).toBeInTheDocument();
+    await user.click(screen.getByTestId("resumo-fornecedores-todos"));
+    expect(screen.getByTestId("room-card-q1")).toBeInTheDocument();
+  });
+});
+
 describe("centavosDoTexto e leituraDaDiferenca", () => {
   it("aceita os jeitos de escrever reais; o resto é inválido", () => {
     expect(centavosDoTexto("138")).toBe(13800);

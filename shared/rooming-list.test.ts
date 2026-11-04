@@ -65,6 +65,27 @@ describe("montarRoomingList", () => {
     expect(doHotel.linhas[0].hospedes.map((h) => h.funcao)).toEqual([null, null]);
   });
 
+  it("fornecedor e pagamento: por reserva e no resumo só no uso interno; sem tarifa, o arquivo não diz 'com valores' (04/11)", () => {
+    const quartos = [
+      { hotelName: "Hotel Atlântico Rio", fornecedor: "flytour", formaPagamento: "faturado", hospedes: [{ collaboratorId: "a", nome: "Ana", checkIn: "2026-04-23", checkOut: "2026-04-26" }, { collaboratorId: "b", nome: "Bia", checkIn: "2026-04-23", checkOut: "2026-04-26" }] },
+      { hotelName: "Hotel Atlântico Rio", fornecedor: "direto", formaPagamento: "pix", hospedes: [{ collaboratorId: "c", nome: "Cris", checkIn: "2026-04-23", checkOut: "2026-04-26" }] },
+      { hotelName: "Hotel Atlântico Rio", hospedes: [{ collaboratorId: "d", nome: "Duda", checkIn: "2026-04-23", checkOut: "2026-04-26" }] },
+    ];
+    const interno = montarRoomingList(base({ quartos, comValores: true }));
+    expect(interno.linhas.map((l) => l.canal)).toEqual(["Flytour · Faturado", "Direto com o hotel · PIX", "Sem fornecedor"]);
+    expect(interno.fornecedores).toEqual([
+      { fornecedor: "Flytour", forma: "Faturado", quartos: 1, hospedes: 2, valor: null },
+      { fornecedor: "Direto com o hotel", forma: "PIX", quartos: 1, hospedes: 1, valor: null },
+      { fornecedor: "Sem fornecedor", forma: "—", quartos: 1, hospedes: 1, valor: null },
+    ]);
+    expect(interno.temValores).toBe(false);
+    expect(interno.totalDosValores).toBeNull();
+    expect(interno.nomeDoArquivo).toBe("USO INTERNO - Rooming list - Hotel Atlântico Rio - Night Run 1ª Etapa Rio.pdf");
+    const doHotel = montarRoomingList(base({ quartos }));
+    expect(doHotel.linhas.map((l) => l.canal)).toEqual([null, null, null]);
+    expect(doHotel.fornecedores).toEqual([]);
+  });
+
   it("CPF só sai quando pedido, e só para quem tem CPF válido", () => {
     expect(montarRoomingList(base()).linhas[0].hospedes.map((h) => h.cpf)).toEqual([null, null]);
     const r = montarRoomingList(base({ incluirCpf: true }));

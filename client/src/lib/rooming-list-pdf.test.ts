@@ -13,7 +13,7 @@ const entrada = (extra: Partial<EntradaDaRoomingList> = {}): EntradaDaRoomingLis
   geradoEm: new Date("2026-11-04T12:00:00Z"),
   contato: { nome: "Logística", email: null },
   quartos: [{
-    hotelName: "Hotel Beira Mar", valorCentavos: 200_000, valorCompleto: true,
+    hotelName: "Hotel Beira Mar", valorCentavos: 200_000, valorCompleto: true, fornecedor: "flytour", formaPagamento: "faturado",
     hospedes: [
       { collaboratorId: "a", nome: "Ana Reis", checkIn: "2026-10-26", checkOut: "2026-11-02", valorCentavos: 100_000, funcao: "Cenotecnica" },
       { collaboratorId: "b", nome: "Bia Lima", checkIn: "2026-10-26", checkOut: "2026-11-02", valorCentavos: 100_000, funcao: "Sup Ceno" },
@@ -28,6 +28,10 @@ describe("PDF da rooming list", () => {
     const pdf = await texto(entrada({ comValores: true }));
     expect(pdf).toContain("(Cenotecnica)");
     expect(pdf).toContain("(Sup Ceno)");
+    // Na célula do quarto e no resumo do fim do documento.
+    expect(pdf).toContain("Flytour · Faturado".replace(" · ", " \xB7 "));
+    expect(pdf).toContain("(Flytour)");
+    expect(pdf).toContain("(Faturado)");
     expect(pdf).toContain("Ana Reis");
   });
 
@@ -36,6 +40,8 @@ describe("PDF da rooming list", () => {
     expect(pdf).toContain("Ana Reis");
     expect(pdf).not.toContain("Cenotecnica");
     expect(pdf).not.toContain("Sup Ceno");
+    expect(pdf).not.toContain("Flytour");
+    expect(pdf).not.toContain("Faturado");
   });
 
   it("uso interno sem função em ninguém: cabeçalho de sempre, sem erro", async () => {

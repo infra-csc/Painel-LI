@@ -16,6 +16,8 @@
  *
  * 04/11 (dono): o uso interno mostra a função, a mesma da tela Quartos, embaixo do
  * nome. Numa coluna própria não caberia em A4 retrato sem espremer nome e datas.
+ * Fornecedor e pagamento da reserva ficam na célula do quarto, e o fim do documento
+ * resume por fornecedor. Sem tarifa, o uso interno sai sem a coluna Valor.
  */
 import type { RoomingList } from "@shared/rooming-list";
 
@@ -64,7 +66,7 @@ export async function gerarPdfDaRoomingList(r: RoomingList) {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
   doc.setTextColor(...(r.comValores ? COR.alerta : COR.marca));
-  doc.text(r.comValores ? "ROOMING LIST COM VALORES  ·  USO INTERNO — NÃO ENVIAR AO HOTEL" : "ROOMING LIST", M, y, { charSpace: 0.6 });
+  doc.text(r.temValores ? "ROOMING LIST COM VALORES  ·  USO INTERNO — NÃO ENVIAR AO HOTEL" : r.comValores ? "ROOMING LIST  ·  USO INTERNO — NÃO ENVIAR AO HOTEL" : "ROOMING LIST", M, y, { charSpace: 0.6 });
   y += 8;
   doc.setFontSize(19);
   doc.setTextColor(...COR.texto);
@@ -119,10 +121,10 @@ export async function gerarPdfDaRoomingList(r: RoomingList) {
 
   // ── Tabela: uma linha por hóspede; quarto, tipo e observação por quarto ──
   const comCpf = r.incluiCpf;
-  const comValores = r.comValores;
+  const comValores = r.temValores;
   const comFuncao = r.linhas.some((l) => l.hospedes.some((h) => h.funcao));
   const colunas = ["Quarto", "Tipo", "Hóspede", ...(comCpf ? ["CPF"] : []), "Check-in", "Check-out", ...(comValores ? ["Valor"] : []), "Observação"];
-  const head = [colunas.map((c) => (c === "Hóspede" && comFuncao ? "Hóspede · Função" : c))];
+  const head = [colunas.map((c) => (c === "Hóspede" && comFuncao ? "Hóspede · Função" : c === "Tipo" && r.comValores ? "Tipo · Reserva" : c))];
   const larguras = LARGURAS[comCpf && comValores ? "ambos" : comCpf ? "cpf" : comValores ? "valores" : "simples"];
   // O que sobra da página é do Hóspede; descontados os recuos da célula, é a largura do texto.
   const larguraDoHospede = util - Object.values(larguras).reduce((soma, w) => soma + w, 0) - 4.4;
@@ -139,7 +141,8 @@ export async function gerarPdfDaRoomingList(r: RoomingList) {
         const span = l.hospedes.length;
         linha.push({ content: String(l.numero), rowSpan: span, styles: { fontStyle: "bold", fontSize: 10 } });
         const tipo = pdfTexto(l.tipo).split("; ").join("\n");
-        linha.push({ content: comValores && l.valor ? `${tipo}\nTotal ${l.valor}` : tipo, rowSpan: span });
+        const blocoDoQuarto = [tipo, comValores && l.valor ? `Total ${l.valor}` : null, l.canal].filter(Boolean).join("\n");
+        linha.push({ content: blocoDoQuarto, rowSpan: span });
       }
       if (h.funcao) {
         doc.setFont("helvetica", "bold");
@@ -207,7 +210,8 @@ export async function gerarPdfDaRoomingList(r: RoomingList) {
   });
 
   // Nota final curta: como ler o "Tipo" em trechos.
-  let fimDaTabela = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y;
+  const fimDaUltimaTabela = () => (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y;
+  let fimDaTabela = fimDaUltimaTabela();
   // Uso interno: o total do documento logo abaixo da tabela (página nova se não couber).
   if (comValores && r.totalDosValores) {
     if (fimDaTabela + 16 > H - 20) { doc.addPage(); rodape(); fimDaTabela = M; }
@@ -222,6 +226,26 @@ export async function gerarPdfDaRoomingList(r: RoomingList) {
       doc.text("Parcial: há noites sem tarifa definida.", W - M, fimDaTabela + 12.5, { align: "right" });
     }
     fimDaTabela += r.valoresParciais ? 13 : 9;
+  }
+  // Uso interno: quais fornecedores e formas de pagamento o documento usou.
+  if (r.fornecedores.length > 0) {
+    const comValorNoResumo = r.fornecedores.some((f) => f.valor);
+    const paginaDoFim = doc.getNumberOfPages();
+    autoTable(doc, {
+      head: [["Fornecedor", "Pagamento", "Quartos", "Hóspedes", ...(comValorNoResumo ? ["Valor"] : [])]],
+      body: r.fornecedores.map((f) => [f.fornecedor, f.forma, String(f.quartos), String(f.hospedes), ...(comValorNoResumo ? [f.valor ?? "—"] : [])]),
+      startY: fimDaTabela + 8,
+      margin: { left: M, right: M, top: M, bottom: 20 },
+      theme: "plain",
+      rowPageBreak: "avoid",
+      styles: { font: "helvetica", fontSize: 8.6, textColor: COR.texto, cellPadding: { top: 1.8, bottom: 1.8, left: 2.2, right: 2.2 }, lineColor: COR.linha, lineWidth: { bottom: 0.15 } },
+      headStyles: { fillColor: COR.cabecalho, textColor: COR.suave, fontStyle: "bold", fontSize: 7.2 },
+      columnStyles: { 2: { halign: "right", cellWidth: 18 }, 3: { halign: "right", cellWidth: 20 }, ...(comValorNoResumo ? { 4: { halign: "right", cellWidth: 30 } } : {}) },
+      didParseCell: (d) => { if (d.section === "head" && d.column.index >= 2) d.cell.styles.halign = "right"; },
+      // A página em que o resumo começa já tem rodapé; só uma página nova precisa do dela.
+      didDrawPage: (d) => { if (d.pageNumber > paginaDoFim) rodape(); },
+    });
+    fimDaTabela = fimDaUltimaTabela();
   }
   if (r.linhas.some((l) => l.tipo.includes(";")) && fimDaTabela + 12 < H - 20) {
     doc.setFont("helvetica", "normal");

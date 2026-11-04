@@ -40,6 +40,7 @@ import {
 } from "../operational-mirror";
 import { tipoPorOcupantes } from "@shared/room-pairing";
 import { chaveDoHotel, hotelDoEvento, nomeDeHotelLimpo, planoDoHotelDoEvento } from "@shared/rooming-list";
+import { canalDaReserva } from "@shared/fornecedores-de-hotel";
 import { hasRoleIn, ROLE_GROUPS } from "@shared/roles";
 import { LIMITE_DA_DIARIA_CENTAVOS, LIMITE_DO_VALOR_PAGO_CENTAVOS } from "@shared/custo-dos-quartos";
 import { createAuditLog, upload, requireRoles, recalcularStatusDeLogistica, LOGISTICA_ROLES, PAPEIS_DA_OPERACAO } from "./_compartilhado";
@@ -573,6 +574,8 @@ export function registrarEspelhoOperacional(app: Express): void {
           const [novo] = await tx.insert(hotelRoomGroupsTable).values({
             eventId: grupo.eventId,
             hotelName: hotelDosNovos,
+            fornecedor: grupo.fornecedor,
+            formaPagamento: grupo.formaPagamento,
             roomType: "single",
             genderRule: grupo.genderRule,
             checkInDate: grupo.checkInDate,
@@ -664,6 +667,8 @@ export function registrarEspelhoOperacional(app: Express): void {
           const [novo] = await tx.insert(hotelRoomGroupsTable).values({
             eventId: origem.eventId,
             hotelName: hotelDoNovo,
+            fornecedor: origem.fornecedor,
+            formaPagamento: origem.formaPagamento,
             roomType: "single",
             genderRule: origem.genderRule,
             checkInDate: origem.checkInDate,
@@ -815,6 +820,15 @@ export function registrarEspelhoOperacional(app: Express): void {
       const allowed: Partial<InsertHotelRoomGroup> = {};
       for (const k of ["hotelName", "roomType", "genderRule", "checkInDate", "checkOutDate", "notes", "confirmed"] as const) {
         if (k in req.body) allowed[k] = req.body[k];
+      }
+      // Canal da reserva (04/11): trocar o fornecedor sem dizer a forma não herda a do anterior.
+      if ("fornecedor" in req.body || "formaPagamento" in req.body) {
+        const fornecedor = "fornecedor" in req.body ? req.body.fornecedor : anterior.fornecedor;
+        const forma = "formaPagamento" in req.body ? req.body.formaPagamento : fornecedor === anterior.fornecedor ? anterior.formaPagamento : null;
+        const r = canalDaReserva(fornecedor, forma);
+        if (!r.ok) return res.status(400).json({ message: r.message });
+        allowed.fornecedor = r.canal.fornecedor;
+        allowed.formaPagamento = r.canal.formaPagamento;
       }
       const [g] = await db.update(hotelRoomGroupsTable)
         .set({ ...allowed, updatedAt: new Date() })

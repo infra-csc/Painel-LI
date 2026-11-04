@@ -13,7 +13,8 @@
  * Valores (20/10): o documento do HOTEL nunca leva valores. Com `comValores`
  * sai a versão de USO INTERNO (conferência/fechamento): valor por hóspede e
  * por quarto, total e "Uso interno" no cabeçalho e no nome do arquivo.
- * Função de cada hóspede (04/11, dono): também só no uso interno.
+ * Função de cada hóspede, fornecedor e forma de pagamento da reserva e o resumo
+ * por fornecedor (04/11, dono): também só no uso interno.
  *
  * Hotel do evento (15/10, dono: "todos ficam no mesmo hotel por evento"): não
  * há coluna própria — é o hotel comum aos quartos (`hotelDoEvento`). Aplicá-lo
@@ -22,6 +23,7 @@
  */
 import { diariasDosTrechos, ocupacaoPorNoite, rotuloDoTipo, trechosPorApartamento, type TipoDoTrecho } from "./ocupacao-por-noite";
 import { apartamentoParaPessoas, tipoPorOcupantes, tipoQueOHotelNaoTem, type TiposDoHotel } from "./room-pairing";
+import { resumoDosFornecedores, rotuloDaForma, rotuloDoFornecedor, textoDoCanal } from "./fornecedores-de-hotel";
 
 export interface HospedeDaRoomingList {
   collaboratorId: string | null;
@@ -45,6 +47,9 @@ export interface QuartoDaRoomingList {
   /** Total calculado do quarto (centavos) e se todas as noites têm tarifa — só no uso interno. */
   valorCentavos?: number | null;
   valorCompleto?: boolean;
+  /** Canal e pagamento da reserva — só no uso interno. */
+  fornecedor?: string | null;
+  formaPagamento?: string | null;
 }
 
 export interface EntradaDaRoomingList {
@@ -79,6 +84,8 @@ export interface LinhaDaRoomingList {
   observacao: string | null;
   /** "R$ 1.092,00" (uso interno); `null` no PDF do hotel. */
   valor: string | null;
+  /** "Flytour · Faturado" (uso interno); `null` no PDF do hotel. */
+  canal: string | null;
 }
 
 export interface RoomingList {
@@ -104,6 +111,10 @@ export interface RoomingList {
   incluiCpf: boolean;
   /** Versão de uso interno, com valores. */
   comValores: boolean;
+  /** Uso interno com algum valor calculado: sem tarifa, o documento sai sem a coluna Valor. */
+  temValores: boolean;
+  /** Fornecedores e pagamentos do documento (uso interno); vazio no PDF do hotel. */
+  fornecedores: { fornecedor: string; forma: string; quartos: number; hospedes: number; valor: string | null }[];
   /** Soma dos quartos do documento (uso interno); `null` no PDF do hotel. */
   totalDosValores: string | null;
   /** Algum quarto tem noite sem tarifa: o total é parcial. */
@@ -232,9 +243,9 @@ export function dataHoraDeSaoPaulo(d: Date): string {
 }
 
 /** Nome de arquivo seguro em qualquer sistema. Sem hotel definido (`null`): só o evento. */
-export function nomeDoArquivoDaRoomingList(hotel: string | null, evento: string, opcoes: { comValores?: boolean } = {}): string {
+export function nomeDoArquivoDaRoomingList(hotel: string | null, evento: string, opcoes: { comValores?: boolean; usoInterno?: boolean } = {}): string {
   const limpo = (s: string) => s.replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim();
-  const base = opcoes.comValores ? "USO INTERNO - Rooming list com valores" : "Rooming list";
+  const base = opcoes.comValores ? "USO INTERNO - Rooming list com valores" : opcoes.usoInterno ? "USO INTERNO - Rooming list" : "Rooming list";
   return hotel ? `${base} - ${limpo(hotel)} - ${limpo(evento)}.pdf` : `${base} - ${limpo(evento)}.pdf`;
 }
 
@@ -287,8 +298,10 @@ export function montarRoomingList(e: EntradaDaRoomingList): RoomingList {
       diarias: diariasDosTrechos(trechos),
       observacao: q.observacao?.trim() || null,
       valor: comValores && typeof q.valorCentavos === "number" ? reaisDosCentavos(q.valorCentavos) : null,
+      canal: comValores ? textoDoCanal(q.fornecedor, q.formaPagamento) : null,
     };
   });
+  const temValores = comValores && doHotel.some((q) => typeof q.valorCentavos === "number");
 
   const lista = (m: Map<TipoDoTrecho, number>) => ORDEM.filter((t) => m.get(t)).map((t) => ({ tipo: rotuloDoTipo(t), quantidade: m.get(t) as number }));
   const hotel = semHotel
@@ -310,13 +323,22 @@ export function montarRoomingList(e: EntradaDaRoomingList): RoomingList {
     linhas,
     incluiCpf: e.incluirCpf,
     comValores,
-    totalDosValores: comValores ? reaisDosCentavos(doHotel.reduce((s, q) => s + (q.valorCentavos ?? 0), 0)) : null,
+    temValores,
+    fornecedores: comValores
+      ? resumoDosFornecedores(doHotel.map((q) => ({ fornecedor: q.fornecedor, formaPagamento: q.formaPagamento, hospedes: q.hospedes.length, valorCentavos: q.valorCentavos }))).map((l) => ({
+        fornecedor: rotuloDoFornecedor(l.fornecedor) ?? "Sem fornecedor",
+        forma: l.fornecedor ? rotuloDaForma(l.formaPagamento) ?? "A definir" : "—",
+        quartos: l.quartos, hospedes: l.hospedes,
+        valor: l.valorCentavos === null ? null : reaisDosCentavos(l.valorCentavos),
+      }))
+      : [],
+    totalDosValores: temValores ? reaisDosCentavos(doHotel.reduce((s, q) => s + (q.valorCentavos ?? 0), 0)) : null,
     valoresParciais: comValores && doHotel.some((q) => q.valorCompleto === false),
     quartosQueOHotelNaoTem,
     geradoEm: dataHoraDeSaoPaulo(e.geradoEm),
     contato: e.contato.email ? `${e.contato.nome} · ${e.contato.email}` : e.contato.nome,
     // Sem hotel definido o arquivo leva só o evento — o nome digitado no
     // diálogo vale para o cabeçalho, não para o arquivo.
-    nomeDoArquivo: nomeDoArquivoDaRoomingList(semHotel ? null : hotel, e.evento.nome, { comValores }),
+    nomeDoArquivo: nomeDoArquivoDaRoomingList(semHotel ? null : hotel, e.evento.nome, { comValores: temValores, usoInterno: comValores }),
   };
 }

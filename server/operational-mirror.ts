@@ -1194,6 +1194,14 @@ export async function recalculateLogisticsSuggestions(eventId: string) {
     // Hotel do evento (15/10, "todos ficam no mesmo hotel por evento"): lido
     // ANTES de apagar as sugestões, para os quartos refeitos nascerem nele.
     const hotelDoEventoAntes = hotelDoEvento(existingRoomGroups);
+    // Fornecedor e pagamento (04/11): a reserva não muda porque a sugestão foi refeita.
+    // Quem estava em quarto com canal marcado leva o canal para o quarto novo.
+    const canalAntesDoGrupo = new Map(existingRoomGroups.filter((g) => !g.confirmed && g.fornecedor).map((g) => [g.id, { fornecedor: g.fornecedor, formaPagamento: g.formaPagamento }]));
+    const canalAntes = new Map<string, { fornecedor: string | null; formaPagamento: string | null }>();
+    for (const m of roomMembers) {
+      const canal = canalAntesDoGrupo.get(m.hotelRoomGroupId);
+      if (canal && !canalAntes.has(m.collaboratorId)) canalAntes.set(m.collaboratorId, canal);
+    }
     const confirmedRoomGroupIds = new Set(existingRoomGroups.filter((g) => g.confirmed).map((g) => g.id));
     const lockedCollabRoom = new Set<string>();
     for (const m of roomMembers) {
@@ -1267,6 +1275,8 @@ export async function recalculateLogisticsSuggestions(eventId: string) {
     const groupsToCreate = sugeridos.map((q) => ({
       id: randomUUID(),
       eventId,
+      fornecedor: q.members.map((cid) => canalAntes.get(cid)?.fornecedor).find(Boolean) ?? null,
+      formaPagamento: q.members.map((cid) => canalAntes.get(cid)).find((c) => c?.fornecedor)?.formaPagamento ?? null,
       // Sem hotel na hospedagem, o quarto nasce no hotel do evento (15/10).
       hotelName: q.hotelName || hotelDoEventoAntes,
       roomType: q.roomType as string,

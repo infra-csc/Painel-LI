@@ -21,7 +21,13 @@ const SENSIVEIS = [
 ];
 // Autorizados pelo dono, com o motivo. Vazio é o normal.
 const AUTORIZADOS = new Map([
-  ["shared/rooming-list.ts", "Dono, 04/11: função no PDF de uso interno da rooming list (só dado de saída)."],
+  ["shared/rooming-list.ts", "Dono, 04/11: função, fornecedor e pagamento no PDF de uso interno da rooming list."],
+  ["shared/fornecedores-de-hotel.ts", "Dono, 04/11: pedido novo, fornecedor e forma de pagamento por reserva de hotel."],
+  ["shared/schema.ts", "Dono, 04/11: colunas fornecedor e forma_pagamento em hotel_room_groups."],
+  ["server/ensure-schema.ts", "Dono, 04/11: colunas fornecedor e forma_pagamento em hotel_room_groups."],
+  ["server/routes/espelho-operacional.ts", "Dono, 04/11: validar e gravar o canal da reserva; separar e mover levam o canal."],
+  ["server/operational-mirror.ts", "Dono, 04/11: refazer sugestões não perde o canal da reserva."],
+  ["server/dev/demo-seed.ts", "Dono, 04/11: semente da demo com um quarto com fornecedor."],
 ]);
 
 const alterados = git("diff", "--name-only", `${BASE}..HEAD`).split("\n").filter(Boolean).filter((f) => !/\.test\.tsx?$/.test(f));
