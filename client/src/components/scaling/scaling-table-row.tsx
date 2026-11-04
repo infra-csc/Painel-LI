@@ -331,7 +331,7 @@ export function ScalingTableRow({ inclusion, p, compacta = false }: {
   const m = modeloDaLinha(inclusion, p);
   return (
     <tr
-      className={`esc-linha group/row h-[52px] border-b border-border cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ${m.isSelected ? "bg-brand-soft hover:bg-brand-soft" : "bg-card hover:bg-surface-muted"} ${m.cancelada ? "opacity-55" : ""}`}
+      className={`esc-linha group/row h-[52px] border-b border-border cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ${m.isSelected ? "bg-brand-soft hover:bg-brand-soft" : "bg-card hover:bg-surface-muted"} ${m.cancelada ? "!bg-surface-muted" : ""}`}
       onClick={() => p.onRowClick(inclusion)}
       tabIndex={0}
       aria-label={`Abrir detalhes da escalação ${m.idLabel}`}
