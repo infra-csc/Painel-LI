@@ -369,7 +369,11 @@ const liberarSchema = z.object({
 }).strict();
 const estornarSchema = z.object({ versao: z.number().int(), motivo: z.string() }).strict();
 /** `ocAnterior`: a OC que a tela leu ("" = sem OC) — se mudou no meio, 409. */
-const informarOcSchema = z.object({ oc: z.string(), ocAnterior: z.string().optional() }).strict();
+const informarOcSchema = z.object({
+  oc: z.string(), ocAnterior: z.string().optional(),
+  // 04/11 (dono): a observação da liberação também se edita depois. Ausente = não mexe.
+  observacao: textoOpcional(HONORARIO_TEXTO_MAX), observacaoAnterior: z.string().nullable().optional(),
+}).strict();
 
 function corpo<T>(schema: z.ZodType<T>, req: Request, res: Response): T | null {
   const r = schema.safeParse(req.body ?? {});
@@ -603,10 +607,10 @@ export function registrarHonorariosCeno(app: Express): void {
     const aprovados = HONORARIO_STATUS.filter(ehAprovado);
     const linhas = (await dados.listarHonorarios([dados.filtros.status(aprovados)])).filter((h) => a.informaOc || pedeNaLinha(a, h));
     const libs = await dados.liberacoesDe(linhas.map((h) => h.id));
-    const porHonorario = new Map<string, { id: string; data: string; oc: string; valor: number }[]>();
+    const porHonorario = new Map<string, { id: string; data: string; oc: string; valor: number; observacao?: string | null }[]>();
     for (const l of libs) {
       if (l.estornadaEm) continue;
-      porHonorario.set(l.honorarioId, [...(porHonorario.get(l.honorarioId) ?? []), { id: l.id, data: String(l.data), oc: l.oc, valor: l.valor }]);
+      porHonorario.set(l.honorarioId, [...(porHonorario.get(l.honorarioId) ?? []), { id: l.id, data: String(l.data), oc: l.oc, valor: l.valor, ...(a.informaOc ? { observacao: l.observacao } : {}) }]);
     }
     naoArmazenar(res);
     res.json(linhas.map((h) => ({ ...visao(a, h), liberacoes: porHonorario.get(h.id) ?? [] })));
@@ -1043,28 +1047,37 @@ export function registrarHonorariosCeno(app: Express): void {
     if (!atual) return res.status(404).json({ message: "Pedido não encontrado." });
     const b = corpo(informarOcSchema, req, res);
     if (!b) return;
-    const erro = validarOcInformada(b.oc);
-    if (erro) return res.status(400).json({ message: erro });
     const lib = await dados.getLiberacao(req.params.liberacaoId);
     if (!lib || lib.honorarioId !== atual.id) return res.status(404).json({ message: "Liberação não encontrada." });
     if (lib.estornadaEm) return res.status(409).json({ message: "Esta liberação foi estornada — não recebe OC.", atual: visao(a, atual) });
     const oc = b.oc.trim();
     const anterior = lib.oc.trim();
-    if (oc === anterior) return res.json({ honorario: visao(a, atual), liberacao: lib });
+    const obsAtual = lib.observacao ?? null;
+    const obsNova = b.observacao === undefined ? obsAtual : b.observacao || null;
+    const mudouOc = oc !== anterior;
+    const mudouObs = obsNova !== obsAtual;
+    // Só a observação pode mudar numa liberação ainda sem OC; apagar uma OC continua proibido.
+    if (mudouOc || !mudouObs) {
+      const erro = validarOcInformada(b.oc);
+      if (erro) return res.status(400).json({ message: erro });
+    }
+    if (!mudouOc && !mudouObs) return res.json({ honorario: visao(a, atual), liberacao: lib });
     const quando = String(lib.data).slice(0, 10).split("-").reverse().slice(0, 2).join("/");
     const quem = user.name ?? "Usuário";
-    const detalhe = temOc(anterior)
-      ? `OC ${anterior} trocada por ${oc} na liberação de ${quando} (${brl(lib.valor)}) por ${quem}`
-      : `OC ${oc} informada na liberação de ${quando} (${brl(lib.valor)}) por ${quem}`;
-    const nova = await dados.informarOcDaLiberacao(atual.id, lib.id, oc, b.ocAnterior, ator(user), detalhe);
+    const textoDaObs = !mudouObs ? "" : obsNova ? `Observação ${obsAtual ? "alterada" : "incluída"}: “${obsNova}”` : "Observação removida";
+    const onde = `na liberação de ${quando} (${brl(lib.valor)}) por ${quem}`;
+    const detalhe = !mudouOc
+      ? `${textoDaObs} ${onde}`
+      : (temOc(anterior) ? `OC ${anterior} trocada por ${oc} ${onde}` : `OC ${oc} informada ${onde}`) + (mudouObs ? ` · ${textoDaObs}` : "");
+    const nova = await dados.informarOcDaLiberacao(atual.id, lib.id, { oc, observacao: obsNova, ocAnterior: b.ocAnterior, observacaoAnterior: b.observacaoAnterior }, ator(user), detalhe, mudouOc ? "oc_informada" : "observacao_liberacao");
     if (!nova) {
       const agora = await dados.getLiberacao(lib.id);
       return res.status(409).json({
-        message: agora?.estornadaEm ? "Esta liberação foi estornada — não recebe OC." : `A OC desta liberação mudou enquanto você editava (agora: ${textoDaOc(agora?.oc)}). Recarregue.`,
+        message: agora?.estornadaEm ? "Esta liberação foi estornada — não recebe OC." : `Esta liberação mudou enquanto você editava (OC agora: ${textoDaOc(agora?.oc)}). Recarregue.`,
         atual: visao(a, atual),
       });
     }
-    await createAuditLog("informar_oc_liberacao", "honorario_ceno", atual.id, { ...resumoParaAuditoria(atual), liberacaoId: lib.id, oc, valorLiberado: lib.valor, data: String(lib.data) }, user.id, user.name, { oc: anterior || null }, req);
+    await createAuditLog("informar_oc_liberacao", "honorario_ceno", atual.id, { ...resumoParaAuditoria(atual), liberacaoId: lib.id, oc, observacao: obsNova, valorLiberado: lib.valor, data: String(lib.data) }, user.id, user.name, { oc: anterior || null, observacao: obsAtual }, req);
     res.json({ honorario: visao(a, (await dados.getHonorario(atual.id))!), liberacao: nova });
   });
 

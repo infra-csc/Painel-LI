@@ -112,6 +112,7 @@ export interface LiberacaoResumida {
   data: string;
   oc: string;
   valor: number;
+  observacao?: string | null;
 }
 
 /** "Aprovados — todos os eventos" (30/10): o aprovado com o que já foi liberado. */
@@ -461,7 +462,7 @@ export function useMutacoesDoFinanceiro() {
   });
   /** 30/10: o DP informa (ou corrige) a OC/DP de uma liberação já registrada. */
   const informarOc = useMutation({
-    mutationFn: ({ id, liberacaoId, ...b }: { id: string; liberacaoId: string; oc: string; ocAnterior: string }) =>
+    mutationFn: ({ id, liberacaoId, ...b }: { id: string; liberacaoId: string; oc: string; ocAnterior: string; observacao: string | null; observacaoAnterior: string | null }) =>
       json<{ honorario: Honorario; liberacao: Liberacao }>(apiRequest("PATCH", `/api/honorarios-ceno/${id}/liberacoes/${liberacaoId}/oc`, b)),
     onSettled: invalidar,
   });

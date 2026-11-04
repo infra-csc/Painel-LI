@@ -175,32 +175,41 @@ export interface AlvoDaOc {
   honorarioId: string;
   nome: string;
   eventName?: string | null;
-  liberacao: { id: string; data: string; oc: string; valor: number };
+  liberacao: { id: string; data: string; oc: string; valor: number; observacao?: string | null };
 }
 
 /**
  * Informar (ou corrigir) a OC/DP de uma liberação já registrada (30/10 — "quem
  * coloca a OC é o RH/DP, inclusive depois de liberado"). Só DP e admin chegam
  * aqui (a tela esconde o botão de quem não pode; a API recusa com 403).
- * Manda a OC lida: se outra pessoa mudou no meio, a API responde 409.
+ * Manda a OC e a observação lidas: se outra pessoa mudou no meio, a API responde 409.
+ * 04/11 (dono): a observação da liberação se edita aqui também.
  */
 export function InformarOcDialog({ alvo, onClose }: { alvo: AlvoDaOc | null; onClose: () => void }) {
   const { informarOc } = useMutacoesDoFinanceiro();
   const { toast } = useToast();
   const [para, setPara] = useState<string | null>(null);
   const [oc, setOc] = useState("");
+  const [obs, setObs] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const devolverFoco = useFocoDeVolta(!!alvo);
-  if (alvo && para !== alvo.liberacao.id) { setPara(alvo.liberacao.id); setOc(alvo.liberacao.oc.trim()); setErro(null); }
+  if (alvo && para !== alvo.liberacao.id) { setPara(alvo.liberacao.id); setOc(alvo.liberacao.oc.trim()); setObs(alvo.liberacao.observacao ?? ""); setErro(null); }
   if (!alvo) { if (para !== null) setPara(null); return null; }
   const corrigindo = temOc(alvo.liberacao.oc);
+  const obsLida = alvo.liberacao.observacao ?? null;
+  const obsNova = obs.trim() || null;
+  const mudouOc = oc.trim() !== alvo.liberacao.oc.trim();
+  const mudouObs = obsNova !== obsLida;
   const salvar = async () => {
-    const e = validarOcInformada(oc);
-    if (e) { setErro(e); return; }
-    if (oc.trim() === alvo.liberacao.oc.trim()) { onClose(); return; }
+    // Liberação sem OC pode receber só a observação; apagar uma OC continua recusado.
+    if (mudouOc || !mudouObs) {
+      const e = validarOcInformada(oc);
+      if (e) { setErro(e); return; }
+    }
+    if (!mudouOc && !mudouObs) { onClose(); return; }
     try {
-      await informarOc.mutateAsync({ id: alvo.honorarioId, liberacaoId: alvo.liberacao.id, oc: oc.trim(), ocAnterior: alvo.liberacao.oc });
-      toast({ variant: "success", title: corrigindo ? "OC corrigida" : "OC informada", description: `${alvo.nome} · OC/DP ${oc.trim()} na liberação de ${dataBr(alvo.liberacao.data)} (${brl(alvo.liberacao.valor)}).` });
+      await informarOc.mutateAsync({ id: alvo.honorarioId, liberacaoId: alvo.liberacao.id, oc: oc.trim(), ocAnterior: alvo.liberacao.oc, observacao: obsNova, observacaoAnterior: obsLida });
+      toast({ variant: "success", title: !mudouOc ? "Observação salva" : corrigindo ? "OC corrigida" : "OC informada", description: `${alvo.nome} · ${temOc(oc) ? `OC/DP ${oc.trim()}` : "sem OC"} na liberação de ${dataBr(alvo.liberacao.data)} (${brl(alvo.liberacao.valor)}).` });
       onClose();
     } catch (err) {
       if (isApiError(err) && (err.status === 409 || err.status === 404)) {
@@ -216,7 +225,7 @@ export function InformarOcDialog({ alvo, onClose }: { alvo: AlvoDaOc | null; onC
       <DialogContent className="max-w-md gap-0 p-0" onOpenAutoFocus={(e) => { e.preventDefault(); document.getElementById("hon-informar-oc")?.focus(); }} onCloseAutoFocus={devolverFoco} data-testid="hon-informar-oc-dialogo">
         <DialogHeader className="space-y-1 border-b border-border px-6 pb-4 pt-5 text-left">
           <DialogTitle className="flex items-center gap-2 pr-8 text-base font-semibold">
-            <FileDigit className="h-4 w-4 text-primary" aria-hidden="true" /> {corrigindo ? "Corrigir a OC/DP" : "Informar a OC/DP"}
+            <FileDigit className="h-4 w-4 text-primary" aria-hidden="true" /> {corrigindo ? "Corrigir a OC/DP ou a observação" : "Informar a OC/DP"}
           </DialogTitle>
           <DialogDescription className="text-xs">
             {alvo.nome}{alvo.eventName ? ` · ${alvo.eventName}` : ""} — liberação de {dataBr(alvo.liberacao.data)} · {brl(alvo.liberacao.valor)}
@@ -227,13 +236,17 @@ export function InformarOcDialog({ alvo, onClose }: { alvo: AlvoDaOc | null; onC
           <Input id="hon-informar-oc" className="h-10 rounded-lg bg-card tabular-nums" maxLength={HONORARIO_OC_MAX} value={oc} placeholder="Ex.: 45123"
             onChange={(e) => { setErro(null); setOc(e.target.value); }} />
           <p className="text-2xs text-muted-foreground">Fica no histórico do pedido{corrigindo ? `, com a OC anterior (${alvo.liberacao.oc.trim()})` : ""}.</p>
+          <div className="space-y-1.5 pt-3">
+            <Label htmlFor="hon-informar-obs">Observação <span className="font-normal text-muted-foreground">(opcional)</span></Label>
+            <Textarea id="hon-informar-obs" rows={3} maxLength={HONORARIO_TEXTO_MAX} className="rounded-lg bg-card text-sm" value={obs} onChange={(e) => { setErro(null); setObs(e.target.value); }} />
+          </div>
           {erro && <p role="alert" className="rounded-lg border border-danger/25 bg-danger-soft px-3 py-2 text-xs text-danger">{erro}</p>}
         </form>
         <DialogFooter className="gap-2 border-t border-border bg-surface-muted/60 px-6 py-3 sm:gap-2">
           <Button type="button" variant="outline" onClick={onClose} disabled={informarOc.isPending}>Cancelar</Button>
-          <Button type="button" onClick={() => void salvar()} disabled={informarOc.isPending || !oc.trim()}>
+          <Button type="button" onClick={() => void salvar()} disabled={informarOc.isPending || (!oc.trim() && !mudouObs)}>
             {informarOc.isPending ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : null}
-            {informarOc.isPending ? "Salvando…" : corrigindo ? "Salvar a OC" : "Informar OC"}
+            {informarOc.isPending ? "Salvando…" : corrigindo || (!oc.trim() && mudouObs) ? "Salvar" : "Informar OC"}
           </Button>
         </DialogFooter>
       </DialogContent>

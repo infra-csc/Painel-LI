@@ -602,19 +602,22 @@ export async function estornarLiberacao(
  * Devolve a liberação nova ou null (estornada, de outro pedido ou corrida).
  */
 export async function informarOcDaLiberacao(
-  honorarioId: string, liberacaoId: string, oc: string, ocAnterior: string | undefined, ator: Ator, detalhe: string,
+  honorarioId: string, liberacaoId: string,
+  m: { oc: string; observacao: string | null; ocAnterior?: string; observacaoAnterior?: string | null },
+  ator: Ator, detalhe: string, acao: "oc_informada" | "observacao_liberacao" = "oc_informada",
 ): Promise<HonorarioCenoLiberacao | null> {
   return db.transaction(async (tx) => {
     const [l] = await tx.update(honorariosCenoLiberacoes)
-      .set({ oc })
+      .set({ oc: m.oc, observacao: m.observacao })
       .where(and(
         eq(honorariosCenoLiberacoes.id, liberacaoId), eq(honorariosCenoLiberacoes.honorarioId, honorarioId), isNull(honorariosCenoLiberacoes.estornadaEm),
-        ...(ocAnterior !== undefined ? [eq(honorariosCenoLiberacoes.oc, ocAnterior)] : []),
+        ...(m.ocAnterior !== undefined ? [eq(honorariosCenoLiberacoes.oc, m.ocAnterior)] : []),
+        ...(m.observacaoAnterior === undefined ? [] : [m.observacaoAnterior === null ? isNull(honorariosCenoLiberacoes.observacao) : eq(honorariosCenoLiberacoes.observacao, m.observacaoAnterior)]),
       ))
       .returning();
     if (!l) return null;
     await tx.update(honorariosCeno).set({ updatedAt: new Date() }).where(eq(honorariosCeno.id, honorarioId));
-    await registrar(tx, honorarioId, ator, { acao: "oc_informada", valorNovo: l.valor, detalhe });
+    await registrar(tx, honorarioId, ator, { acao, valorNovo: l.valor, detalhe });
     return l;
   });
 }

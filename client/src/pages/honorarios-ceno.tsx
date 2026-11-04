@@ -257,7 +257,7 @@ function LinhaLiberada({ h, pago, onHistorico, onInformarOc }: { h: HonorarioDoF
             {temOc(l.oc) ? <span>OC/DP {l.oc.trim()}</span> : <span className="rounded bg-warning-soft px-1 text-2xs font-medium text-warning">sem OC</span>}
             <span>· {dataBr(l.data)} · {brlCurto(l.valor)}</span>
             {onInformarOc && (temOc(l.oc) ? (
-              <button type="button" onClick={() => onInformarOc(l)} aria-label={`Editar a OC ${l.oc.trim()} de ${h.nome}`} title="Corrigir a OC/DP"
+              <button type="button" onClick={() => onInformarOc(l)} aria-label={`Editar a OC ${l.oc.trim()} de ${h.nome}`} title="Corrigir a OC/DP ou a observação"
                 className="val-alvo inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <Pencil className="h-3 w-3" aria-hidden="true" />
               </button>
@@ -267,6 +267,7 @@ function LinhaLiberada({ h, pago, onHistorico, onInformarOc }: { h: HonorarioDoF
                 <FileDigit className="h-3 w-3" aria-hidden="true" /> Informar OC
               </button>
             ))}
+            {l.observacao && <span className="block w-0 min-w-full text-2xs leading-4 text-muted-foreground [overflow-wrap:anywhere]" data-testid={`hon-lib-obs-${l.id}`}>Obs.: {l.observacao}</span>}
           </span>
         ))}
       </span>
@@ -351,7 +352,7 @@ export default function HonorariosCenoPage() {
   const nSemOc = liberadosSemFiltroDeOc.filter(temSemOc).length;
   const liberados = liberadosSemFiltroDeOc.filter((h) => (!url.semOc || temSemOc(h)) && casaBusca(h, url.q));
   const informarOc = podeInformarOc
-    ? (h: HonorarioDoFinanceiro, l: { id: string; data: string; oc: string; valor: number }) => setAlvoDaOc({ honorarioId: h.id, nome: h.nome, eventName: h.eventName, liberacao: { id: l.id, data: l.data, oc: l.oc, valor: l.valor } })
+    ? (h: HonorarioDoFinanceiro, l: { id: string; data: string; oc: string; valor: number; observacao: string | null }) => setAlvoDaOc({ honorarioId: h.id, nome: h.nome, eventName: h.eventName, liberacao: { id: l.id, data: l.data, oc: l.oc, valor: l.valor, observacao: l.observacao } })
     : undefined;
   const nALiberar = noPeriodo.filter((h) => h.falta > 0 && (h.status === "aprovado" || h.status === "aprovado_ajuste")).length;
   const eventoEscolhido = eventos.find((e) => e.id === url.evento);
@@ -564,7 +565,7 @@ export default function HonorariosCenoPage() {
       <InformarOcDialog alvo={alvoDaOc} onClose={() => setAlvoDaOc(null)} />
       <HistoricoSheet id={historicoId} aberto={!!historicoId} onOpenChange={(o) => { if (!o) setHistoricoId(null); }} visao="financeiro"
         onEstornar={(h, l) => { const linha = todas.find((x) => x.id === h.id); if (linha) setEstornando({ h: { ...linha, versao: h.versao }, l }); }}
-        onInformarOc={podeInformarOc ? (h, l) => { setHistoricoId(null); setAlvoDaOc({ honorarioId: h.id, nome: h.nome, eventName: h.eventName, liberacao: { id: l.id, data: l.data, oc: l.oc, valor: l.valor } }); } : undefined}
+        onInformarOc={podeInformarOc ? (h, l) => { setHistoricoId(null); setAlvoDaOc({ honorarioId: h.id, nome: h.nome, eventName: h.eventName, liberacao: { id: l.id, data: l.data, oc: l.oc, valor: l.valor, observacao: l.observacao } }); } : undefined}
         acoes={(h) => h.podeLiberar ? (
           <Button type="button" className="bg-success text-white hover:bg-success/90" onClick={() => { const linha = todas.find((x) => x.id === h.id); if (linha) { setHistoricoId(null); setLiberando({ ...linha, ...h }); } }}>
             <Banknote className="h-4 w-4" aria-hidden="true" /> Registrar liberação

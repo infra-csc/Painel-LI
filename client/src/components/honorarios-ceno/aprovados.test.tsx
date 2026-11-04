@@ -256,6 +256,45 @@ describe("OC/DP opcional e informada depois pelo DP (Financeiro)", () => {
     expect(screen.getByRole("tab", { name: /Aprovados \(todos os eventos\)/ })).toBeInTheDocument();
   });
 
+  it("DP em Liberados: a observação aparece, abre no diálogo da OC e é gravada com a lida", async () => {
+    const chamadas: Chamada[] = [];
+    mockarFetch(roteador({
+      "GET /api/honorarios-ceno/acesso": ACESSO({ podeLiberar: true, podeInformarOc: true }),
+      "GET /api/honorarios-ceno/financeiro": () => respostaJson([
+        fin({ id: "f1", nome: "Pessoa Um", liberado: 100_000, falta: 0, liberacoes: [lib({ oc: "45777", observacao: "Pago em duas vezes" })] }),
+      ]),
+      "PATCH /api/honorarios-ceno/f1/liberacoes/l1/oc": () => respostaJson({ honorario: fin({ id: "f1" }), liberacao: lib({ oc: "45777", observacao: "Só a primeira" }) }),
+    }, chamadas));
+    const { user } = renderComTudo(<HonorariosCenoPage />, { user: dp, rota: "/honorarios-ceno?aba=liberados&base=evento" });
+    const linha = await screen.findByTestId("hon-liberado-f1");
+    expect(linha).toHaveTextContent("Obs.: Pago em duas vezes");
+    await user.click(within(linha).getByRole("button", { name: /Editar a OC 45777/ }));
+    const dialogo = await screen.findByTestId("hon-informar-oc-dialogo");
+    const campo = within(dialogo).getByLabelText(/Observação/);
+    expect(campo).toHaveValue("Pago em duas vezes");
+    await user.clear(campo);
+    await user.type(campo, "Só a primeira");
+    await user.click(within(dialogo).getByRole("button", { name: "Salvar" }));
+    await waitFor(() => expect(chamadas.find((c) => c.metodo === "PATCH")).toMatchObject({
+      corpo: { oc: "45777", ocAnterior: "45777", observacao: "Só a primeira", observacaoAnterior: "Pago em duas vezes" },
+    }));
+  });
+
+  it("DP em Liberados: sem OC, dá para gravar só a observação", async () => {
+    const chamadas: Chamada[] = [];
+    mockarFetch(roteador({
+      "GET /api/honorarios-ceno/acesso": ACESSO({ podeLiberar: true, podeInformarOc: true }),
+      "GET /api/honorarios-ceno/financeiro": () => respostaJson([fin({ id: "f1", nome: "Pessoa Um", liberado: 100_000, falta: 0, liberacoes: [lib({})] })]),
+      "PATCH /api/honorarios-ceno/f1/liberacoes/l1/oc": () => respostaJson({ honorario: fin({ id: "f1" }), liberacao: lib({ observacao: "Aguardando o DP" }) }),
+    }, chamadas));
+    const { user } = renderComTudo(<HonorariosCenoPage />, { user: dp, rota: "/honorarios-ceno?aba=liberados&base=evento" });
+    await user.click(within(await screen.findByTestId("hon-liberado-f1")).getByRole("button", { name: /Informar a OC da liberação/ }));
+    const dialogo = await screen.findByTestId("hon-informar-oc-dialogo");
+    await user.type(within(dialogo).getByLabelText(/Observação/), "Aguardando o DP");
+    await user.click(within(dialogo).getByRole("button", { name: "Salvar" }));
+    await waitFor(() => expect(chamadas.find((c) => c.metodo === "PATCH")).toMatchObject({ corpo: { oc: "", observacao: "Aguardando o DP", observacaoAnterior: null } }));
+  });
+
   it("DP na aba Aprovados: Informar OC na linha sem OC", async () => {
     const chamadas: Chamada[] = [];
     mockarFetch(roteador({

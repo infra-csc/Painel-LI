@@ -130,7 +130,7 @@ function exportarCsv(linhas: readonly HonorarioAprovado[], nome: string, preambu
   const cabecalho = [
     "Evento", "Início do evento", "Fim do evento", "Tipo", "Pessoas", "Nome", "Função", "Setor", "Posição", "Origem do valor",
     "Valor pedido (R$)", "Valor aprovado (R$)", "Ajuste (R$)", "Aprovado por", "Aprovado em", "Liberado (R$)", "A liberar (R$)", "Situação",
-    "OC/DP (data · valor)", "Liberações sem OC",
+    "OC/DP (data · valor)", "Liberações sem OC", "Observações das liberações",
   ];
   const corpo = linhas.map((h) => {
     const aprovado = h.valorAprovado ?? 0;
@@ -142,6 +142,7 @@ function exportarCsv(linhas: readonly HonorarioAprovado[], nome: string, preambu
       reaisParaCsv(h.liberado), reaisParaCsv(h.falta), ROTULO_DA_SITUACAO[situacaoDe(h)],
       h.liberacoes.map((l) => `${temOc(l.oc) ? l.oc.trim() : "sem OC"} (${dataBr(l.data)} · ${reaisParaCsv(l.valor)})`).join(" / "),
       String(semOc(h).length),
+      h.liberacoes.map((l) => l.observacao?.trim()).filter(Boolean).join(" / "),
     ];
   });
   downloadCsv(nome, cabecalho, corpo, preambulo);
@@ -174,7 +175,7 @@ function OcsDaLinha({ h, onInformarOc }: { h: HonorarioAprovado; onInformarOc?: 
               : <span className="rounded bg-warning-soft px-1 font-medium text-warning">sem OC</span>}
             <span className="tabular-nums text-muted-foreground">{dataBr(l.data).slice(0, 5)} · {brlCurto(l.valor)}</span>
             {onInformarOc && (com ? (
-              <button type="button" onClick={() => onInformarOc(l)} aria-label={`Editar a OC ${l.oc.trim()} de ${h.nome}`} title="Corrigir a OC/DP"
+              <button type="button" onClick={() => onInformarOc(l)} aria-label={`Editar a OC ${l.oc.trim()} de ${h.nome}`} title="Corrigir a OC/DP ou a observação"
                 className="val-alvo inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <Pencil className="h-3 w-3" aria-hidden="true" />
               </button>
@@ -184,6 +185,7 @@ function OcsDaLinha({ h, onInformarOc }: { h: HonorarioAprovado; onInformarOc?: 
                 <FileDigit className="h-3 w-3" aria-hidden="true" /> Informar OC
               </button>
             ))}
+            {l.observacao && <span className="w-full block basis-full text-2xs leading-4 text-muted-foreground [overflow-wrap:anywhere]" data-testid={`hon-lib-obs-${l.id}`}>Obs.: {l.observacao}</span>}
           </li>
         );
       })}

@@ -26,6 +26,7 @@ const ACOES: Record<string, { rotulo: string; icone: LucideIcon; tom: string }> 
   liberacao: { rotulo: "Verba liberada", icone: Banknote, tom: "bg-success-soft text-success" },
   liberacao_estornada: { rotulo: "Liberação estornada", icone: RotateCcw, tom: "bg-danger-soft text-danger" },
   oc_informada: { rotulo: "OC/DP informada", icone: FileDigit, tom: "bg-brand-soft text-primary" },
+  observacao_liberacao: { rotulo: "Observação da liberação", icone: Pencil, tom: "bg-brand-soft text-primary" },
   colaborador_trocado: { rotulo: "Colaborador da vaga trocado", icone: ArrowLeftRight, tom: "bg-warning-soft text-warning" },
   colaborador_escalado: { rotulo: "Vaga escalada — o nome entrou no pedido", icone: ArrowLeftRight, tom: "bg-muted text-muted-foreground" },
   vagas_da_empreita: { rotulo: "Vagas da empreita alteradas", icone: Pencil, tom: "bg-brand-soft text-primary" },
@@ -84,7 +85,7 @@ function LinhaDaLiberacao({ l, onEstornar, onInformarOc }: { l: Liberacao; onEst
         <span className={cn("text-sm font-semibold tabular-nums", estornada ? "text-muted-foreground line-through" : "text-foreground")}>{brl(l.valor)}</span>
         {onInformarOc && !estornada && (
           <Button type="button" variant="ghost" size="sm" className="val-alvo h-8 px-2 text-xs text-primary hover:bg-brand-soft hover:text-primary" onClick={() => onInformarOc(l)}>
-            {temOc(l.oc) ? "Editar OC" : "Informar OC"}
+            {temOc(l.oc) ? "Editar OC/obs." : "Informar OC"}
           </Button>
         )}
         {onEstornar && !estornada && (

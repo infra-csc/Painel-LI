@@ -187,6 +187,31 @@ describe("Liberação sem OC e a OC informada depois pelo DP (30/10)", () => {
     const troca = await mutacao(dp.agent.patch(`/api/honorarios-ceno/${h.id}/liberacoes/${alvo.id}/oc`)).send({ oc: "45124", ocAnterior: "45123" });
     expect(troca.status, troca.text).toBe(200);
 
+    // Observação (04/11): grava sozinha, com a lida; fica no histórico; a OC continua igual.
+    const url = `/api/honorarios-ceno/${h.id}/liberacoes/${alvo.id}/oc`;
+    const obs = await mutacao(dp.agent.patch(url)).send({ oc: "45124", ocAnterior: "45124", observacao: "  Pago em duas vezes  ", observacaoAnterior: null });
+    expect(obs.status, obs.text).toBe(200);
+    expect(obs.body.liberacao).toMatchObject({ oc: "45124", observacao: "Pago em duas vezes" });
+    hist = await historico(dp.agent, h.id);
+    expect(hist.historico.find((x) => x.acao === "observacao_liberacao")!.detalhe).toMatch(/^Observação incluída: “Pago em duas vezes” na liberação de /);
+    // Tela velha (leu sem observação): 409, nada muda.
+    const obsVelha = await mutacao(dp.agent.patch(url)).send({ oc: "45124", ocAnterior: "45124", observacao: "Outra", observacaoAnterior: null });
+    expect(obsVelha.status).toBe(409);
+    expect((await aprovados(dp.agent)).find((x) => x.id === h.id)!.liberacoes.find((l) => l.id === alvo.id)).toMatchObject({ observacao: "Pago em duas vezes" });
+    // Apagar a OC continua recusado, mesmo mudando a observação.
+    expect((await mutacao(dp.agent.patch(url)).send({ oc: "", observacao: "Outra" })).status).toBe(400);
+    // Só a OC: não mexe na observação.
+    const soOc = await mutacao(dp.agent.patch(url)).send({ oc: "45124" });
+    expect(soOc.body.liberacao).toMatchObject({ observacao: "Pago em duas vezes" });
+    // Liberação sem OC: pode receber só a observação, e segue sem OC.
+    const semOcAinda = hist.liberacoes.find((l) => l.id !== alvo.id)!;
+    const soObs = await mutacao(dp.agent.patch(`/api/honorarios-ceno/${h.id}/liberacoes/${semOcAinda.id}/oc`)).send({ oc: "", ocAnterior: "", observacao: "Aguardando o DP", observacaoAnterior: null });
+    expect(soObs.status, soObs.text).toBe(200);
+    expect(soObs.body.liberacao).toMatchObject({ oc: "", observacao: "Aguardando o DP" });
+    // Remover a observação.
+    const tirar = await mutacao(dp.agent.patch(url)).send({ oc: "45124", observacao: "", observacaoAnterior: "Pago em duas vezes" });
+    expect(tirar.body.liberacao.observacao).toBeNull();
+
     // Quem lança vê a OC na aba "Aprovados".
     const linha = (await aprovados(ceno.pede.agent)).find((x) => x.id === h.id)!;
     expect(linha.liberacoes.map((l) => l.oc).sort()).toEqual(["", "45124"]);
