@@ -13,6 +13,9 @@
  * 20/10: a versão "com valores (uso interno)" (`r.comValores`) acrescenta a
  * coluna Valor, o total de cada quarto e o total do documento, e avisa no topo
  * que NÃO é para enviar ao hotel. A rooming list do hotel continua sem valores.
+ *
+ * 04/11 (dono): o uso interno mostra a função, a mesma da tela Quartos, embaixo do
+ * nome. Numa coluna própria não caberia em A4 retrato sem espremer nome e datas.
  */
 import type { RoomingList } from "@shared/rooming-list";
 
@@ -117,8 +120,14 @@ export async function gerarPdfDaRoomingList(r: RoomingList) {
   // ── Tabela: uma linha por hóspede; quarto, tipo e observação por quarto ──
   const comCpf = r.incluiCpf;
   const comValores = r.comValores;
+  const comFuncao = r.linhas.some((l) => l.hospedes.some((h) => h.funcao));
   const colunas = ["Quarto", "Tipo", "Hóspede", ...(comCpf ? ["CPF"] : []), "Check-in", "Check-out", ...(comValores ? ["Valor"] : []), "Observação"];
-  const head = [colunas];
+  const head = [colunas.map((c) => (c === "Hóspede" && comFuncao ? "Hóspede · Função" : c))];
+  const larguras = LARGURAS[comCpf && comValores ? "ambos" : comCpf ? "cpf" : comValores ? "valores" : "simples"];
+  // O que sobra da página é do Hóspede; descontados os recuos da célula, é a largura do texto.
+  const larguraDoHospede = util - Object.values(larguras).reduce((soma, w) => soma + w, 0) - 4.4;
+  /** Função embaixo do nome: reserva a altura aqui e desenha em didDrawCell, com tom e corpo próprios. */
+  const funcaoDaLinha = new Map<number, { linhas: string[]; yDesdeOTopo: number }>();
   type Celula = { content: string; rowSpan?: number; styles?: Record<string, unknown> };
   const body: Celula[][] = [];
   const primeiraDoQuarto = new Set<number>();
@@ -132,7 +141,19 @@ export async function gerarPdfDaRoomingList(r: RoomingList) {
         const tipo = pdfTexto(l.tipo).split("; ").join("\n");
         linha.push({ content: comValores && l.valor ? `${tipo}\nTotal ${l.valor}` : tipo, rowSpan: span });
       }
-      linha.push({ content: h.nome, styles: { fontStyle: "bold" } });
+      if (h.funcao) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8.6);
+        const nome = (doc.splitTextToSize(h.nome, larguraDoHospede) as string[]).length;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7.4);
+        const funcao = doc.splitTextToSize(h.funcao, larguraDoHospede) as string[];
+        const yDesdeOTopo = 2.4 + nome * 3.5 + 2.2;
+        funcaoDaLinha.set(body.length, { linhas: funcao, yDesdeOTopo });
+        linha.push({ content: h.nome, styles: { fontStyle: "bold", minCellHeight: yDesdeOTopo + (funcao.length - 1) * 3 + 3.2 } });
+      } else {
+        linha.push({ content: h.nome, styles: { fontStyle: "bold" } });
+      }
       if (comCpf) linha.push({ content: h.cpf ?? "—" });
       linha.push({ content: h.checkIn });
       linha.push({ content: h.checkOut });
@@ -173,6 +194,14 @@ export async function gerarPdfDaRoomingList(r: RoomingList) {
         d.cell.styles.lineWidth = { top: 0.35, bottom: 0.15 };
         d.cell.styles.lineColor = COR.linhaForte;
       }
+    },
+    didDrawCell: (d) => {
+      const funcao = d.section === "body" && colunas[d.column.index] === "Hóspede" ? funcaoDaLinha.get(d.row.index) : undefined;
+      if (!funcao) return;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.4);
+      doc.setTextColor(...COR.suave);
+      doc.text(funcao.linhas, d.cell.x + 2.2, d.cell.y + funcao.yDesdeOTopo);
     },
     didDrawPage: () => rodape(),
   });

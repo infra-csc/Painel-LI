@@ -13,6 +13,7 @@
  * Valores (20/10): o documento do HOTEL nunca leva valores. Com `comValores`
  * sai a versão de USO INTERNO (conferência/fechamento): valor por hóspede e
  * por quarto, total e "Uso interno" no cabeçalho e no nome do arquivo.
+ * Função de cada hóspede (04/11, dono): também só no uso interno.
  *
  * Hotel do evento (15/10, dono: "todos ficam no mesmo hotel por evento"): não
  * há coluna própria — é o hotel comum aos quartos (`hotelDoEvento`). Aplicá-lo
@@ -32,6 +33,8 @@ export interface HospedeDaRoomingList {
   cpf?: string | null;
   /** Custo calculado da pessoa neste quarto (centavos) — só sai no PDF de uso interno. */
   valorCentavos?: number | null;
+  /** Função como a tela Quartos mostra — só sai no PDF de uso interno. */
+  funcao?: string | null;
 }
 
 export interface QuartoDaRoomingList {
@@ -71,7 +74,7 @@ export interface LinhaDaRoomingList {
   numero: number;
   /** "Duplo" ou "13/11→14/11 Single; 14/11→16/11 Duplo". */
   tipo: string;
-  hospedes: { nome: string; cpf: string | null; checkIn: string; checkOut: string; valor: string | null }[];
+  hospedes: { nome: string; cpf: string | null; checkIn: string; checkOut: string; valor: string | null; funcao: string | null }[];
   diarias: number;
   observacao: string | null;
   /** "R$ 1.092,00" (uso interno); `null` no PDF do hotel. */
@@ -279,6 +282,7 @@ export function montarRoomingList(e: EntradaDaRoomingList): RoomingList {
         checkIn: ddmmaaaa(h.checkIn),
         checkOut: ddmmaaaa(h.checkOut),
         valor: comValores && typeof h.valorCentavos === "number" ? reaisDosCentavos(h.valorCentavos) : null,
+        funcao: comValores ? h.funcao?.trim() || null : null,
       })),
       diarias: diariasDosTrechos(trechos),
       observacao: q.observacao?.trim() || null,

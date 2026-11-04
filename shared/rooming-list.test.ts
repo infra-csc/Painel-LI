@@ -47,11 +47,22 @@ describe("montarRoomingList", () => {
     expect(r.totalDeDiarias).toBe(8);
     expect(r.periodoDoEvento).toBe("24/04/2026 a 26/04/2026");
     expect(r.periodoDaHospedagem).toBe("22/04/2026 a 27/04/2026");
-    expect(r.linhas[0].hospedes[0]).toEqual({ nome: "Mauricio Souza", cpf: null, checkIn: "22/04/2026", checkOut: "27/04/2026", valor: null });
+    expect(r.linhas[0].hospedes[0]).toEqual({ nome: "Mauricio Souza", cpf: null, checkIn: "22/04/2026", checkOut: "27/04/2026", valor: null, funcao: null });
     expect(r.linhas[0].observacao).toBe("Pedir andar alto");
     expect(r.geradoEm).toBe("09/10/2026 14:05");
     expect(r.contato).toBe("Helena Martins · admin@demo.local");
     expect(r.nomeDoArquivo).toBe("Rooming list - Hotel Atlântico Rio - Night Run 1ª Etapa Rio.pdf");
+  });
+
+  it("a função só sai na versão de uso interno; o documento do hotel nunca a leva (04/11)", () => {
+    const quartos = [{ hotelName: "Hotel Atlântico Rio", hospedes: [
+      { collaboratorId: "m", nome: "Mauricio Souza", checkIn: "2026-04-22", checkOut: "2026-04-27", funcao: "  Cenotecnica " },
+      { collaboratorId: "e", nome: "Edney Lima", checkIn: "2026-04-24", checkOut: "2026-04-26", funcao: null },
+    ] }];
+    const interno = montarRoomingList(base({ quartos, comValores: true }));
+    expect(interno.linhas[0].hospedes.map((h) => h.funcao)).toEqual(["Cenotecnica", null]);
+    const doHotel = montarRoomingList(base({ quartos }));
+    expect(doHotel.linhas[0].hospedes.map((h) => h.funcao)).toEqual([null, null]);
   });
 
   it("CPF só sai quando pedido, e só para quem tem CPF válido", () => {

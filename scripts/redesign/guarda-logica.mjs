@@ -20,7 +20,9 @@ const SENSIVEIS = [
   /^client\/src\/hooks\/use-[^/]+\.tsx?$/, /\/use-[^/]+\.tsx?$/, /-utils\.ts$/, /scaling-analytics-data\.ts$/,
 ];
 // Autorizados pelo dono, com o motivo. Vazio é o normal.
-const AUTORIZADOS = new Map([]);
+const AUTORIZADOS = new Map([
+  ["shared/rooming-list.ts", "Dono, 04/11: função no PDF de uso interno da rooming list (só dado de saída)."],
+]);
 
 const alterados = git("diff", "--name-only", `${BASE}..HEAD`).split("\n").filter(Boolean).filter((f) => !/\.test\.tsx?$/.test(f));
 const violacoes = alterados.filter((f) => SENSIVEIS.some((re) => re.test(f)) && !AUTORIZADOS.has(f));

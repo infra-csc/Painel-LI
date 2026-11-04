@@ -537,6 +537,7 @@ export function QuartosView({ groups, collabById, rows, canEdit, onConfirm, onPa
       observacao: q.g.notes && !q.g.notes.startsWith(PREFIXO_DATAS_DIFERENTES) ? q.g.notes : null,
       hospedes: q.lista.map((o) => ({
         collaboratorId: o.m.id ?? null, nome: o.m.name, checkIn: dia(o.ini), checkOut: dia(o.fim),
+        funcao: o.r?.function.area || o.r?.function.name || null,
         ...(cq ? { valorCentavos: cq.pessoas.find((p) => p.chave === o.chave)?.totalCentavos ?? null } : {}),
       })),
       ...(cq ? { valorCentavos: cq.totalCentavos, valorCompleto: cq.completo } : {}),

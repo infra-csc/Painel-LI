@@ -102,7 +102,7 @@ export function RoomingListPdf({ evento, quartos, comValoresDisponivel = false, 
         contato: { nome: user?.name || "Logística", email: user?.email ?? null },
         quartos: quartos.map((q) => ({
           ...q,
-          hospedes: q.hospedes.map((h) => ({ ...h, nome: toTitleCase(h.nome), cpf: h.collaboratorId ? cpfs?.[h.collaboratorId] ?? null : null })),
+          hospedes: q.hospedes.map((h) => ({ ...h, nome: toTitleCase(h.nome), funcao: h.funcao ? toTitleCase(h.funcao) : null, cpf: h.collaboratorId ? cpfs?.[h.collaboratorId] ?? null : null })),
         })),
       }));
       const { baixarRoomingListPdf } = await import("@/lib/rooming-list-pdf");
