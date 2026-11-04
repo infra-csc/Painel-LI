@@ -1,5 +1,5 @@
 {
-  "name": "rest-express",
+  "name": "trupp",
   "version": "1.0.0",
   "type": "module",
   "license": "MIT",
@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:rotas": "vitest run server/test",
     "lint": "eslint . --max-warnings=0",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "redesign:guarda": "node scripts/redesign/guarda-logica.mjs"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.17.0",
@@ -71,6 +72,7 @@
     "zod-validation-error": "^3.4.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
     "@electric-sql/pglite": "^0.5.8",
     "@playwright/test": "^1.63.0",
     "@replit/vite-plugin-cartographer": "^0.6.1",
