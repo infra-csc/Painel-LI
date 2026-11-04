@@ -21,7 +21,7 @@ for (const rota of ROTAS) {
     const nos = (v: typeof violations[number]) => `${v.id} (${v.nodes.length}): ${v.nodes[0]?.target.join(" ")}`;
     const criticas = violations.filter((v) => v.impact === "critical");
     const serias = violations.filter((v) => v.impact === "serious");
-    console.log(`[axe] ${rota}: ${criticas.length} críticas, ${serias.length} sérias | ${[...criticas, ...serias].map((v) => `${v.id}=${v.nodes.length}`).join(" ")}`);
+    console.warn(`[axe] ${rota}: ${criticas.length} críticas, ${serias.length} sérias | ${[...criticas, ...serias].map((v) => `${v.id}=${v.nodes.length}`).join(" ")}`);
     expect(criticas.map(nos)).toEqual([]);
     expect(serias.length, serias.map(nos).join("\n")).toBeLessThanOrEqual(TETO[rota] ?? 0);
   });
