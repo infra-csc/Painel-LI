@@ -129,7 +129,7 @@ export function DialogoEnviarNota({ alvo, enviar, onClose }: { alvo: AlvoDaNota 
             {tentou && !arquivo ? <p role="alert" className="m-0 text-xs font-medium text-danger">Anexe a nota fiscal.</p> : <p className="m-0 text-2xs text-muted-foreground">PDF, JPG ou PNG, até 10 MB.</p>}
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="oc-nota-valor">Valor da nota (R$)</Label>
               <CurrencyInput id="oc-nota-valor" value={valor} onChange={setValor} aria-label="Valor da nota em reais"

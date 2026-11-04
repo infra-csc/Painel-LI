@@ -224,7 +224,7 @@ export default function UniversalFilters({ filters, onFiltersChange, opcoes }: U
                 )}
               </button>
             </PopoverTrigger>
-            <PopoverContent align="start" collisionPadding={12} className="w-[min(560px,calc(100vw-24px))] p-0 rounded-xl overflow-hidden">
+            <PopoverContent align="start" collisionPadding={12} className="w-[min(560px,calc(100vw-24px))] p-0 rounded-xl">
               <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-border">
                 <span className="text-sm font-semibold text-foreground">Filtros</span>
                 {ligadosEmFiltros > 0 && (

@@ -80,7 +80,7 @@ export function ValidationSkeleton({ label }: { label: string }) {
             </div>
           ))}
         </div>
-        <div className="grid gap-2.5 md:grid-cols-2 xl:hidden">
+        <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:hidden">
           {OSSOS.slice(0, 4).map(([a, b], i) => (
             <div key={i} className="space-y-2.5 rounded-xl border border-border bg-card p-4">
               <div className="val-osso h-4" style={{ width: a }} />

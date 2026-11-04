@@ -32,7 +32,7 @@ function ConfirmarEvento({ e }: { e: EventoAConfirmar }) {
           <PlaneLanding className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />{e.sugerido ? "Confirmar ou trocar" : "Informar aeroporto"}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" collisionPadding={12} className="w-[min(320px,calc(100vw-24px))] overflow-hidden rounded-xl p-0">
+      <PopoverContent align="end" collisionPadding={12} className="w-[min(320px,calc(100vw-24px))] rounded-xl p-0">
         <FormDoAeroportoDoEvento eventId={e.eventId} nomeDoEvento={e.nome} sugestoes={e.sugestoes} atual={e.sugerido} onPronto={() => setAberto(false)} />
       </PopoverContent>
     </Popover>
@@ -121,7 +121,7 @@ export function SeloDeAeroportoSugerido({ vagaId, eventId, nomeDoEvento, iata, o
           sugerido · <span className="ml-0.5 underline decoration-dotted underline-offset-2">trocar</span>
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" collisionPadding={12} className="w-[min(320px,calc(100vw-24px))] overflow-hidden rounded-xl p-0" onClick={(e) => e.stopPropagation()}>
+      <PopoverContent align="start" collisionPadding={12} className="w-[min(320px,calc(100vw-24px))] rounded-xl p-0" onClick={(e) => e.stopPropagation()}>
         <FormDoAeroportoDoEvento eventId={eventId} nomeDoEvento={nomeDoEvento} sugestoes={opcoes} atual={iata} onPronto={() => setAberto(false)} />
       </PopoverContent>
     </Popover>

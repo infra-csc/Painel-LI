@@ -112,7 +112,7 @@ export function EventSection({ form, events, grid }: EventSectionProps) {
                     </Button>
                   </FormControl>
                 </PopoverTrigger>
-                <PopoverContent className="w-[min(520px,calc(100vw-24px))] lg:w-[var(--radix-popover-trigger-width)] p-0 rounded-xl overflow-hidden" align="start" collisionPadding={12}>
+                <PopoverContent className="w-[min(520px,calc(100vw-24px))] lg:w-[var(--radix-popover-trigger-width)] p-0 rounded-xl" align="start" collisionPadding={12}>
                   <Command>
                     <CommandInput placeholder="Buscar evento ou local…" />
                     <CommandList className="max-h-[320px]">

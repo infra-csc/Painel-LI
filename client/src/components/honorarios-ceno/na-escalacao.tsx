@@ -52,7 +52,8 @@ export function BotaoHonorariosDoEvento({ eventId, onAbrir }: { eventId: string 
       className="esc-alvo relative inline-flex h-[34px] shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-sm font-medium text-slate-700 shadow-1 transition-colors hover:border-success/40 hover:bg-success-soft hover:text-success focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:px-3"
     >
       <HandCoins className="h-4 w-4 text-success-strong" aria-hidden="true" />
-      <span className="hidden sm:inline">{rotulo}</span>
+      {/* Em tablet o "do evento" sai: o botão empurrava o Exportar para fora da tela (04/11). */}
+      <span className="hidden sm:inline">Honorários{eventId && <span className="hidden lg:inline"> do evento</span>}</span>
       {pendentes > 0 && (
         <span aria-hidden="true" className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-warning-soft px-1.5 text-2xs font-semibold tabular-nums text-warning">{pendentes}</span>
       )}

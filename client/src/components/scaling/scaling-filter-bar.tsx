@@ -148,7 +148,7 @@ function PopoverDeMarcacao({ icone, rotulo, vazio, placeholder, testid, marcados
       <PopoverTrigger asChild>
         <BotaoFiltro ativo={ids.length > 0} icone={icone} texto={texto} testid={`button-filtro-${testid}`} />
       </PopoverTrigger>
-      <PopoverContent align="start" collisionPadding={12} className="w-[min(420px,calc(100vw-24px))] p-0 rounded-xl overflow-hidden">
+      <PopoverContent align="start" collisionPadding={12} className="w-[min(420px,calc(100vw-24px))] p-0 rounded-xl">
         <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border bg-background">
           <Search className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />
           <input
@@ -320,7 +320,7 @@ export default function ScalingFilterBar(p: Props) {
                 maxW="max-w-[200px]"
               />
             </PopoverTrigger>
-            <PopoverContent align="start" collisionPadding={12} className="w-[min(560px,calc(100vw-24px))] p-0 rounded-xl overflow-hidden">
+            <PopoverContent align="start" collisionPadding={12} className="w-[min(560px,calc(100vw-24px))] p-0 rounded-xl">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 px-3.5 py-3 border-b border-border">
                 <span className="text-sm font-semibold text-foreground">Filtros</span>
                 {/* Dentro da lista OU, entre listas E: escrito porque é o que

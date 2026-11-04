@@ -72,7 +72,7 @@ export function EsqueletoDaAnalise({ paineis = 2, linhas = 5, numeros = 4 }: { p
           ))}
         </div>
       )}
-      <div aria-hidden="true" className="grid gap-4 xl:grid-cols-2">
+      <div aria-hidden="true" className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {Array.from({ length: paineis }).map((_, p) => (
           <div key={p} className="rounded-xl border border-border bg-card">
             <div className="space-y-1.5 border-b border-border px-4 py-3"><div className="pas-osso h-3.5 w-44" /><div className="pas-osso h-2.5 w-64" /></div>
@@ -124,7 +124,7 @@ export function ErroDaAnalise({ erro, onTentar }: { erro: unknown; onTentar: () 
 export function Frases({ itens, testid = "frases-do-topo" }: { itens: Array<{ chave: string; texto: ReactNode; fonte: "pesquisado" | "pago" | "estimado"; tom?: "bom" | "ruim" | null }>; testid?: string }) {
   if (itens.length === 0) return null;
   return (
-    <ul className="m-0 grid list-none gap-px overflow-hidden rounded-xl border border-border bg-border p-0 lg:grid-cols-2" data-testid={testid}>
+    <ul className="m-0 grid grid-cols-1 list-none gap-px overflow-hidden rounded-xl border border-border bg-border p-0 lg:grid-cols-2" data-testid={testid}>
       {itens.map((f, i) => (
         <li key={f.chave} className={cn("flex items-start gap-3 bg-card px-4 py-3.5", itens.length % 2 === 1 && i === itens.length - 1 && "lg:col-span-2")}>
           <Fonte tipo={f.fonte} className="mt-0.5" />

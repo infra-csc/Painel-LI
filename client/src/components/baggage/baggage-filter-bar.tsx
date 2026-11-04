@@ -59,7 +59,7 @@ function Ordenar({ ordem, onOrdem }: { ordem: Ordem; onOrdem: (o: Ordem) => void
           {atual.nome}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" collisionPadding={12} className="w-[244px] p-0 rounded-xl overflow-hidden">
+      <PopoverContent align="end" collisionPadding={12} className="w-[244px] p-0 rounded-xl">
         <p className="m-0 px-3.5 py-2.5 border-b border-border text-sm font-semibold text-foreground">Ordenar por</p>
         <div role="radiogroup" aria-label="Ordenar por" className="flex flex-col gap-px p-1.5">
           {ORDENAR_POR.map((o) => {

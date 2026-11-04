@@ -169,7 +169,7 @@ export function FiltroDeLista({ valor, onChange, opcoes, testid, larguraPopover 
       <PopoverTrigger asChild>
         <Gatilho ativo={!noPadrao} texto={atual?.nome ?? ""} testid={testid} />
       </PopoverTrigger>
-      <PopoverContent align="start" className="p-0 rounded-xl overflow-hidden" style={{ width: larguraPopover }}>
+      <PopoverContent align="start" className="p-0 rounded-xl" style={{ width: larguraPopover }}>
         <div className="p-1.5">
           {opcoes.map((o) => {
             const marcada = o.id === valor;
@@ -217,7 +217,7 @@ export function FiltroUnico({ valor, onChange, opcoes, rotuloTodos, placeholderB
       <PopoverTrigger asChild>
         <Gatilho ativo={valor !== "all"} texto={escolhida?.nome ?? rotuloTodos} testid={testid} />
       </PopoverTrigger>
-      <PopoverContent align="start" className="p-0 rounded-xl overflow-hidden" style={{ width: larguraPopover }}>
+      <PopoverContent align="start" className="p-0 rounded-xl" style={{ width: larguraPopover }}>
         <Lista
           opcoes={opcoes}
           busca={busca}
@@ -268,7 +268,7 @@ export function FiltroMultiplo({ valores, onChange, opcoes, rotuloTodos, placeho
       <PopoverTrigger asChild>
         <Gatilho ativo={valores.length > 0} texto={texto} testid={testid} />
       </PopoverTrigger>
-      <PopoverContent align="start" className="p-0 rounded-xl overflow-hidden" style={{ width: larguraPopover }}>
+      <PopoverContent align="start" className="p-0 rounded-xl" style={{ width: larguraPopover }}>
         <Lista
           opcoes={opcoes}
           busca={busca}

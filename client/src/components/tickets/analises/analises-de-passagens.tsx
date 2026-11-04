@@ -54,7 +54,7 @@ function Esqueleto() {
           <div key={i} className="space-y-2 bg-card px-4 py-3.5"><div className="pas-osso h-3 w-20" /><div className="pas-osso h-6 w-28" /><div className="pas-osso h-2.5 w-24" /></div>
         ))}
       </div>
-      <div aria-hidden="true" className="grid gap-4 xl:grid-cols-2">{painel(7)}{painel(6)}</div>
+      <div aria-hidden="true" className="grid grid-cols-1 gap-4 xl:grid-cols-2">{painel(7)}{painel(6)}</div>
     </div>
   );
 }

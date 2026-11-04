@@ -123,7 +123,7 @@ export function AjustesDaBusca() {
         </div>
       }
     >
-      <div className="grid gap-x-8 gap-y-5 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-x-8 gap-y-5 lg:grid-cols-3">
         <fieldset className="m-0 min-w-0 border-0 p-0">
           <legend className="mb-2 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">Teto por trecho</legend>
           <Campo id="aj-teto" rotulo="Justificar acima de" sufixo="% do típico" valor={r.tetoPorTrechoPct} onChange={(v) => setR({ ...r, tetoPorTrechoPct: v })} erro={erros.tetoPorTrechoPct} testid="ajuste-teto-trecho"

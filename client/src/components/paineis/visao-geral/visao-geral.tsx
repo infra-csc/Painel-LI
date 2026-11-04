@@ -133,7 +133,7 @@ export default function VisaoGeral() {
                 <div key={i} className="space-y-2 bg-card px-4 py-3"><Skeleton className="h-3 w-24" /><Skeleton className="h-6 w-10" /><Skeleton className="h-3 w-28" /></div>
               ))}
             </div>
-            <div className="grid gap-4 lg:grid-cols-2">{[0, 1, 2, 3].map((i) => <EsqueletoDoCartao key={i} />)}</div>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">{[0, 1, 2, 3].map((i) => <EsqueletoDoCartao key={i} />)}</div>
           </div>
         ) : (
           <div className="space-y-4">
@@ -167,7 +167,7 @@ export default function VisaoGeral() {
               </p>
             )}
 
-            <div className="grid items-start gap-4 lg:grid-cols-2">
+            <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
               <BlocoDeAtrasos
                 id="bloco-passagens"
                 titulo="Passagens fora do prazo"

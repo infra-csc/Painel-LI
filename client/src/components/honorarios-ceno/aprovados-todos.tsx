@@ -303,7 +303,7 @@ function Tabela({ linhas, comEvento, legenda, onAbrir, onInformarOc }: {
   const largo = useMediaQuery("(min-width: 1280px)");
   if (!largo) {
     return (
-      <ul className="grid gap-2.5 md:grid-cols-2" aria-label={legenda}>
+      <ul className="grid grid-cols-1 gap-2.5 md:grid-cols-2" aria-label={legenda}>
         {linhas.map((h) => (
           <CartaoDoAprovado key={h.id} h={h} comEvento={comEvento}
             onAbrir={onAbrir ? () => onAbrir(h) : undefined}

@@ -32,7 +32,7 @@ export function EsqueletoDaLista({ label, linhas = 5 }: { label: string; linhas?
           </div>
         ))}
       </div>
-      <div className="grid gap-2.5 md:grid-cols-2 xl:hidden" aria-hidden="true">
+      <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:hidden" aria-hidden="true">
         {OSSOS.slice(0, 4).map(([a, b], i) => (
           <div key={i} className="space-y-2.5 rounded-xl border border-border bg-card p-4">
             <div className="flex gap-1.5"><div className="val-osso h-5 w-16 rounded-full" /><div className="val-osso h-5 w-16 rounded-full" /></div>

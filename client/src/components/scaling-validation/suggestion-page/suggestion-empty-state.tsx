@@ -113,7 +113,7 @@ export function ProximosPassos() {
   return (
     <section aria-labelledby="sug-proximos" className="sug-entra rounded-xl border border-border bg-card px-5 py-4 shadow-[0_1px_2px_hsl(222_47%_11%/0.04)]" data-testid="sug-proximos-passos">
       <h2 id="sug-proximos" className="text-[13px] font-semibold text-foreground">O que acontece agora</h2>
-      <ol className="mt-3 grid gap-3 md:grid-cols-3 md:gap-0">
+      <ol className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-0">
         {passos.map((p, i) => (
           <li key={p.n} className={cn("flex gap-3 md:px-4", i === 0 && "md:pl-0", i > 0 && "md:border-l md:border-border")}>
             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-soft text-xs font-bold tabular-nums text-primary" aria-hidden="true">{p.n}</span>

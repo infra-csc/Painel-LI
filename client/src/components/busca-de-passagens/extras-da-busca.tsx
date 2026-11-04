@@ -103,7 +103,7 @@ export function AlertasDeGrupo({ alertas, onSelecionar }: { alertas: AlertaDeGru
             </div>
           </div>
           {aberto === a.chave && (
-            <ul className="m-0 grid list-none gap-x-6 gap-y-1 border-t border-info/20 bg-card/70 px-4 py-2.5 text-xs sm:grid-cols-2 lg:grid-cols-3">
+            <ul className="m-0 grid grid-cols-1 list-none gap-x-6 gap-y-1 border-t border-info/20 bg-card/70 px-4 py-2.5 text-xs sm:grid-cols-2 lg:grid-cols-3">
               {a.vagas.map((v) => (
                 <li key={v.vagaId} className="flex min-w-0 items-center gap-2"><span className="font-mono font-semibold text-primary">#{v.numero ?? "?"}</span><span className="truncate text-slate-700">{toTitleCase(v.nome)}</span></li>
               ))}

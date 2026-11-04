@@ -505,7 +505,7 @@ export default function HonorariosCenoPage() {
               : <EstadoDaValidacao icone={<CheckCircle2 aria-hidden="true" />} titulo="Nada a liberar" texto={t.aguardando > 0 ? `Tudo o que foi aprovado já tem verba. Há ${brl(t.aguardando)} aguardando o aprovador da escala.` : "Tudo o que foi aprovado já tem verba liberada."} testId="hon-fin-nada-a-liberar" />
           ) : (
             <PorEvento linhas={aLiberar} numeros={numerosDoEvento} render={(g) => !largo ? (
-              <ul className="grid gap-2.5 md:grid-cols-2">{g.map((h) => <CartaoALiberar key={h.id} h={h} onLiberar={() => setLiberando(h)} onHistorico={() => setHistoricoId(h.id)} />)}</ul>
+              <ul className="grid grid-cols-1 gap-2.5 md:grid-cols-2">{g.map((h) => <CartaoALiberar key={h.id} h={h} onLiberar={() => setLiberando(h)} onHistorico={() => setHistoricoId(h.id)} />)}</ul>
             ) : (
               <div className="apr-tabela xl:rounded-xl xl:border xl:border-border xl:bg-card xl:shadow-[0_1px_2px_hsl(222_47%_11%/0.04)]">
                 <table className="w-full table-fixed text-sm">

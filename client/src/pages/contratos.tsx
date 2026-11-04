@@ -347,7 +347,7 @@ export default function ContratosPage() {
                   </table>
                 </div>
               ) : (
-                <ul className="grid gap-2.5 md:grid-cols-2" data-testid="ctr-cartoes">{filtrados.map((c) => <CartaoDoContrato key={c.id} c={c} onAbrir={() => setUrl({ contrato: c.id })} />)}</ul>
+                <ul className="grid grid-cols-1 gap-2.5 md:grid-cols-2" data-testid="ctr-cartoes">{filtrados.map((c) => <CartaoDoContrato key={c.id} c={c} onAbrir={() => setUrl({ contrato: c.id })} />)}</ul>
               )}
               <p className="flex items-center gap-1.5 text-2xs text-muted-foreground">
                 <BadgeCheck className="h-3.5 w-3.5" aria-hidden="true" />

@@ -69,7 +69,7 @@ export function JaAtuei({ aviso, className }: {
           Já atuei
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" sideOffset={6} collisionPadding={12} aria-labelledby={tituloId} className="w-[min(340px,calc(100vw-24px))] p-0 rounded-xl overflow-hidden">
+      <PopoverContent align="end" sideOffset={6} collisionPadding={12} aria-labelledby={tituloId} className="w-[min(340px,calc(100vw-24px))] p-0 rounded-xl">
         <div className="px-4 pt-3.5 pb-3">
           <p id={tituloId} className="m-0 text-sm font-semibold text-foreground">Marcar como resolvida?</p>
           <p className="m-0 mt-1 text-xs leading-relaxed text-muted-foreground">

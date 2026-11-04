@@ -92,7 +92,7 @@ export function LogisticsPanel({ row, disabled, onChangeRow, workDays, eventos =
   );
   return (
     <div className="space-y-3.5">
-      <div className="grid gap-x-8 gap-y-4 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-x-8 gap-y-4 xl:grid-cols-2">
         <fieldset className="min-w-0">
           <legend className={GROUP}><PlaneTakeoff className="h-3.5 w-3.5 text-primary" aria-hidden="true" /> Ida</legend>
           <TrechoDaPerna perna="ida" valor={row} eventos={eventos} disabled={disabled} idBase={id} onPatch={patchTrechos} contexto={row.functionName} className="mt-2" />

@@ -102,7 +102,7 @@ export default function ScalingPeriodFilter<T extends PeriodRow>({ valor, onChan
         </button>
       </PopoverTrigger>
 
-      <PopoverContent align="start" collisionPadding={12} className="w-[min(460px,calc(100vw-24px))] max-h-[min(80vh,640px)] overflow-y-auto p-0 rounded-xl">
+      <PopoverContent align="start" collisionPadding={12} className="w-[min(460px,calc(100vw-24px))] p-0 rounded-xl">
         <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-border">
           <span className="text-sm font-semibold text-foreground">{datasDoEvento ? "Período" : "Período da escala"}</span>
           <span className="text-xs text-muted-foreground truncate">{hojeBr}</span>

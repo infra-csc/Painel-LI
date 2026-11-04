@@ -155,7 +155,7 @@ export function StepValues({ s, selectedCollab, isPending }: { s: SplitState; se
 
       {/* Body — a partir de 768px, duas colunas: Diárias + Mobilidade | Alimentação */}
       <div className="overflow-y-auto flex-1 px-4 sm:px-6 py-4 bg-surface-muted" data-testid="split-passo2-corpo">
-        <div className="grid gap-4 md:grid-cols-2 md:items-start">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-start">
           <div className="space-y-4 min-w-0">
             <DiariasCard s={s} />
             <MobilidadeCard s={s} />

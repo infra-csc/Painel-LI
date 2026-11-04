@@ -86,7 +86,7 @@ export function LiberacaoDialog({ h, onClose, faltamNoEvento = 0 }: {
             </dl>
             <BarraDaVerba aprovado={aprovado} liberado={h.liberado} rotulo={false} />
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="hon-lib-data">Data da liberação</Label>
               <Input id="hon-lib-data" type="date" className="h-10 rounded-lg bg-card" value={data} onChange={(e) => { setErro(null); setData(e.target.value); }} />

@@ -104,7 +104,7 @@ export interface EventsListProps extends Omit<EventRowActionsProps, "event"> {
 export function EventsList({ events, escalacoes, empty, ...acoes }: EventsListProps) {
   if (events.length === 0) return <>{empty}</>;
   return (
-    <ul role="list" aria-label="Eventos" className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+    <ul role="list" aria-label="Eventos" className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
       {events.map(ev => (
         <li key={ev.id} className="min-w-0">
           <EventCard ev={ev} escalacoes={escalacoes[ev.id] ?? 0} {...acoes} />

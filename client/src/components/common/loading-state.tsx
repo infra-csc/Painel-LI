@@ -26,7 +26,7 @@ export function LoadingState({
         role="status"
         aria-live="polite"
         aria-label={label}
-        className={cn("grid gap-4 sm:grid-cols-2 lg:grid-cols-3", className)}
+        className={cn("grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3", className)}
       >
         {items.map((_, i) => (
           <div key={i} className="rounded-xl border border-border bg-card p-4 space-y-3">

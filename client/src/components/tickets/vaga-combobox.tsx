@@ -110,7 +110,7 @@ export default function VagaCombobox({
         </button>
       </PopoverTrigger>
 
-      <PopoverContent align="start" sideOffset={4} className="p-0 w-[460px] bg-card border border-border rounded-xl shadow-2 overflow-hidden z-[60]">
+      <PopoverContent align="start" sideOffset={4} className="p-0 w-[460px] bg-card border border-border rounded-xl shadow-2 z-[60]">
         <div className="flex items-center gap-2 bg-surface-muted border-b border-border px-3 py-2.5">
           <Search className="w-3.5 h-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
           <input

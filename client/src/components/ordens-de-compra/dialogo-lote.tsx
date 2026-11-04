@@ -239,7 +239,7 @@ export function DialogoLote({ aberto, nomeDoEvento, previaDoLote, confirmarLote,
 
         {passo === "resultado" && resultado && (
           <div className="prs-dialogo-corpo space-y-3 px-6 py-5" data-testid="oc-lote-resultado">
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               <div className="rounded-lg border border-success/30 bg-success-soft px-3 py-2.5">
                 <p className="m-0 text-2xs font-semibold uppercase tracking-[0.05em] text-success">Registradas</p>
                 <p className="m-0 text-xl font-semibold tabular-nums text-success" data-testid="oc-lote-registradas">{resultado.registradas}</p>

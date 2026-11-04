@@ -106,7 +106,7 @@ export function SeletorDeEvento({ eventos, valor, aoEscolher, formatarPeriodo, d
 
       {aberto && (
         <div
-          className="pas-sobe absolute left-0 top-[46px] z-[60] w-[420px] max-w-[calc(100vw-24px)] overflow-hidden rounded-xl border bg-card shadow-3"
+          className="pas-sobe absolute left-0 top-[46px] z-[60] w-[420px] max-w-[calc(100vw-24px)] overflow-hidden rounded-xl border bg-card shadow-3 max-sm:fixed max-sm:inset-x-3 max-sm:top-[112px] max-sm:w-auto max-sm:max-w-none"
           data-testid="mirror-event-dropdown"
         >
           <div className="flex items-center gap-2 border-b px-3 py-2.5">

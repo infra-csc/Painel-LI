@@ -36,7 +36,7 @@ export const DIALOG_SHELL = "p-0 gap-0 flex flex-col max-h-[88vh] overflow-hidde
  */
 export const DIALOG_SHELL_WIDE = `${DIALOG_SHELL} max-w-5xl`;
 /** Duas colunas a partir de lg: dias/diárias/observações | ida e volta. */
-export const DIALOG_TWO_COLS = "grid gap-4 lg:grid-cols-2 lg:items-start";
+export const DIALOG_TWO_COLS = "grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start";
 // shrink-0: sem isto o cabeçalho é comprimido pelo corpo num diálogo alto e
 // o título e a descrição se sobrepõem (visto ao vivo em 1568×688).
 export const DIALOG_HEADER = "shrink-0 px-6 pt-6 pb-3 border-b border-border pr-12";

@@ -100,7 +100,7 @@ export function MirrorToolbar({
                 )}
               </button>
             </PopoverTrigger>
-            <PopoverContent className="w-[min(520px,calc(100vw-24px))] overflow-hidden rounded-xl p-0" align="end" collisionPadding={12}>
+            <PopoverContent className="w-[min(520px,calc(100vw-24px))] rounded-xl p-0" align="end" collisionPadding={12}>
               <div className="flex items-center gap-2 border-b border-border px-3.5 py-2.5">
                 <span className="text-sm font-semibold text-foreground">Filtros</span>
                 {activeFilterCount > 0 && (
@@ -182,7 +182,7 @@ export function MirrorToolbar({
                 </TooltipTrigger>
                 <TooltipContent>Densidade e blocos da grade</TooltipContent>
               </Tooltip>
-              <PopoverContent className="w-64 overflow-hidden rounded-xl p-0" align="end" collisionPadding={12}>
+              <PopoverContent className="w-64 rounded-xl p-0" align="end" collisionPadding={12}>
                 <div className="border-b border-border px-3.5 py-2.5">
                   <p className="text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">Densidade</p>
                   <div className="mt-1.5 grid grid-cols-2 gap-0.5 rounded-lg border border-border bg-background p-[3px]" role="radiogroup" aria-label="Densidade da grade">

@@ -172,7 +172,7 @@ export function MapaDeAcesso({ u, nome, extra }: { u: Pick<User, "id" | "role">;
           </span>
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" collisionPadding={12} className="w-[min(420px,calc(100vw-24px))] p-0 rounded-xl overflow-hidden">
+      <PopoverContent align="start" collisionPadding={12} className="w-[min(420px,calc(100vw-24px))] p-0 rounded-xl">
         <div className="px-4 pt-3 pb-2.5 border-b border-border">
           <p className="m-0 text-sm font-semibold text-foreground">
             {perfil} <span className="font-normal text-muted-foreground">· {n} de {TOTAL_DE_TELAS} telas</span>

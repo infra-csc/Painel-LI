@@ -93,7 +93,7 @@ export function QuadroDaConferencia({ conferencia, className }: { conferencia: C
   const dif = conferencia.valor.diferenca;
   return (
     <div className={cn("min-w-0", className)} data-testid="quadro-da-conferencia">
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <Item titulo="Nº da OC" item={conferencia.oc} formatar={(v) => v} />
         <Item titulo="Valor" item={conferencia.valor} formatar={reais}
           extra={dif != null && dif !== 0 ? `${dif > 0 ? "+" : "−"}${reais(Math.abs(dif))} ${dif > 0 ? "acima" : "abaixo"} da OC` : null} />

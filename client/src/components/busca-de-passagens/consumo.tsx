@@ -129,7 +129,7 @@ export function AbaConsumo() {
         <Numero rotulo="Fornecedor" valor={d.fornecedor ? (d.fornecedor.simulado ? "Simulado" : "Ignav") : "Não configurado"} sub={d.fornecedor ? (d.fornecedor.simulado ? "preços fictícios (sem a chave)" : "LATAM, GOL e Azul · US$ 2 a cada mil após as grátis") : "falta o Secret IGNAV_API_KEY"} tom={!d.fornecedor ? "alerta" : undefined} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Painel
           titulo="Consultas por mês"
           pergunta="Quantas consultas de verdade e quantas o cache poupou — últimos 6 meses"

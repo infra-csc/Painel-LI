@@ -63,8 +63,10 @@ export function RowActions({ row, onValidate, onAdjust, onDelete, onOpenDetail, 
   const mayValidate = onValidate && canValidate(row);
   const mayRequest = canRequestChange(row);
   const reason = semMotivo ? null : motivoDaTrava(row, !!(mayValidate || mayRequest));
-  /** Espaço do tamanho do botão ausente (só na tabela). */
-  const vazio = (w: string) => (compact ? null : <span className={cn("inline-block h-8", w)} aria-hidden="true" />);
+  /** Espaço do tamanho do botão ausente: só na tabela e só quando a tela permite agir. No modo leitura
+   *  a coluna tem 56px, e as reservas de 150px saíam da tela com o chevron junto (04/11). */
+  const temAcoes = !!(onValidate || onAdjust || onDelete);
+  const vazio = (w: string) => (compact || !temAcoes ? null : <span className={cn("inline-block h-8", w)} aria-hidden="true" />);
   const n = row.inclusionNumber;
   return (
     <div className={cn("inline-flex items-center gap-0.5", compact && "flex-wrap justify-end gap-1")}>

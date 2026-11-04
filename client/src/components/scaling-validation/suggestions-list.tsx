@@ -272,12 +272,12 @@ export function SuggestionsList({
           {groups.map((g) => (
             <section key={g.key} aria-label={`Evento ${g.name}`} className="space-y-2">
               <h3 className="px-1"><GroupHeading g={g} /></h3>
-              <ul className="grid gap-2.5 md:grid-cols-2" aria-label={`Vagas sugeridas — ${g.name}`}>{g.rows.map(card)}</ul>
+              <ul className="grid grid-cols-1 gap-2.5 md:grid-cols-2" aria-label={`Vagas sugeridas — ${g.name}`}>{g.rows.map(card)}</ul>
             </section>
           ))}
         </div>
       ) : (
-        <ul className="grid gap-2.5 md:grid-cols-2 xl:hidden" aria-label="Vagas sugeridas">
+        <ul className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:hidden" aria-label="Vagas sugeridas">
           {rows.map(card)}
         </ul>
       )}

@@ -73,7 +73,7 @@ export function PilulaDeFalta({ falta, nomeDoEvento, ajuste, onAjustar, podeCorr
           <Icone className="h-3 w-3 shrink-0" aria-hidden="true" />{rotuloDaFalta(falta)}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" collisionPadding={12} className="w-[min(320px,calc(100vw-24px))] p-0 rounded-xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <PopoverContent align="end" collisionPadding={12} className="w-[min(320px,calc(100vw-24px))] p-0 rounded-xl" onClick={(e) => e.stopPropagation()}>
         <CorrecaoDaFalta falta={falta} nomeDoEvento={nomeDoEvento} ajuste={ajuste} onAjustar={(p) => { onAjustar(p); setAberto(false); }} onPronto={() => setAberto(false)} />
       </PopoverContent>
     </Popover>

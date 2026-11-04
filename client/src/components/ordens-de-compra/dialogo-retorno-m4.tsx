@@ -207,7 +207,7 @@ export function DialogoRetornoM4({ aberto, onClose }: { aberto: boolean; onClose
             {avisoDoLayout}
             <div className="rounded-lg border border-border bg-card px-3.5 py-3">
               <p className="m-0 text-xs font-semibold text-foreground">Colunas lidas (pelos títulos, em qualquer ordem)</p>
-              <ul className="m-0 mt-1.5 grid list-none gap-x-4 gap-y-1 p-0 text-2xs leading-4 text-slate-600 sm:grid-cols-2" data-testid="oc-retorno-colunas">
+              <ul className="m-0 mt-1.5 grid grid-cols-1 list-none gap-x-4 gap-y-1 p-0 text-2xs leading-4 text-slate-600 sm:grid-cols-2" data-testid="oc-retorno-colunas">
                 {colunas.map((c) => (
                   <li key={c.campo} className="min-w-0">
                     <span className="font-medium text-foreground">{c.titulos[0]}</span>{c.obrigatoria ? <span className="text-danger"> *</span> : null}
@@ -283,7 +283,7 @@ export function DialogoRetornoM4({ aberto, onClose }: { aberto: boolean; onClose
 
         {passo === "resultado" && resultado && (
           <div className="prs-dialogo-corpo space-y-3 px-6 py-5" data-testid="oc-retorno-resultado">
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               <Cifra rotulo="Aplicadas" n={resultado.aplicadas} tom="sucesso" />
               <Cifra rotulo="Sem mudança" n={resultado.semMudanca} tom="neutro" />
               <Cifra rotulo="Ficaram de fora" n={resultado.comProblema + resultado.recusadas.length} tom="perigo" />

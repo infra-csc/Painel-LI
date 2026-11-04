@@ -45,7 +45,7 @@ export function AttachmentList({ ids, label, openAttachment }: {
     );
   }
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       {ids.map((attachmentId, index) => (
         <LinhaDeAnexo key={attachmentId} titulo={`${label} ${index + 1}`} onAbrir={() => openAttachment(attachmentId, `${label} ${index + 1}`)} />
       ))}

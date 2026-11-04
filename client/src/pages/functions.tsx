@@ -285,7 +285,7 @@ export default function Functions() {
           <div className="flex flex-col gap-2">
             {faixa("rounded-xl border border-border bg-card")}
             <DataTable columns={colunasDeFuncoes} rows={sortedFunctions} getRowId={f => f.id} caption="Funções cadastradas"
-              cardMode="always" cardRender={cartao} cardListClassName="grid sm:grid-cols-2 gap-2" />
+              cardMode="always" cardRender={cartao} cardListClassName="grid grid-cols-1 sm:grid-cols-2 gap-2" />
           </div>
         ) : (
           <div className="fun-moldura bg-card rounded-xl border border-border shadow-1">

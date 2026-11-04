@@ -540,7 +540,7 @@ function LinhaDaEmpreita({ h, eventId, cb, modo }: { h: Honorario; eventId: stri
 
 /** A lista: tabela no desktop largo, cartões abaixo de 1280px. */
 function ListaDoPedido({ modo, valorRotulo, colunaTipo = "Tipo de freela", legenda, children }: { modo: ModoDaLista; valorRotulo: string; colunaTipo?: string; legenda: string; children: ReactNode }) {
-  if (modo === "cartao") return <ul className="grid gap-2.5 md:grid-cols-2" aria-label={legenda}>{children}</ul>;
+  if (modo === "cartao") return <ul className="grid grid-cols-1 gap-2.5 md:grid-cols-2" aria-label={legenda}>{children}</ul>;
   return (
     <div className={cn(MOLDURA, "overflow-hidden")}>
       <table className="w-full table-fixed text-sm">
@@ -869,7 +869,7 @@ function PedidoDoEvento({ eventId, onTrocarEvento, foco: focoInicial, voltarPara
             <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform duration-150", verCasa && "rotate-180")} aria-hidden="true" />
           </button>
           {verCasa && (
-            <ul className="val-entra mt-2 grid gap-1 border-t border-border pt-2 sm:grid-cols-2">
+            <ul className="val-entra mt-2 grid grid-cols-1 gap-1 border-t border-border pt-2 sm:grid-cols-2">
               {d.casa.map((c) => <li key={c.id} className="truncate"><span className="font-mono tabular-nums text-muted-foreground">#{c.inclusionNumber}</span> {c.collaboratorName ?? "—"} · {c.functionName}</li>)}
             </ul>
           )}

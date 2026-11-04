@@ -209,7 +209,7 @@ export function TravelFields({ value, onChange, disabled, idPrefix: p, titulo, l
           pernas não cabiam lado a lado E não encolhiam — a segunda vazava por
           baixo do diálogo, e no celular aparecia rolagem horizontal. `min-w-0`
           nos fieldsets é o que deixa a grade encolher de verdade. */}
-      <div className={emLinha ? "grid gap-4 lg:grid-cols-2" : "space-y-3"}>
+      <div className={emLinha ? "grid grid-cols-1 gap-4 lg:grid-cols-2" : "space-y-3"}>
       <fieldset className="min-w-0 space-y-1.5">
         <legend className={GROUP_TITLE}>
           <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /> Ida

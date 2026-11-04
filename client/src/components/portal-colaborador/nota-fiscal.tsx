@@ -689,7 +689,7 @@ export function TelaDaNotaFiscal({ p }: { p: PrestacaoDoPortal }) {
             <p id={id("valor-dica")} className="m-0 text-[13px] text-muted-foreground">Digite o valor que está na nota. O da OC é {reaisDaPresenca(inst.valor)}.</p>
           )}
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Rotulo htmlFor={id("numero")} opcional>Nº da nota</Rotulo>
             <CampoDoPortal id={id("numero")} inputMode="numeric" autoComplete="off" maxLength={40} placeholder="Ex.: 1234" value={numero} onChange={(ev) => setNumero(ev.target.value)} />

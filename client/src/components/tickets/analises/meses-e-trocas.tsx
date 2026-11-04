@@ -48,7 +48,7 @@ export function TrocasERemarcacoes({ trocas, remarcacoes }: Pick<AnaliseDePassag
       titulo="Trocas e remarcações"
       pergunta="Quanto custou mudar depois da compra"
     >
-      <div className="grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2">
         <div className="bg-card p-4">
           <p className="m-0 flex items-center gap-1.5 text-xs font-medium text-slate-600">
             <ArrowLeftRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />Ficou em trocas

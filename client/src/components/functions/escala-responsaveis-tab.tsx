@@ -128,7 +128,7 @@ function AddManagerButton({ func, role, users, onAdd, onMove, isPending }: {
         </TooltipTrigger>
         <TooltipContent>Adicionar {roleLabel(role)}</TooltipContent>
       </Tooltip>
-      <PopoverContent className="w-[300px] p-0 rounded-xl overflow-hidden" align="start" collisionPadding={12}>
+      <PopoverContent className="w-[300px] p-0 rounded-xl" align="start" collisionPadding={12}>
         <div className="px-3.5 pt-3 pb-2.5 border-b border-border">
           <p className="m-0 text-sm font-semibold text-foreground truncate">Adicionar {roleLabel(role)} · {nomeDaFuncao(func.name)}</p>
           <p className="m-0 mt-0.5 text-xs leading-[18px] text-muted-foreground">{papel.nome} {papel.efeito}</p>

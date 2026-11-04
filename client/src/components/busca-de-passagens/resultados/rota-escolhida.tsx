@@ -86,7 +86,7 @@ function SemVoo({ rota, resultado, saidas, ocupado }: { rota: RotaNaTela; result
       {outras.length > 0 && (
         <div className="mt-4 border-t border-border pt-3.5">
           <p className="m-0 mb-2 text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">O que dá para fazer</p>
-          <ul className="m-0 grid list-none gap-2 p-0 xl:grid-cols-2">
+          <ul className="m-0 grid grid-cols-1 list-none gap-2 p-0 xl:grid-cols-2">
             {outras.map((s, i) => {
               const Icone = s.icone;
               return (

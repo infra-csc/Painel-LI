@@ -101,7 +101,7 @@ export function FiltroDaAuditoria({
           <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" collisionPadding={12} className="overflow-hidden rounded-xl p-0" style={{ width: `min(${largura}px, calc(100vw - 24px))` }}>
+      <PopoverContent align="start" collisionPadding={12} className="rounded-xl p-0" style={{ width: `min(${largura}px, calc(100vw - 24px))` }}>
         {placeholderBusca && (
           <div className="flex items-center gap-2 border-b border-border bg-background px-3 py-2.5">
             <Search className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
